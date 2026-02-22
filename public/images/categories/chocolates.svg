@@ -1,0 +1,8 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="420" rx="24" fill="#f6f1ea"/>
+  <circle cx="180" cy="210" r="110" fill="#8b5a2b" opacity="0.15"/>
+  <rect x="210" y="140" width="220" height="140" rx="22" fill="#8b5a2b"/>
+  <rect x="240" y="115" width="160" height="50" rx="14" fill="#b07c4f"/>
+  <rect x="230" y="210" width="180" height="60" rx="14" fill="#5a3a1c"/>
+  <text x="320" y="320" text-anchor="middle" font-family="'Poppins', 'Inter', sans-serif" font-size="32" fill="#2b1a12">Chocolates</text>
+</svg>

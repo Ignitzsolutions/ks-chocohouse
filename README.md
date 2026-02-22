@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# K S Choco House Web App
 
-## Getting Started
+Next.js (App Router) storefront and ordering flow for **K S Choco House** with:
+- category-based product discovery
+- cart + checkout
+- UPI QR checkout with payment reference verification
+- admin order dashboard + offline invoice generation
 
-First, run the development server:
+## Business Details
+- Brand: `K S Choco House`
+- Tagline: `Ultimate Chocolate Destination`
+- Description: `Indulge in sweetness with our homemade customised cakes and chocolates.`
+- Location: `Sastri Nagar, Proddatur`
+
+## Run Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev -- --port 3006
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3006`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and update if needed:
 
-## Learn More
+```bash
+NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/upi-qr-placeholder.svg
+NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Product Data
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Source: `/Users/srujanreddy/Projects/bakery_ecom/data/products.json`
+- Admin can also create/update products from `/admin/products`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Order Flow
 
-## Deploy on Vercel
+1. Customer adds products on `/menu`.
+2. Cart persists in localStorage on `/cart`.
+3. On `/billing`, customer pays via QR and submits UTR/payment reference.
+4. Order is created with status `Payment Verification Pending`.
+5. Admin verifies payment from `/admin/orders`.
+6. Invoice becomes downloadable after verification.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Admin Pages
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Login: `/admin/login`
+- Orders: `/admin/orders`
+- Products/Categories: `/admin/products`
+- Offline invoice generation: `/admin/invoices`
+
+Default admin credentials:
+- Username: `admin`
+- Password: `admin123`
+
+## Build Check
+
+```bash
+npm run lint
+npm run build
+```

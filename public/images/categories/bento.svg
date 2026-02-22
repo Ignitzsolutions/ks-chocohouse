@@ -1,0 +1,7 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="420" rx="24" fill="#f6f1ea"/>
+  <rect x="160" y="110" width="320" height="200" rx="28" fill="#ffffff" stroke="#8b5a2b" stroke-width="8"/>
+  <circle cx="260" cy="210" r="60" fill="#f2d7c4" stroke="#8b5a2b" stroke-width="6"/>
+  <circle cx="380" cy="210" r="60" fill="#b07c4f" stroke="#8b5a2b" stroke-width="6" opacity="0.9"/>
+  <text x="320" y="330" text-anchor="middle" font-family="'Poppins', 'Inter', sans-serif" font-size="32" fill="#2b1a12">Bento Cakes</text>
+</svg>

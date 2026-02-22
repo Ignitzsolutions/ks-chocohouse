@@ -1,0 +1,10 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="420" rx="24" fill="#f6f1ea"/>
+  <circle cx="330" cy="210" r="130" fill="#b07c4f" opacity="0.18"/>
+  <ellipse cx="320" cy="230" rx="150" ry="60" fill="#fff" stroke="#8b5a2b" stroke-width="8"/>
+  <rect x="220" y="140" width="200" height="80" rx="18" fill="#f2d7c4" stroke="#8b5a2b" stroke-width="6"/>
+  <circle cx="260" cy="150" r="10" fill="#8b5a2b"/>
+  <circle cx="320" cy="145" r="10" fill="#8b5a2b"/>
+  <circle cx="380" cy="150" r="10" fill="#8b5a2b"/>
+  <text x="320" y="330" text-anchor="middle" font-family="'Poppins', 'Inter', sans-serif" font-size="32" fill="#2b1a12">Cakes</text>
+</svg>
