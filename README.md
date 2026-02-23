@@ -10,7 +10,7 @@ Next.js (App Router) storefront and ordering flow for **K S Choco House** with:
 - Brand: `K S Choco House`
 - Tagline: `Ultimate Chocolate Destination`
 - Description: `Indulge in sweetness with our homemade customised cakes and chocolates.`
-- Location: `Sastri Nagar, Proddatur`
+- Location: `2/520, opp. to SRI RAJARAJESWARI RESIDENCY, Sastry Nagar, Bollavaram, Proddatur, Andhra Pradesh 516360, India`
 
 ## Run Locally
 
@@ -26,8 +26,13 @@ Open `http://localhost:3006`.
 Copy `.env.example` to `.env.local` and update if needed:
 
 ```bash
-NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/upi-qr-placeholder.svg
+NEXT_PUBLIC_SITE_URL=http://localhost:3006
+NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/ks-choco-house-upi-qr.png
 NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-password
+ADMIN_AUTH_SECRET=change-this-long-random-secret
+ADMIN_SESSION_TTL_SECONDS=43200
 ```
 
 ## Product Data
@@ -51,9 +56,7 @@ NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR
 - Products/Categories: `/admin/products`
 - Offline invoice generation: `/admin/invoices`
 
-Default admin credentials:
-- Username: `admin`
-- Password: `admin123`
+Admin credentials now come from env variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 
 ## Build Check
 

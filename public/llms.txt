@@ -1,0 +1,18 @@
+# K S Choco House
+
+Website: Set your production domain URL
+Business: 100% eggless cakes and chocolates
+Location: 2/520, opp. to SRI RAJARAJESWARI RESIDENCY, Sastry Nagar, Bollavaram, Proddatur, Andhra Pradesh 516360, India
+
+## Primary pages
+- / (Home)
+- /menu (Category menu with products)
+- /order (How to order)
+- /contact (Contact and location)
+- /policies (Privacy, refund, delivery policies)
+
+## Key facts
+- 100% eggless offerings
+- In-app cart and checkout flow
+- UPI payment reference verification
+- Admin approval before invoice release

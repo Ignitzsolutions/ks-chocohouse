@@ -2,7 +2,13 @@ export const BRAND_NAME = "K S Choco House";
 export const TAGLINE = "Ultimate Chocolate Destination";
 export const DESCRIPTION =
   "Indulge in sweetness with our homemade customised cakes and chocolates.";
-export const LOCATION = "Sastri Nagar, Proddatur";
+export const LOCATION = "Sastry Nagar, Bollavaram, Proddatur";
+export const FULL_ADDRESS =
+  "2/520, opp. to SRI RAJARAJESWARI RESIDENCY, Sastry Nagar, Bollavaram, Proddatur, Andhra Pradesh 516360, India";
+export const CITY = "Proddatur";
+export const STATE = "Andhra Pradesh";
+export const PINCODE = "516360";
+export const COUNTRY_CODE = "IN";
 
 export const INSTAGRAM_URL =
   "https://www.instagram.com/ks_chocohouse?utm_source=qr&igsh=MXM5MDdpbTA5czJzbQ%3D%3D";

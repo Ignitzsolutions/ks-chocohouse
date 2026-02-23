@@ -1,11 +1,30 @@
+import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { JsonLd } from "@/components/seo/json-ld";
+import { BRAND_NAME } from "@/lib/brand";
+import { buildPageMetadata } from "@/lib/seo";
 
 const placeholders = Array.from({ length: 9 }).map((_, i) => i + 1);
 
+export const metadata: Metadata = buildPageMetadata({
+  title: `Gallery | ${BRAND_NAME}`,
+  description: `Browse cake and chocolate designs by ${BRAND_NAME}.`,
+  path: "/gallery",
+  keywords: ["cake gallery", "custom cake designs", "chocolate designs"],
+});
+
 export default function GalleryPage() {
+  const gallerySchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: `${BRAND_NAME} Gallery`,
+    description: "Gallery of eggless cakes and chocolate creations.",
+  };
+
   return (
     <div>
+      <JsonLd data={gallerySchema} />
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="premium-panel space-y-3 rounded-3xl p-6">

@@ -6,7 +6,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { initDb, getDb } from "@/lib/db";
 import {
   BRAND_NAME,
-  LOCATION,
+  FULL_ADDRESS,
   PHONE_NUMBER_DISPLAY,
   WHATSAPP_NUMBER,
 } from "@/lib/brand";
@@ -706,7 +706,7 @@ export async function GET(
       font: fontSans,
       color: colorMuted,
     });
-    page.drawText(`Address: ${LOCATION}`, {
+    page.drawText(`Address: ${FULL_ADDRESS}`, {
       x: CONTENT_X,
       y: footerTop - 20,
       size: 8.8,

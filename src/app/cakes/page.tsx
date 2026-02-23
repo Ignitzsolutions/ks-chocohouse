@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
+import { BRAND_NAME } from "@/lib/brand";
+import { buildPageMetadata } from "@/lib/seo";
 
 const cakes = [
   {
@@ -57,6 +60,13 @@ const filters = [
   "Vegan",
   "Sugar-Free",
 ];
+
+export const metadata: Metadata = buildPageMetadata({
+  title: `Cake Catalog | ${BRAND_NAME}`,
+  description: "Browse premium cake styles and start customization.",
+  path: "/cakes",
+  keywords: ["cake catalog", "custom cake styles", "premium cakes"],
+});
 
 export default function CakesPage() {
   return (

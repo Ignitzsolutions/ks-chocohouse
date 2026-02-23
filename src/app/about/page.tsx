@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { JsonLd } from "@/components/seo/json-ld";
 import { BRAND_NAME, LOCATION } from "@/lib/brand";
+import { buildPageMetadata } from "@/lib/seo";
 
 const standForPoints = [
   "Made with passion and love for baking.",
@@ -8,9 +11,25 @@ const standForPoints = [
   "Made fresh to order in small batches.",
 ];
 
+export const metadata: Metadata = buildPageMetadata({
+  title: `About ${BRAND_NAME} | Home Bakery in Proddatur`,
+  description: `${BRAND_NAME} is a home bakery in ${LOCATION} serving fresh, 100% eggless cakes and chocolates.`,
+  path: "/about",
+  keywords: ["about K S Choco House", "home bakery Proddatur", "eggless bakery"],
+});
+
 export default function AboutPage() {
+  const aboutData = {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    name: `About ${BRAND_NAME}`,
+    description: `${BRAND_NAME} is a home bakery in ${LOCATION} focused on fresh small-batch products.`,
+    inLanguage: "en-IN",
+  };
+
   return (
     <div>
+      <JsonLd data={aboutData} />
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-6 py-10">
         <section className="premium-panel rounded-[34px] p-8 md:p-10">

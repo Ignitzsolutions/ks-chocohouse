@@ -1,5 +1,11 @@
 import Image from "next/image";
-import { BRAND_NAME, TAGLINE, DESCRIPTION, LOCATION, INSTAGRAM_URL } from "@/lib/brand";
+import {
+  BRAND_NAME,
+  TAGLINE,
+  DESCRIPTION,
+  FULL_ADDRESS,
+  INSTAGRAM_URL,
+} from "@/lib/brand";
 
 export function SiteFooter() {
   return (
@@ -29,7 +35,7 @@ export function SiteFooter() {
         </div>
         <div className="space-y-2 text-sm">
           <p className="font-semibold">Location</p>
-          <p className="text-black/60">{LOCATION}</p>
+          <p className="text-black/60">{FULL_ADDRESS}</p>
         </div>
         <div className="space-y-2 text-sm">
           <p className="font-semibold">Social</p>

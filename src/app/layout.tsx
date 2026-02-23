@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Dancing_Script, Open_Sans } from "next/font/google";
 import "./globals.css";
 import { BRAND_NAME, DESCRIPTION, TAGLINE } from "@/lib/brand";
+import { buildPageMetadata, DEFAULT_SEO_KEYWORDS } from "@/lib/seo";
 
 const displayFont = Cormorant_Garamond({
   variable: "--font-display",
@@ -21,10 +22,12 @@ const brandScript = Dancing_Script({
   weight: ["600", "700"],
 });
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: `${BRAND_NAME} | ${TAGLINE} | Proddatur`,
   description: `${DESCRIPTION} ${TAGLINE}.`,
-};
+  path: "/",
+  keywords: DEFAULT_SEO_KEYWORDS,
+});
 
 export default function RootLayout({
   children,

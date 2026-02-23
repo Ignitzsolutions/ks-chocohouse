@@ -1,9 +1,30 @@
+import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { JsonLd } from "@/components/seo/json-ld";
+import { BRAND_NAME } from "@/lib/brand";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: `Policies | ${BRAND_NAME}`,
+  description:
+    "Read privacy, refund, cancellation, and delivery policies for K S Choco House orders.",
+  path: "/policies",
+  keywords: ["bakery refund policy", "cake delivery policy", "privacy policy bakery"],
+});
 
 export default function PoliciesPage() {
+  const policySchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: `${BRAND_NAME} Policies`,
+    description:
+      "Privacy, refund/cancellation, and delivery policy details for customer orders.",
+  };
+
   return (
     <div>
+      <JsonLd data={policySchema} />
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-6 py-12">
         <div className="premium-panel space-y-3 rounded-3xl p-6">

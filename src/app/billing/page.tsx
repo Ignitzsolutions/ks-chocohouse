@@ -23,7 +23,7 @@ type DetailedItem = {
 };
 
 const UPI_QR_IMAGE =
-  process.env.NEXT_PUBLIC_UPI_QR_IMAGE ?? "/images/payments/upi-qr-placeholder.svg";
+  process.env.NEXT_PUBLIC_UPI_QR_IMAGE ?? "/images/payments/ks-choco-house-upi-qr.png";
 const PAYMENT_METHODS = ["UPI QR", "UPI Transfer", "Bank Transfer"] as const;
 
 export default function BillingPage() {
@@ -317,16 +317,16 @@ export default function BillingPage() {
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
                   <p className="text-sm font-semibold text-black/75">Scan & Pay</p>
                   <p className="mt-1 text-xs text-black/55">
-                    Replace this QR with your final UPI QR from the admin side.
+                    Use this UPI QR to complete payment.
                   </p>
                   <div className="mt-3 flex justify-center">
                     <div className="rounded-2xl border border-black/10 bg-white p-2">
                       <Image
                         src={UPI_QR_IMAGE}
                         alt="UPI QR code for payment"
-                        width={220}
-                        height={220}
-                        className="h-[220px] w-[220px] rounded-xl object-cover"
+                        width={240}
+                        height={354}
+                        className="h-auto w-[240px] rounded-xl object-contain"
                         priority
                       />
                     </div>

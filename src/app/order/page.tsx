@@ -1,11 +1,39 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { JsonLd } from "@/components/seo/json-ld";
 import { BRAND_NAME } from "@/lib/brand";
+import { buildPageMetadata, getAbsoluteUrl } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: `Order Online | ${BRAND_NAME}`,
+  description:
+    "Order eggless cakes and chocolates online, checkout in-app, and submit payment reference for quick verification.",
+  path: "/order",
+  keywords: ["order cake online Proddatur", "eggless cake order", "chocolate order online"],
+});
 
 export default function OrderPage() {
+  const orderSchema = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: "Online Cake Ordering",
+    provider: {
+      "@type": "Bakery",
+      name: BRAND_NAME,
+      url: getAbsoluteUrl("/"),
+    },
+    areaServed: "Proddatur",
+    availableChannel: {
+      "@type": "ServiceChannel",
+      serviceUrl: getAbsoluteUrl("/order"),
+    },
+  };
+
   return (
     <div>
+      <JsonLd data={orderSchema} />
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-6 py-12">
         <div className="premium-panel space-y-3 rounded-3xl p-6">

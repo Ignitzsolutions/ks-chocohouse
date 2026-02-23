@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { JsonLd } from "@/components/seo/json-ld";
+import { BRAND_NAME } from "@/lib/brand";
+import { getAbsoluteUrl } from "@/lib/seo";
 
 const cakes = [
   {
@@ -40,6 +44,33 @@ const optionSets = {
   filling: ["Cherry compote", "Salted caramel", "Hazelnut praline", "Berry jam"],
 };
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const cake = cakes.find((item) => item.slug === slug);
+  if (!cake) {
+    return {
+      title: `${BRAND_NAME} | Cake`,
+      robots: { index: false, follow: false },
+    };
+  }
+  const url = getAbsoluteUrl(`/cakes/${cake.slug}`);
+  return {
+    title: `${cake.name} | ${BRAND_NAME}`,
+    description: cake.description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: `${cake.name} | ${BRAND_NAME}`,
+      description: cake.description,
+      url,
+      type: "article",
+    },
+  };
+}
+
 export default function CakeDetailPage({
   params,
 }: {
@@ -51,8 +82,25 @@ export default function CakeDetailPage({
     notFound();
   }
 
+  const detailSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: cake.name,
+    description: cake.description,
+    brand: { "@type": "Brand", name: BRAND_NAME },
+    category: "Cake",
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "USD",
+      price: cake.basePrice,
+      availability: "https://schema.org/InStock",
+      url: getAbsoluteUrl(`/cakes/${cake.slug}`),
+    },
+  };
+
   return (
     <div>
+      <JsonLd data={detailSchema} />
       <SiteHeader />
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="grid gap-10 md:grid-cols-[1.1fr_0.9fr]">
