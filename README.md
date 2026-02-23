@@ -29,6 +29,7 @@ Copy `.env.example` to `.env.local` and update if needed:
 NEXT_PUBLIC_SITE_URL=http://localhost:3006
 NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/ks-choco-house-upi-qr.png
 NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR
+DATABASE_PATH=/tmp/bakery.sqlite
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-this-password
 ADMIN_AUTH_SECRET=change-this-long-random-secret
@@ -57,6 +58,25 @@ ADMIN_SESSION_TTL_SECONDS=43200
 - Offline invoice generation: `/admin/invoices`
 
 Admin credentials now come from env variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`).
+
+## Vercel Deployment (Now)
+
+1. Push this repo to GitHub.
+2. Import project in Vercel.
+3. Framework: `Next.js` (auto-detected).
+4. Set environment variables in Vercel project settings:
+   - `NEXT_PUBLIC_SITE_URL=https://your-domain.com`
+   - `NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/ks-choco-house-upi-qr.png`
+   - `NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR`
+   - `DATABASE_PATH=/tmp/bakery.sqlite`
+   - `ADMIN_USERNAME=...`
+   - `ADMIN_PASSWORD=...`
+   - `ADMIN_AUTH_SECRET=...` (long random string)
+   - `ADMIN_SESSION_TTL_SECONDS=43200`
+5. Deploy.
+
+Important: `DATABASE_PATH=/tmp/bakery.sqlite` is ephemeral on Vercel (demo-safe, not durable).  
+For production persistence, move orders/products to managed DB (Postgres/Supabase/Neon/Turso).
 
 ## Build Check
 

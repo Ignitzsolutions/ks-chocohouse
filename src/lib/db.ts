@@ -4,13 +4,29 @@ import fs from "fs";
 import productsJson from "../../data/products.json";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
 
-const dbPath = path.join(process.cwd(), "data", "bakery.sqlite");
+function resolveDbPath() {
+  const configuredPath = process.env.DATABASE_PATH?.trim();
+  if (configuredPath) {
+    return path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.join(process.cwd(), configuredPath);
+  }
+
+  // Vercel filesystem is read-only except /tmp.
+  if (process.env.VERCEL) {
+    return "/tmp/bakery.sqlite";
+  }
+
+  return path.join(process.cwd(), "data", "bakery.sqlite");
+}
+
+const dbPath = resolveDbPath();
 
 let db: Database.Database | null = null;
 
 export function getDb() {
   if (!db) {
-    const dataDir = path.join(process.cwd(), "data");
+    const dataDir = path.dirname(dbPath);
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }

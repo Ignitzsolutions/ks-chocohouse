@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local sqlite runtime files
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
+# local working assets
+*.enc
+Version1_KS Choco.pdf
+logo.jpeg
