@@ -17,6 +17,8 @@ env:
   AZURE_TENANT_ID: 71d5cfc6-c4a6-4ae1-9e25-c8b74ab9d923
   AZURE_SUBSCRIPTION_ID: e63a31c1-d798-485d-b9ab-c0251ab9f380
   NODE_VERSION: "20"
+  SITE_URL: https://ks-choco-house.azurewebsites.net
+  NEXT_PUBLIC_SITE_URL: https://ks-choco-house.azurewebsites.net
 
 jobs:
   build-and-deploy:
@@ -59,4 +61,3 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: .output
-
