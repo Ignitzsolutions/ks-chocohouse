@@ -67,7 +67,10 @@ export function initDb() {
         paid_at TEXT,
         total_amount INTEGER NOT NULL,
         status TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        status_updated_at TEXT,
+        payment_updated_at TEXT
       )`
     )
     .run();
@@ -143,6 +146,21 @@ export function initDb() {
   } catch {
     // column already exists
   }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN updated_at TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN status_updated_at TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN payment_updated_at TEXT").run();
+  } catch {
+    // column already exists
+  }
 
   instance
     .prepare(
@@ -158,7 +176,25 @@ export function initDb() {
            invoice_ready = CASE
              WHEN invoice_number IS NOT NULL THEN 1
              ELSE COALESCE(invoice_ready, 0)
-           END`
+           END,
+           updated_at = COALESCE(updated_at, created_at),
+           status_updated_at = COALESCE(status_updated_at, created_at),
+           payment_updated_at = COALESCE(payment_updated_at, payment_verified_at, created_at)`
+    )
+    .run();
+
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS order_events (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        from_value TEXT,
+        to_value TEXT,
+        actor TEXT,
+        meta_json TEXT,
+        created_at TEXT NOT NULL
+      )`
     )
     .run();
 
@@ -215,6 +251,29 @@ export function initDb() {
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date, delivery_slot)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status)`
+    )
+    .run();
+  instance
+    .prepare(`CREATE INDEX IF NOT EXISTS idx_orders_source ON orders(source)`)
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_orders_invoice_ready ON orders(invoice_ready)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_orders_total_amount ON orders(total_amount)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_order_events_order_created ON order_events(order_id, created_at)`
     )
     .run();
 

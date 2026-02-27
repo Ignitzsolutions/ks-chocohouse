@@ -126,6 +126,12 @@ export default function AdminInvoicesPage() {
             >
               Back to Orders
             </Link>
+            <Link
+              href="/admin/sales"
+              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold"
+            >
+              Sales Dashboard
+            </Link>
           </div>
 
           <section className="premium-panel mt-8 rounded-3xl p-6">

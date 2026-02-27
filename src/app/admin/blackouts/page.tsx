@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -55,12 +56,20 @@ export default function AdminBlackoutsPage() {
       <div>
         <SiteHeader />
         <main className="mx-auto max-w-4xl px-6 py-10">
-        <div className="space-y-2">
-          <Badge tone="gold">Admin Controls</Badge>
-          <h1 className="text-3xl">Stop Orders on Dates</h1>
-          <p className="text-sm text-black/60">
-            Block deliveries on holidays or fully-booked days.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Badge tone="gold">Admin Controls</Badge>
+            <h1 className="text-3xl">Stop Orders on Dates</h1>
+            <p className="text-sm text-black/60">
+              Block deliveries on holidays or fully-booked days.
+            </p>
+          </div>
+          <Link
+            href="/admin/sales"
+            className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold"
+          >
+            Sales Dashboard
+          </Link>
         </div>
 
         <div className="mt-8 rounded-3xl border border-black/5 bg-white p-6">

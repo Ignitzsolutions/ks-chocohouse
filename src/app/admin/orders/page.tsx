@@ -124,6 +124,12 @@ export default function AdminOrdersPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
+                href="/admin/sales"
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold"
+              >
+                Sales Dashboard
+              </Link>
+              <Link
                 href="/admin/products"
                 className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
               >

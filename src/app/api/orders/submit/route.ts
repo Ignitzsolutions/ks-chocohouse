@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
 import { generateOrderId } from "@/lib/order-id";
+import { recordOrderEvent } from "@/lib/admin-sales";
 
 type NormalizedOrderItem = {
   id: string;
@@ -91,8 +92,8 @@ export async function POST(request: Request) {
     getDb()
       .prepare(
         `INSERT INTO orders
-          (id, cake_name, quantity, customer_name, phone, email, address, pincode, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, source, payment_method, payment_reference, payment_status, txn_id, invoice_number, invoice_ready, paid_at, total_amount, status, created_at)
-          VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @source, @payment_method, @payment_reference, @payment_status, @txn_id, @invoice_number, @invoice_ready, @paid_at, @total_amount, @status, @created_at)`
+          (id, cake_name, quantity, customer_name, phone, email, address, pincode, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, source, payment_method, payment_reference, payment_status, txn_id, invoice_number, invoice_ready, paid_at, total_amount, status, created_at, updated_at, status_updated_at, payment_updated_at)
+          VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @source, @payment_method, @payment_reference, @payment_status, @txn_id, @invoice_number, @invoice_ready, @paid_at, @total_amount, @status, @created_at, @updated_at, @status_updated_at, @payment_updated_at)`
       )
       .run({
         id: orderId,
@@ -119,7 +120,20 @@ export async function POST(request: Request) {
         total_amount: totalAmount,
         status: "Payment Verification Pending",
         created_at: now,
+        updated_at: now,
+        status_updated_at: now,
+        payment_updated_at: now,
       });
+
+    recordOrderEvent({
+      orderId,
+      eventType: "status_changed",
+      fromValue: null,
+      toValue: "Payment Verification Pending",
+      actor: "customer",
+      createdAt: now,
+      meta: { source: "online" },
+    });
 
     return NextResponse.json({
       ok: true,
