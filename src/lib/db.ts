@@ -12,6 +12,11 @@ function resolveDbPath() {
       : path.join(process.cwd(), configuredPath);
   }
 
+  // Azure App Service should store the SQLite file in persistent /home storage.
+  if (process.env.WEBSITE_SITE_NAME || process.env.WEBSITE_INSTANCE_ID) {
+    return "/home/data/bakery.sqlite";
+  }
+
   // Vercel filesystem is read-only except /tmp.
   if (process.env.VERCEL) {
     return "/tmp/bakery.sqlite";
