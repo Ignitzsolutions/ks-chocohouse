@@ -25,11 +25,16 @@ function timingSafeEquals(a: string, b: string) {
 }
 
 function getAdminConfig() {
+  const env = (key: string) => {
+    const value = process.env[key];
+    return typeof value === "string" ? value : "";
+  };
+
   return {
-    username: process.env.ADMIN_USERNAME || "admin",
-    password: process.env.ADMIN_PASSWORD || "admin123",
-    secret: process.env.ADMIN_AUTH_SECRET || "change-this-admin-secret",
-    ttlSeconds: Math.max(60, Number(process.env.ADMIN_SESSION_TTL_SECONDS || 60 * 60 * 12)),
+    username: env("ADMIN_USERNAME") || "admin",
+    password: env("ADMIN_PASSWORD") || "admin123",
+    secret: env("ADMIN_AUTH_SECRET") || "change-this-admin-secret",
+    ttlSeconds: Math.max(60, Number(env("ADMIN_SESSION_TTL_SECONDS") || 60 * 60 * 12)),
   };
 }
 
