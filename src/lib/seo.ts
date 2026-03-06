@@ -65,7 +65,7 @@ export const DEFAULT_SEO_KEYWORDS = [
   "Chocolates Proddatur",
   "Bento cakes Proddatur",
   "Home bakery Sastry Nagar",
-  "Ultimate Chocolate Destination",
+  "Ultimate choco destination",
 ];
 
 export const BRAND_LONG_DESCRIPTION = `${DESCRIPTION} ${TAGLINE}. Home bakery in ${LOCATION}.`;

@@ -20,10 +20,18 @@ export default function AdminInvoicesPage() {
   const { products } = useProducts();
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [pincode, setPincode] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [gstBusinessName, setGstBusinessName] = useState("");
+  const [gstin, setGstin] = useState("");
+  const [gstBillingAddress, setGstBillingAddress] = useState("");
+  const [couponCode, setCouponCode] = useState("");
   const [note, setNote] = useState("");
   const [items, setItems] = useState<OfflineItem[]>([emptyItem()]);
+  const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ orderId: string; invoiceUrl: string } | null>(null);
@@ -67,19 +75,32 @@ export default function AdminInvoicesPage() {
   const removeItemRow = (index: number) =>
     setItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
 
-  const generateInvoice = async () => {
+  const saveOfflineOrder = async (mode: "draft" | "finalize") => {
     setLoading(true);
     setError(null);
-    setResult(null);
+    if (mode === "finalize") {
+      setResult(null);
+    }
     try {
       const response = await fetch("/api/admin/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: draftOrderId,
+          mode,
           customerName,
           phone,
+          email,
+          address,
+          pincode,
           paymentMethod,
           paymentReference,
+          couponCode,
+          buyerGst: {
+            businessName: gstBusinessName,
+            gstin,
+            billingAddress: gstBillingAddress,
+          },
           note,
           items: items.map((item) => ({
             productId: item.productId,
@@ -92,14 +113,28 @@ export default function AdminInvoicesPage() {
         throw new Error(data?.error ?? "Failed to generate offline invoice");
       }
 
-      setResult({
-        orderId: String(data.orderId ?? ""),
-        invoiceUrl: String(data.invoiceUrl ?? ""),
-      });
-      setItems([emptyItem()]);
-      setPhone("");
-      setPaymentReference("");
-      setNote("");
+      const nextOrderId = String(data.orderId ?? "");
+      setDraftOrderId(nextOrderId || null);
+      if (mode === "finalize") {
+        setResult({
+          orderId: nextOrderId,
+          invoiceUrl: String(data.invoiceUrl ?? ""),
+        });
+        setItems([emptyItem()]);
+        setDraftOrderId(null);
+        setPhone("");
+        setEmail("");
+        setAddress("");
+        setPincode("");
+        setPaymentReference("");
+        setCouponCode("");
+        setGstBusinessName("");
+        setGstin("");
+        setGstBillingAddress("");
+        setNote("");
+      } else {
+        setResult(null);
+      }
     } catch (err) {
       setError(String(err));
     } finally {
@@ -155,6 +190,33 @@ export default function AdminInvoicesPage() {
                 />
               </label>
               <label className="text-sm font-semibold text-black/70">
+                Email
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
+                Address
+                <input
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
+                Pincode
+                <input
+                  value={pincode}
+                  onChange={(event) => setPincode(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
                 Payment Method
                 <select
                   value={paymentMethod}
@@ -173,6 +235,46 @@ export default function AdminInvoicesPage() {
                   onChange={(event) => setPaymentReference(event.target.value)}
                   className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                   placeholder="Optional UTR / reference"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
+                Coupon Code
+                <input
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm uppercase"
+                  placeholder="Optional"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <label className="text-sm font-semibold text-black/70">
+                Buyer GST Name
+                <input
+                  value={gstBusinessName}
+                  onChange={(event) => setGstBusinessName(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
+                Buyer GSTIN
+                <input
+                  value={gstin}
+                  onChange={(event) => setGstin(event.target.value.toUpperCase())}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm uppercase"
+                  placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70 md:col-span-3">
+                Buyer GST Address
+                <textarea
+                  value={gstBillingAddress}
+                  onChange={(event) => setGstBillingAddress(event.target.value)}
+                  rows={2}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="Optional"
                 />
               </label>
             </div>
@@ -272,15 +374,28 @@ export default function AdminInvoicesPage() {
                 </a>
               </div>
             )}
+            {draftOrderId && !result ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Draft saved as {draftOrderId}. You can keep editing and finalize when ready.
+              </div>
+            ) : null}
 
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={generateInvoice}
+                onClick={() => saveOfflineOrder("draft")}
+                disabled={!canGenerate}
+                className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? "Working..." : draftOrderId ? "Update Draft" : "Save Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => saveOfflineOrder("finalize")}
                 disabled={!canGenerate}
                 className="rounded-full bg-[color:var(--berry)] px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? "Generating..." : "Generate Invoice"}
+                {loading ? "Working..." : "Finalize & Generate Invoice"}
               </button>
             </div>
           </section>

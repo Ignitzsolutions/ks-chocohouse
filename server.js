@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const http = require("node:http");
 const next = require("next");
 
@@ -28,4 +29,3 @@ app
     console.error("Failed to start Next.js server", error);
     process.exit(1);
   });
-

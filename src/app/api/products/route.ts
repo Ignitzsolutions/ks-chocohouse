@@ -27,18 +27,29 @@ function toApiProduct(row: ProductRow) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     initDb();
+    const { searchParams } = new URL(request.url);
+    const category = String(searchParams.get("category") ?? "").trim();
+    const subCategory = String(searchParams.get("subCategory") ?? "").trim();
 
-    const rows = getDb()
-      .prepare(
-        `SELECT id, name, description, category, sub_category, price_inr, image_src, eggless, available
-         FROM products
-         WHERE available = 1
-         ORDER BY category ASC, name ASC`
-      )
-      .all() as ProductRow[];
+    let query =
+      `SELECT id, name, description, category, sub_category, price_inr, image_src, eggless, available
+       FROM products
+       WHERE available = 1`;
+    const params: Record<string, string> = {};
+    if (category) {
+      query += " AND category = @category";
+      params.category = category;
+    }
+    if (subCategory) {
+      query += " AND sub_category = @subCategory";
+      params.subCategory = subCategory;
+    }
+    query += " ORDER BY category ASC, name ASC";
+
+    const rows = getDb().prepare(query).all(params) as ProductRow[];
 
     return NextResponse.json({
       products: rows.map(toApiProduct),

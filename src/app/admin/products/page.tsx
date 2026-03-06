@@ -340,6 +340,12 @@ export default function AdminProductsPage() {
               >
                 Go to Orders
               </Link>
+              <Link
+                href="/admin/coupons"
+                className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
+              >
+                Coupons
+              </Link>
             </div>
           </div>
 

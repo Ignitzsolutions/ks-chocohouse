@@ -60,6 +60,7 @@ export function initDb() {
         cake_message TEXT,
         order_items_json TEXT,
         category_summary TEXT,
+        buyer_gst_json TEXT,
         source TEXT NOT NULL DEFAULT 'online',
         payment_method TEXT,
         payment_reference TEXT,
@@ -70,7 +71,18 @@ export function initDb() {
         invoice_number TEXT,
         invoice_ready INTEGER NOT NULL DEFAULT 0,
         paid_at TEXT,
+        subtotal_amount INTEGER NOT NULL DEFAULT 0,
+        delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
+        discount_amount INTEGER NOT NULL DEFAULT 0,
+        coupon_code TEXT,
+        coupon_snapshot_json TEXT,
         total_amount INTEGER NOT NULL,
+        order_kind TEXT NOT NULL DEFAULT 'sale',
+        lifecycle_state TEXT NOT NULL DEFAULT 'finalized',
+        parent_order_id TEXT,
+        voided_at TEXT,
+        voided_by TEXT,
+        void_reason TEXT,
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT,
@@ -92,6 +104,11 @@ export function initDb() {
   }
   try {
     instance.prepare("ALTER TABLE orders ADD COLUMN category_summary TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN buyer_gst_json TEXT").run();
   } catch {
     // column already exists
   }
@@ -146,6 +163,37 @@ export function initDb() {
   }
   try {
     instance
+      .prepare("ALTER TABLE orders ADD COLUMN subtotal_amount INTEGER NOT NULL DEFAULT 0")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN delivery_fee_amount INTEGER NOT NULL DEFAULT 0")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN discount_amount INTEGER NOT NULL DEFAULT 0")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN coupon_code TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN coupon_snapshot_json TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
       .prepare("ALTER TABLE orders ADD COLUMN invoice_ready INTEGER NOT NULL DEFAULT 0")
       .run();
   } catch {
@@ -166,6 +214,42 @@ export function initDb() {
   } catch {
     // column already exists
   }
+  try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN order_kind TEXT NOT NULL DEFAULT 'sale'")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare(
+        "ALTER TABLE orders ADD COLUMN lifecycle_state TEXT NOT NULL DEFAULT 'finalized'"
+      )
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN parent_order_id TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN voided_at TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN voided_by TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN void_reason TEXT").run();
+  } catch {
+    // column already exists
+  }
 
   instance
     .prepare(
@@ -182,6 +266,23 @@ export function initDb() {
              WHEN invoice_number IS NOT NULL THEN 1
              ELSE COALESCE(invoice_ready, 0)
            END,
+           subtotal_amount = CASE
+             WHEN COALESCE(subtotal_amount, 0) > 0 THEN subtotal_amount
+             ELSE CASE
+               WHEN source = 'online' AND total_amount >= 120 THEN total_amount - 120
+               ELSE total_amount
+             END
+           END,
+           delivery_fee_amount = CASE
+             WHEN COALESCE(delivery_fee_amount, 0) > 0 THEN delivery_fee_amount
+             ELSE CASE
+               WHEN source = 'online' AND total_amount >= 120 THEN 120
+               ELSE 0
+             END
+           END,
+           discount_amount = COALESCE(discount_amount, 0),
+           order_kind = COALESCE(NULLIF(order_kind, ''), 'sale'),
+           lifecycle_state = COALESCE(NULLIF(lifecycle_state, ''), 'finalized'),
            updated_at = COALESCE(updated_at, created_at),
            status_updated_at = COALESCE(status_updated_at, created_at),
            payment_updated_at = COALESCE(payment_updated_at, payment_verified_at, created_at)`
@@ -245,6 +346,26 @@ export function initDb() {
 
   instance
     .prepare(
+      `CREATE TABLE IF NOT EXISTS coupons (
+        code TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        discount_type TEXT NOT NULL,
+        discount_value INTEGER NOT NULL,
+        min_order_amount INTEGER NOT NULL DEFAULT 0,
+        max_discount_amount INTEGER,
+        starts_at TEXT,
+        expires_at TEXT,
+        usage_limit INTEGER,
+        used_count INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    )
+    .run();
+
+  instance
+    .prepare(
       `CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)`
     )
     .run();
@@ -274,6 +395,16 @@ export function initDb() {
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_orders_total_amount ON orders(total_amount)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_orders_lifecycle ON orders(lifecycle_state, order_kind)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_orders_parent_order ON orders(parent_order_id)`
     )
     .run();
   instance
@@ -337,6 +468,15 @@ export function initDb() {
 
     insertMany();
   }
+
+  instance
+    .prepare(
+      `UPDATE products
+       SET sub_category = 'Gift Collection',
+           updated_at = @now
+       WHERE id IN ('choc-dryfruit-assorted', 'choc-truffle-box')`
+    )
+    .run({ now: new Date().toISOString() });
 
   const categoriesCount = instance
     .prepare("SELECT COUNT(*) AS count FROM categories")

@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { addItem, clearCart, getCart, type CartItem } from "@/lib/cart";
+import { computePricing } from "@/lib/pricing";
 import { formatInr } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
@@ -26,6 +27,12 @@ const UPI_QR_IMAGE =
   process.env.NEXT_PUBLIC_UPI_QR_IMAGE ?? "/images/payments/ks-choco-house-upi-qr.png";
 const PAYMENT_METHODS = ["UPI QR", "UPI Transfer", "Bank Transfer"] as const;
 
+type AppliedCouponState = {
+  code: string;
+  label: string;
+  discountAmount: number;
+} | null;
+
 export default function BillingPage() {
   const { productById } = useProducts();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -35,11 +42,17 @@ export default function BillingPage() {
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
   const [message, setMessage] = useState("");
+  const [gstBusinessName, setGstBusinessName] = useState("");
+  const [gstin, setGstin] = useState("");
+  const [gstBillingAddress, setGstBillingAddress] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [deliverySlot, setDeliverySlot] = useState("3:00 PM - 4:30 PM");
   const [paymentMethod, setPaymentMethod] =
     useState<(typeof PAYMENT_METHODS)[number]>("UPI QR");
   const [paymentReference, setPaymentReference] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
   const [blackouts, setBlackouts] = useState<{ date: string; reason: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,10 +105,21 @@ export default function BillingPage() {
   }, [cartItems, productById]);
 
   const subtotal = detailed.reduce((sum, item) => sum + item.lineTotal, 0);
-  const deliveryFee = subtotal > 0 ? 120 : 0;
-  const total = subtotal + deliveryFee;
+  const pricing = useMemo(
+    () => computePricing(subtotal, appliedCoupon?.discountAmount ?? 0),
+    [appliedCoupon?.discountAmount, subtotal]
+  );
   const totalQty = detailed.reduce((sum, item) => sum + item.qty, 0);
   const categorySummary = Array.from(new Set(detailed.map((i) => i.category))).join(", ");
+  const composedMessage = useMemo(() => {
+    const manual = message.trimEnd();
+    if (manual) return manual;
+    return detailed
+      .filter((item) => item.customizationNote)
+      .map((item) => `${item.name}:\n${item.customizationNote}`)
+      .join("\n\n")
+      .trimEnd();
+  }, [detailed, message]);
 
   const blockedInfo = useMemo(() => {
     if (!deliveryDate) return null;
@@ -124,6 +148,43 @@ export default function BillingPage() {
     normalizedPaymentRef.length < 6 ? "UTR / Reference" : null,
   ].filter(Boolean) as string[];
 
+  const handleApplyCoupon = async () => {
+    const normalizedCode = couponCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setAppliedCoupon(null);
+      return;
+    }
+
+    setCouponBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: normalizedCode,
+          subtotal,
+          deliveryFee: computePricing(subtotal).deliveryFeeAmount,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.valid) {
+        throw new Error(data?.error ?? "Invalid coupon");
+      }
+      setCouponCode(String(data.normalizedCode ?? normalizedCode));
+      setAppliedCoupon({
+        code: String(data.normalizedCode ?? normalizedCode),
+        label: String(data.label ?? normalizedCode),
+        discountAmount: Number(data.discountAmount ?? 0),
+      });
+    } catch (err) {
+      setAppliedCoupon(null);
+      setError(String(err));
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+
   const handleSubmitPayment = async () => {
     setLoading(true);
     setError(null);
@@ -144,7 +205,7 @@ export default function BillingPage() {
           lineTotal: item.lineTotal,
         })),
         categorySummary,
-        total,
+        total: pricing.totalAmount,
         cake_name: detailed.length === 1 ? detailed[0].name : "Mixed Order",
         quantity: totalQty,
         customer_name: name,
@@ -154,21 +215,22 @@ export default function BillingPage() {
         pincode,
         delivery_date: deliveryDate,
         delivery_slot: deliverySlot,
-        cake_message:
-          message ||
-          detailed
-            .filter((item) => item.customizationNote)
-            .map((item) => `${item.name}: ${item.customizationNote}`)
-            .join(" | "),
+        cake_message: composedMessage,
       };
 
       const response = await fetch("/api/orders/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: total,
+          amount: pricing.totalAmount,
           paymentMethod,
           paymentReference: normalizedPaymentRef,
+          couponCode: appliedCoupon?.code ?? "",
+          buyerGst: {
+            businessName: gstBusinessName,
+            gstin,
+            billingAddress: gstBillingAddress,
+          },
           orderDetails,
         }),
       });
@@ -306,13 +368,39 @@ export default function BillingPage() {
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Notes / Message on cake
-                  <input
+                  <textarea
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
+                    rows={3}
                     className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
-                    placeholder="Happy birthday"
+                    placeholder="Happy birthday&#10;Less sweet&#10;Add gold topper"
                   />
                 </label>
+
+                <div className="rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm font-semibold text-black/75">Buyer GST Details (Optional)</p>
+                  <div className="mt-3 grid gap-3">
+                    <input
+                      value={gstBusinessName}
+                      onChange={(event) => setGstBusinessName(event.target.value)}
+                      className="w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                      placeholder="Business name"
+                    />
+                    <input
+                      value={gstin}
+                      onChange={(event) => setGstin(event.target.value.toUpperCase())}
+                      className="w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm uppercase"
+                      placeholder="GSTIN"
+                    />
+                    <textarea
+                      value={gstBillingAddress}
+                      onChange={(event) => setGstBillingAddress(event.target.value)}
+                      rows={2}
+                      className="w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                      placeholder="Billing address for invoice"
+                    />
+                  </div>
+                </div>
 
                 <div className="rounded-2xl border border-black/10 bg-white p-4">
                   <p className="text-sm font-semibold text-black/75">Scan & Pay</p>
@@ -359,6 +447,34 @@ export default function BillingPage() {
                   />
                 </label>
 
+                <div className="rounded-2xl border border-black/10 bg-white p-4">
+                  <p className="text-sm font-semibold text-black/75">Coupon Code</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                    <input
+                      value={couponCode}
+                      onChange={(event) => {
+                        setCouponCode(event.target.value.toUpperCase());
+                        setAppliedCoupon(null);
+                      }}
+                      className="w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm uppercase"
+                      placeholder="Enter coupon code"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={couponBusy || subtotal <= 0}
+                      className="rounded-2xl bg-[color:var(--berry)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      {couponBusy ? "Applying..." : "Apply"}
+                    </button>
+                  </div>
+                  {appliedCoupon ? (
+                    <p className="mt-2 text-xs text-emerald-700">
+                      {appliedCoupon.label} applied. You save {formatInr(appliedCoupon.discountAmount)}.
+                    </p>
+                  ) : null}
+                </div>
+
                 {blockedInfo && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     Orders are blocked on {blockedInfo.date}
@@ -385,7 +501,10 @@ export default function BillingPage() {
                       <span>{formatInr(item.lineTotal)}</span>
                     </div>
                     {item.customizationNote ? (
-                      <p className="text-xs text-black/55">Note: {item.customizationNote}</p>
+                      <p className="whitespace-pre-wrap text-xs text-black/55">
+                        Note:{"\n"}
+                        {item.customizationNote}
+                      </p>
                     ) : null}
                   </div>
                 ))}
@@ -394,17 +513,34 @@ export default function BillingPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span>Subtotal</span>
-                  <span>{formatInr(subtotal)}</span>
+                  <span>{formatInr(pricing.subtotalAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Delivery</span>
-                  <span>{formatInr(deliveryFee)}</span>
+                  <span>{formatInr(pricing.deliveryFeeAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Discount</span>
+                  <span>{formatInr(pricing.discountAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Tax</span>
+                  <span>{formatInr(0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-base font-semibold">
                   <span>Total</span>
-                  <span>{formatInr(total)}</span>
+                  <span>{formatInr(pricing.totalAmount)}</span>
                 </div>
               </div>
+
+              {composedMessage ? (
+                <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-xs text-black/60">
+                  <p className="font-semibold uppercase tracking-[0.12em] text-black/50">
+                    Customization / Message
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap">{composedMessage}</p>
+                </div>
+              ) : null}
 
               {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

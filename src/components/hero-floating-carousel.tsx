@@ -101,15 +101,33 @@ function prevIndex(current: number, length: number) {
 
 export function HeroFloatingCarousel() {
   const [active, setActive] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const total = slides.length;
 
   useEffect(() => {
+    const readMotion = () => {
+      const next =
+        document.documentElement.dataset.motion === "reduced" ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setReduceMotion(next);
+    };
+    readMotion();
+    window.addEventListener("storage", readMotion);
+    window.addEventListener("bakery-motion-change", readMotion);
+    return () => {
+      window.removeEventListener("storage", readMotion);
+      window.removeEventListener("bakery-motion-change", readMotion);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) return;
     const timer = window.setInterval(() => {
       setActive((current) => nextIndex(current, total));
     }, 4500);
 
     return () => window.clearInterval(timer);
-  }, [total]);
+  }, [reduceMotion, total]);
 
   const currentSlide = useMemo(() => slides[active], [active]);
 
@@ -121,11 +139,12 @@ export function HeroFloatingCarousel() {
       >
         <video
           key={`${currentSlide.videoSrc}-${currentSlide.mobileVideoSrc}`}
-          autoPlay
+          autoPlay={!reduceMotion}
           muted
-          loop
+          loop={!reduceMotion}
           playsInline
           preload="metadata"
+          controls={reduceMotion}
           className="h-full w-full object-contain"
         >
           <source

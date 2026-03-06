@@ -5,6 +5,10 @@ import { BRAND_NAME, PHONE_NUMBER_DISPLAY, TAGLINE } from "@/lib/brand";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
+  {
+    href: "/menu?category=Chocolates&subCategory=Gift%20Collection",
+    label: "Gift Collection",
+  },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];

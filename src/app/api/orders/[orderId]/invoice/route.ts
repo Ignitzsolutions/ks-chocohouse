@@ -2,14 +2,23 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { initDb, getDb } from "@/lib/db";
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
   BRAND_NAME,
   FULL_ADDRESS,
   PHONE_NUMBER_DISPLAY,
+  SELLER_GSTIN,
+  SELLER_LEGAL_NAME,
+  SELLER_STATE_CODE,
+  TAGLINE,
   WHATSAPP_NUMBER,
 } from "@/lib/brand";
+import {
+  assertInvoiceAvailable,
+  getOrderById,
+  OrderDocumentError,
+} from "@/lib/order-documents";
 
 type RawOrderItem = {
   name?: string;
@@ -46,11 +55,27 @@ type OrderRow = {
   payment_reference?: string | null;
   payment_status?: string | null;
   source?: string | null;
+  buyer_gst_json?: string | null;
+  subtotal_amount?: number | null;
+  delivery_fee_amount?: number | null;
+  discount_amount?: number | null;
+  coupon_code?: string | null;
   total_amount?: number;
+  order_kind?: string | null;
+  lifecycle_state?: string | null;
+  parent_order_id?: string | null;
+  voided_at?: string | null;
+  void_reason?: string | null;
   cake_message?: string | null;
   cake_name?: string | null;
   quantity?: number | null;
   order_items_json?: string | null;
+};
+
+type BuyerGstRow = {
+  businessName?: string;
+  gstin?: string;
+  billingAddress?: string;
 };
 
 const PAGE_WIDTH = 595.28; // A4
@@ -110,6 +135,17 @@ const wrapText = (text: string, maxWidth: number, font: PDFFont, size: number) =
   }
   lines.push(current);
   return lines;
+};
+
+const wrapMultilineText = (text: string, maxWidth: number, font: PDFFont, size: number) => {
+  return text
+    .split(/\r?\n/)
+    .flatMap((line, index, all) => {
+      const safeLine = line.trimEnd();
+      const wrapped = wrapText(safeLine || " ", maxWidth, font, size);
+      if (index === all.length - 1) return wrapped;
+      return [...wrapped, ""];
+    });
 };
 
 const drawWrappedLines = (params: {
@@ -200,6 +236,22 @@ const normalizeItems = (order: OrderRow) => {
   return [] as InvoiceItem[];
 };
 
+const parseBuyerGst = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as BuyerGstRow;
+    const businessName = String(parsed.businessName ?? "").trim();
+    const gstin = String(parsed.gstin ?? "").trim();
+    const billingAddress = String(parsed.billingAddress ?? "").trim();
+    if (!businessName && !gstin && !billingAddress) {
+      return null;
+    }
+    return { businessName, gstin, billingAddress };
+  } catch {
+    return null;
+  }
+};
+
 const readBinaryIfExists = async (relativePath: string) => {
   try {
     return await readFile(path.join(process.cwd(), relativePath));
@@ -213,40 +265,29 @@ export async function GET(
   context: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const { orderId } = await context.params;
+    const { orderId: rawOrderId } = await context.params;
+    const orderId = decodeURIComponent(rawOrderId ?? "").trim();
     if (!orderId) {
       return NextResponse.json({ error: "Order id is required" }, { status: 400 });
     }
 
-    initDb();
-    const order = getDb()
-      .prepare("SELECT * FROM orders WHERE id = ?")
-      .get(orderId) as OrderRow | undefined;
-
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    if (!order.invoice_number || Number(order.invoice_ready ?? 0) !== 1) {
-      return NextResponse.json(
-        {
-          error: "Invoice is not available yet",
-          details:
-            "Invoice will be generated after payment verification and order acceptance.",
-        },
-        { status: 409 }
-      );
-    }
+    const order = getOrderById(orderId) as OrderRow | undefined;
+    assertInvoiceAvailable(order);
 
     const items = normalizeItems(order);
     const subtotalFromItems = items.reduce((sum, item) => sum + safeNumber(item.lineTotal), 0);
     const total = safeNumber(order.total_amount, 0);
     const taxAmount = 0;
-    const deliveryFee = Math.max(0, total - subtotalFromItems - taxAmount);
-    let subtotal = subtotalFromItems;
-    if (subtotal === 0 && total > 0) {
-      subtotal = Math.max(0, total - deliveryFee - taxAmount);
-    }
+    const subtotal =
+      order.subtotal_amount != null
+        ? safeNumber(order.subtotal_amount, subtotalFromItems)
+        : subtotalFromItems;
+    const deliveryFee =
+      order.delivery_fee_amount != null
+        ? safeNumber(order.delivery_fee_amount, Math.max(0, total - subtotalFromItems - taxAmount))
+        : Math.max(0, total - subtotalFromItems - taxAmount);
+    const discountAmount = safeNumber(order.discount_amount, 0);
+    const buyerGst = parseBuyerGst(order.buyer_gst_json);
 
     const [bakeryLogoBytes, fssaiBytes] = await Promise.all([
       readBinaryIfExists("public/images/brand/ks-choco-house-logo.jpg"),
@@ -269,6 +310,18 @@ export async function GET(
 
     const bakeryLogo = bakeryLogoBytes ? await pdf.embedJpg(bakeryLogoBytes) : null;
     const fssaiLogo = fssaiBytes ? await pdf.embedPng(fssaiBytes) : null;
+    const barcodeImage = await generateOrderBarcodePng(order.id, {
+      includeText: true,
+      scale: 2,
+      height: 14,
+    })
+      .then((pngBytes) => pdf.embedPng(pngBytes))
+      .catch((error) => {
+        console.error(
+          `[invoice] barcode embed failed for order ${order.id}: ${String(error)}`
+        );
+        return null;
+      });
 
     const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
 
@@ -316,7 +369,7 @@ export async function GET(
     });
     y -= 28;
 
-    page.drawText("Ultimate Chocolate Destination", {
+    page.drawText(TAGLINE, {
       x: titleX,
       y,
       size: 10.5,
@@ -370,7 +423,37 @@ export async function GET(
       metaY -= 18;
     });
 
-    y = PAGE_HEIGHT - 148;
+    if (barcodeImage) {
+      const maxBarcodeWidth = metaBoxWidth - 16;
+      const maxBarcodeHeight = 58;
+      const barcodeScale = Math.min(
+        maxBarcodeWidth / barcodeImage.width,
+        maxBarcodeHeight / barcodeImage.height
+      );
+      const barcodeWidth = barcodeImage.width * barcodeScale;
+      const barcodeHeight = barcodeImage.height * barcodeScale;
+      const barcodeX = metaBoxX + (metaBoxWidth - barcodeWidth) / 2;
+      const barcodeY = metaBoxY - barcodeHeight - 9;
+      page.drawRectangle({
+        x: barcodeX - 4,
+        y: barcodeY - 4,
+        width: barcodeWidth + 8,
+        height: barcodeHeight + 8,
+        color: rgb(1, 1, 1),
+        borderColor: colorLine,
+        borderWidth: 0.8,
+      });
+      page.drawImage(barcodeImage, {
+        x: barcodeX,
+        y: barcodeY,
+        width: barcodeWidth,
+        height: barcodeHeight,
+      });
+      y = Math.min(PAGE_HEIGHT - 148, barcodeY - 14);
+    } else {
+      y = PAGE_HEIGHT - 148;
+    }
+
     page.drawLine({
       start: { x: CONTENT_X, y: y + 8 },
       end: { x: CONTENT_RIGHT, y: y + 8 },
@@ -389,6 +472,9 @@ export async function GET(
       `Address: ${[order.address, order.pincode].filter(Boolean).join(", ") || "-"}`,
       `Delivery Date: ${formatDate(order.delivery_date)}`,
       `Time Slot: ${order.delivery_slot || "-"}`,
+      ...(buyerGst?.businessName ? [`Buyer GST Name: ${buyerGst.businessName}`] : []),
+      ...(buyerGst?.gstin ? [`Buyer GSTIN: ${buyerGst.gstin}`] : []),
+      ...(buyerGst?.billingAddress ? [`Buyer GST Address: ${buyerGst.billingAddress}`] : []),
     ];
     const paymentEntries = [
       `Payment Status: ${order.payment_status || "-"}`,
@@ -396,6 +482,13 @@ export async function GET(
       `Reference: ${order.payment_reference || order.txn_id || "-"}`,
       `Order Source: ${order.source || "online"}`,
       `Order Status: ${order.status || "-"}`,
+      `Seller: ${SELLER_LEGAL_NAME}`,
+      `Seller GSTIN: ${SELLER_GSTIN}`,
+      `State Code: ${SELLER_STATE_CODE}`,
+      ...(order.coupon_code ? [`Coupon: ${order.coupon_code}`] : []),
+      ...(order.order_kind === "return" && order.parent_order_id
+        ? [`Return Of: ${order.parent_order_id}`]
+        : []),
     ];
 
     const measureEntries = (entries: string[]) =>
@@ -420,14 +513,14 @@ export async function GET(
       });
     });
 
-    page.drawText("Billing Details", {
+    page.drawText("Billing Details & GST", {
       x: leftCardX + 10,
       y: cardsTop - 16,
       size: 10.5,
       font: fontSansBold,
       color: colorText,
     });
-    page.drawText("Payment & Order", {
+    page.drawText("Payment & Seller GST", {
       x: rightCardX + 10,
       y: cardsTop - 16,
       size: 10.5,
@@ -528,8 +621,8 @@ export async function GET(
         10
       );
       const noteLines = item.customizationNote
-        ? wrapText(
-            `Customization: ${item.customizationNote}`,
+        ? wrapMultilineText(
+            `Customization:\n${item.customizationNote}`,
             colQtyX - colItemX - 24,
             fontSans,
             9.2
@@ -637,7 +730,7 @@ export async function GET(
     }
 
     const totalsBoxWidth = 220;
-    const totalsBoxHeight = 92;
+    const totalsBoxHeight = 110;
     const totalsX = CONTENT_RIGHT - totalsBoxWidth;
     const totalsY = Math.max(FOOTER_SAFE_TOP + 8, y - totalsBoxHeight - 4);
     page.drawRectangle({
@@ -670,23 +763,41 @@ export async function GET(
       });
     };
 
-    drawAmount("Subtotal", formatInr(subtotal), totalsY + 68);
-    drawAmount("Tax", formatInr(taxAmount), totalsY + 50);
-    drawAmount("Delivery Fee", formatInr(deliveryFee), totalsY + 32);
-    drawAmount("Grand Total", formatInr(total), totalsY + 12, true);
+    drawAmount("Subtotal", formatInr(subtotal), totalsY + 76);
+    drawAmount("Discount", formatInr(discountAmount), totalsY + 58);
+    drawAmount("Tax", formatInr(taxAmount), totalsY + 40);
+    drawAmount("Delivery Fee", formatInr(deliveryFee), totalsY + 22);
+    drawAmount("Grand Total", formatInr(total), totalsY + 4, true);
 
     const noteText = order.cake_message?.trim();
     if (noteText) {
-      const noteLines = wrapText(`Order Note: ${noteText}`, totalsX - CONTENT_X - 12, fontSans, 9.2);
+      const noteLines = wrapMultilineText(
+        `Customization / Message:\n${noteText}`,
+        totalsX - CONTENT_X - 12,
+        fontSans,
+        9.2
+      );
       drawWrappedLines({
         page,
         lines: noteLines,
         x: CONTENT_X,
-        y: totalsY + 46,
+        y: totalsY + 62,
         font: fontSans,
         size: 9.2,
         color: colorMuted,
         lineGap: 2,
+      });
+    }
+
+    if ((order.lifecycle_state ?? "finalized") === "void") {
+      page.drawText("VOID", {
+        x: 180,
+        y: 430,
+        size: 76,
+        font: fontSansBold,
+        color: rgb(0.84, 0.3, 0.3),
+        rotate: degrees(-28),
+        opacity: 0.16,
       });
     }
 
@@ -706,6 +817,15 @@ export async function GET(
       font: fontSans,
       color: colorMuted,
     });
+    if (order.order_kind === "return" && order.parent_order_id) {
+      page.drawText(`Return Reference: ${order.parent_order_id}`, {
+        x: CONTENT_X,
+        y: footerTop + 8,
+        size: 8.8,
+        font: fontSansBold,
+        color: colorMuted,
+      });
+    }
     page.drawText(`Address: ${FULL_ADDRESS}`, {
       x: CONTENT_X,
       y: footerTop - 20,
@@ -746,6 +866,16 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof OrderDocumentError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          ...(error.details ? { details: error.details } : {}),
+        },
+        { status: error.status }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to generate invoice", details: String(error) },
       { status: 500 }

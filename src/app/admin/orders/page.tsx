@@ -202,7 +202,7 @@ export default function AdminOrdersPage() {
               {orders.map((order) => {
                 const paymentPending = (order.payment_status ?? "Verification Pending") === "Verification Pending";
                 const invoiceReady =
-                  Number(order.invoice_ready ?? 0) === 1 || Boolean(order.invoice_number);
+                  Number(order.invoice_ready ?? 0) === 1 && Boolean(order.invoice_number);
 
                 return (
                   <div
@@ -277,14 +277,38 @@ export default function AdminOrdersPage() {
 
                     <div className="space-y-2">
                       {invoiceReady ? (
-                        <a
-                          href={`/api/orders/${order.id}/invoice`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[color:var(--berry)]"
-                        >
-                          Download Invoice PDF
-                        </a>
+                        <div className="space-y-2">
+                          <a
+                            href={`/api/orders/${order.id}/invoice`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[color:var(--berry)]"
+                          >
+                            Download Invoice PDF
+                          </a>
+                          <a
+                            href={`/api/orders/${order.id}/barcode`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[color:var(--berry)]"
+                          >
+                            Open Barcode
+                          </a>
+                          <a
+                            href={`/api/orders/${order.id}/barcode?download=1`}
+                            className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[color:var(--berry)]"
+                          >
+                            Download Barcode
+                          </a>
+                          <a
+                            href={`/admin/labels/${encodeURIComponent(order.id)}?autoprint=1`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--line)] bg-white px-3 py-2 text-xs font-semibold text-[color:var(--berry)]"
+                          >
+                            Print Label
+                          </a>
+                        </div>
                       ) : (
                         <p className="text-xs text-black/55">
                           Invoice available after payment verification.

@@ -34,11 +34,25 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const motionInitScript = `
+    (function() {
+      try {
+        var key = 'bakery_motion_pref';
+        var stored = localStorage.getItem(key);
+        var mode = stored === 'standard' || stored === 'reduced'
+          ? stored
+          : (window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduced' : 'standard');
+        document.documentElement.dataset.motion = mode;
+      } catch (error) {}
+    })();
+  `;
+
   return (
     <html lang="en">
       <body
         className={`${displayFont.variable} ${openSans.variable} ${brandScript.variable} antialiased`}
       >
+        <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
         {children}
       </body>
     </html>

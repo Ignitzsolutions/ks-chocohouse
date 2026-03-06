@@ -18,6 +18,9 @@ type Props = {
   onStatusUpdate: (orderId: string, status: string) => Promise<void> | void;
   onVerifyPayment: (orderId: string) => Promise<void> | void;
   onRejectPayment: (orderId: string) => Promise<void> | void;
+  onFinalizeDraft?: (orderId: string) => Promise<void> | void;
+  onVoidInvoice?: (orderId: string) => Promise<void> | void;
+  onCreateReturn?: (orderId: string) => Promise<void> | void;
 };
 
 function formatDateTime(value?: string | null) {
@@ -62,6 +65,9 @@ export function SalesOrdersTable({
   onStatusUpdate,
   onVerifyPayment,
   onRejectPayment,
+  onFinalizeDraft,
+  onVoidInvoice,
+  onCreateReturn,
 }: Props) {
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds[row.id]);
 
@@ -128,7 +134,7 @@ export function SalesOrdersTable({
               rows.map((row) => {
                 const itemSummary = parseItemSummary(row.order_items_json);
                 const invoiceReady =
-                  Number(row.invoice_ready ?? 0) === 1 || Boolean(row.invoice_number);
+                  Number(row.invoice_ready ?? 0) === 1 && Boolean(row.invoice_number);
                 return (
                   <tr
                     key={row.id}
@@ -159,6 +165,10 @@ export function SalesOrdersTable({
                       ) : null}
                       <p className="mt-1 text-xs text-black/45">
                         {itemSummary || "No item summary"} • Qty {row.quantity}
+                      </p>
+                      <p className="mt-1 text-xs text-black/40">
+                        {(row.order_kind ?? "sale").toUpperCase()} • {(row.lifecycle_state ?? "finalized").toUpperCase()}
+                        {row.coupon_code ? ` • Coupon ${row.coupon_code}` : ""}
                       </p>
                     </td>
                     <td className="px-3 py-3 font-semibold">{formatInr(Number(row.total_amount))}</td>
@@ -204,6 +214,9 @@ export function SalesOrdersTable({
                         onStatusUpdate={onStatusUpdate}
                         onVerifyPayment={onVerifyPayment}
                         onRejectPayment={onRejectPayment}
+                        onFinalizeDraft={onFinalizeDraft}
+                        onVoidInvoice={onVoidInvoice}
+                        onCreateReturn={onCreateReturn}
                       />
                     </td>
                   </tr>

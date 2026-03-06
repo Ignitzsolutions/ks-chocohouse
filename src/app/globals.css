@@ -158,6 +158,24 @@ select:focus {
   }
 }
 
+html[data-motion="reduced"] .floating-sidebar,
+html[data-motion="reduced"] .marquee-track,
+html[data-motion="reduced"] .announcement-track,
+html[data-motion="reduced"] .choco-orb-a,
+html[data-motion="reduced"] .choco-orb-b,
+html[data-motion="reduced"] .choco-lines,
+html[data-motion="reduced"] .success-modal-card,
+html[data-motion="reduced"] .success-checkmark,
+html[data-motion="reduced"] .baking-bars span {
+  animation: none !important;
+}
+
+html[data-motion="reduced"] button,
+html[data-motion="reduced"] a,
+html[data-motion="reduced"] [data-reveal-id] {
+  transition-duration: 0ms !important;
+}
+
 .success-modal-card {
   animation: modalPop 260ms ease-out;
 }

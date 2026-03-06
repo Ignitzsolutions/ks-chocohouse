@@ -63,9 +63,8 @@ export function SalesKpiCards({ summary, loading = false }: Props) {
       <KpiCard
         label="Filtered Total"
         value={totals ? `${totals.filteredCount} / ${formatInr(totals.filteredRevenue)}` : loading ? "..." : `0 / ${formatInr(0)}`}
-        hint="Rows / revenue in current filters"
+        hint="Rows / revenue in current filters (void excluded)"
       />
     </section>
   );
 }
-

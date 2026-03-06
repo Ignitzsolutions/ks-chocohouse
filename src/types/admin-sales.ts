@@ -30,6 +30,7 @@ export type SalesOrderRow = {
   cake_message: string | null;
   order_items_json: string | null;
   category_summary: string | null;
+  buyer_gst_json?: string | null;
   source: string | null;
   payment_method: string | null;
   payment_reference: string | null;
@@ -40,7 +41,18 @@ export type SalesOrderRow = {
   invoice_number: string | null;
   invoice_ready: number;
   paid_at: string | null;
+  subtotal_amount?: number | null;
+  delivery_fee_amount?: number | null;
+  discount_amount?: number | null;
+  coupon_code?: string | null;
+  coupon_snapshot_json?: string | null;
   total_amount: number;
+  order_kind?: "sale" | "return" | null;
+  lifecycle_state?: "draft" | "finalized" | "void" | null;
+  parent_order_id?: string | null;
+  voided_at?: string | null;
+  voided_by?: string | null;
+  void_reason?: string | null;
   status: string;
   created_at: string;
   updated_at?: string | null;
@@ -83,4 +95,3 @@ export type SalesSummaryResponse = {
     filteredRevenue: number;
   };
 };
-

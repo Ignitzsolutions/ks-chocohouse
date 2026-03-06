@@ -338,6 +338,43 @@ export function SalesDashboardShell() {
     [runOrderMutation]
   );
 
+  const handleFinalizeDraft = useCallback(
+    async (orderId: string) => {
+      await runOrderMutation({
+        id: orderId,
+        action: "finalize_offline_draft",
+        adminName: "admin",
+      });
+    },
+    [runOrderMutation]
+  );
+
+  const handleVoidInvoice = useCallback(
+    async (orderId: string) => {
+      const ok = window.confirm("Void this offline invoice?");
+      if (!ok) return;
+      await runOrderMutation({
+        id: orderId,
+        action: "void_offline_invoice",
+        adminName: "admin",
+      });
+    },
+    [runOrderMutation]
+  );
+
+  const handleCreateReturn = useCallback(
+    async (orderId: string) => {
+      const ok = window.confirm("Create a return entry for this invoice?");
+      if (!ok) return;
+      await runOrderMutation({
+        id: orderId,
+        action: "create_offline_return",
+        adminName: "admin",
+      });
+    },
+    [runOrderMutation]
+  );
+
   const exportFilteredCsv = useCallback(() => {
     const url = `/api/admin/sales/export?${queryString}`;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -458,6 +495,12 @@ export function SalesDashboardShell() {
                 Create Offline Sale
               </Link>
               <Link
+                href="/admin/coupons"
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold"
+              >
+                Coupons
+              </Link>
+              <Link
                 href="/admin/orders"
                 className="rounded-full bg-[color:var(--berry)] px-4 py-2 text-sm font-semibold text-white"
               >
@@ -531,6 +574,9 @@ export function SalesDashboardShell() {
               onStatusUpdate={handleStatusUpdate}
               onVerifyPayment={handleVerifyPayment}
               onRejectPayment={handleRejectPayment}
+              onFinalizeDraft={handleFinalizeDraft}
+              onVoidInvoice={handleVoidInvoice}
+              onCreateReturn={handleCreateReturn}
             />
           </div>
 
@@ -563,6 +609,9 @@ export function SalesDashboardShell() {
           onStatusUpdate={handleStatusUpdate}
           onVerifyPayment={handleVerifyPayment}
           onRejectPayment={handleRejectPayment}
+          onFinalizeDraft={handleFinalizeDraft}
+          onVoidInvoice={handleVoidInvoice}
+          onCreateReturn={handleCreateReturn}
         />
       </div>
     </AdminGuard>

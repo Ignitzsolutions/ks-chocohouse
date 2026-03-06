@@ -211,9 +211,11 @@ function appliedFilters(filters: SalesOrderFilters): Record<string, string | num
 
 function selectOrderColumns() {
   return `id, cake_name, quantity, customer_name, phone, email, address, pincode,
-    delivery_date, delivery_slot, cake_message, order_items_json, category_summary, source,
+    delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
     payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
-    txn_id, invoice_number, invoice_ready, paid_at, total_amount, status, created_at, updated_at,
+    txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
+    discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+    parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
     status_updated_at, payment_updated_at`;
 }
 
@@ -261,7 +263,8 @@ export function getSalesSummary(filters: SalesOrderFilters): SalesSummaryRespons
   const { whereSql, params } = buildWhere(filters);
   const totals = db
     .prepare(
-      `SELECT COUNT(*) AS filteredCount, COALESCE(SUM(total_amount), 0) AS filteredRevenue
+      `SELECT COUNT(*) AS filteredCount,
+              COALESCE(SUM(CASE WHEN COALESCE(lifecycle_state, 'finalized') <> 'void' THEN total_amount ELSE 0 END), 0) AS filteredRevenue
        FROM orders
        ${whereSql}`
     )
@@ -287,7 +290,8 @@ export function getSalesSummary(filters: SalesOrderFilters): SalesSummaryRespons
               `SELECT COALESCE(SUM(total_amount), 0) AS amount
                FROM orders
                WHERE date(datetime(created_at), '+330 minutes') = ?
-                 AND COALESCE(payment_status, 'Verification Pending') = 'Verified'`
+                 AND COALESCE(payment_status, 'Verification Pending') = 'Verified'
+                 AND COALESCE(lifecycle_state, 'finalized') <> 'void'`
             )
             .get(todayIst) as { amount: number }
         )?.amount ?? 0
@@ -392,7 +396,11 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
     "Items",
     "Quantity",
     "Amount",
+    "Discount",
+    "Coupon",
     "Source",
+    "Lifecycle",
+    "Order Kind",
     "Payment Method",
     "Payment Status",
     "Payment Reference",
@@ -413,7 +421,11 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
         parseOrderItemsSummary(row.order_items_json) || row.cake_name,
         row.quantity,
         row.total_amount,
+        row.discount_amount ?? 0,
+        row.coupon_code ?? "",
         row.source ?? "",
+        row.lifecycle_state ?? "finalized",
+        row.order_kind ?? "sale",
         row.payment_method ?? "",
         row.payment_status ?? "",
         row.payment_reference ?? "",
@@ -457,4 +469,3 @@ export function recordOrderEvent(input: EventInput) {
     created_at: input.createdAt ?? new Date().toISOString(),
   });
 }
-

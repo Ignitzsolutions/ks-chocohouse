@@ -20,7 +20,7 @@ export function getCart(): CartItem[] {
       .map((item) => ({
         productId: item.productId,
         qty: Number(item.qty ?? 0),
-        customizationNote: item.customizationNote?.trim() || undefined,
+        customizationNote: item.customizationNote?.trimEnd() || undefined,
       }))
       .filter((i) => i.qty > 0 && Boolean(i.productId));
   } catch {
@@ -63,7 +63,7 @@ export function removeItem(productId: string) {
 }
 
 export function setItemCustomizationNote(productId: string, note: string) {
-  const trimmed = note.trim();
+  const trimmed = note.trimEnd();
   const cart = getCart().map((item) =>
     item.productId === productId
       ? {

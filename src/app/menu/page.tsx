@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { addItem, getCart, type CartItem, updateQty } from "@/lib/cart";
@@ -38,6 +39,13 @@ function toCategoryIconMap(
   return map;
 }
 
+function buildMenuUrl(category: string, subCategory?: string) {
+  const params = new URLSearchParams();
+  params.set("category", category);
+  if (subCategory) params.set("subCategory", subCategory);
+  return `/menu?${params.toString()}`;
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const fallbackCategories = getCategories();
@@ -47,11 +55,18 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState<ProductCategory>(
     fallbackCategories[0] ?? "Chocolates"
   );
+  const [activeSubCategory, setActiveSubCategory] = useState("");
   const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>(
     {}
   );
   const [visibleCards, setVisibleCards] = useState<Record<string, boolean>>({});
+  const [lightbox, setLightbox] = useState<{
+    src: string;
+    alt: string;
+    title: string;
+    description: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -82,10 +97,14 @@ export default function MenuPage() {
       const fromQuery = new URLSearchParams(window.location.search).get(
         "category"
       ) as ProductCategory | null;
+      const subCategoryFromQuery =
+        new URLSearchParams(window.location.search).get("subCategory") ?? "";
       if (fromQuery && categories.includes(fromQuery)) {
         setActiveCategory(fromQuery);
+        setActiveSubCategory(subCategoryFromQuery);
       } else if (categories.length > 0 && !categories.includes(activeCategory)) {
         setActiveCategory(categories[0]);
+        setActiveSubCategory("");
       }
       setCartQtyById(toQtyMap(getCart()));
     });
@@ -148,18 +167,34 @@ export default function MenuPage() {
     return map;
   }, [allProducts, categories]);
 
+  const subCategoriesByCategory = useMemo(() => {
+    const map = new Map<ProductCategory, string[]>();
+    categories.forEach((category) => {
+      const values = Array.from(
+        new Set(
+          allProducts
+            .filter((item) => item.category === category)
+            .map((item) => item.subCategory)
+            .filter(Boolean)
+        )
+      );
+      map.set(category, values);
+    });
+    return map;
+  }, [allProducts, categories]);
+
   const categoryIconMap = useMemo(
     () => toCategoryIconMap(categories, allProducts),
     [categories, allProducts]
   );
 
-  const jumpToCategory = (category: ProductCategory) => {
+  const jumpToCategory = (category: ProductCategory, subCategory = "") => {
     setActiveCategory(category);
-    window.history.replaceState(
-      null,
-      "",
-      `/menu?category=${encodeURIComponent(category)}`
-    );
+    const availableSubCategories = subCategoriesByCategory.get(category) ?? [];
+    const nextSubCategory =
+      subCategory && availableSubCategories.includes(subCategory) ? subCategory : "";
+    setActiveSubCategory(nextSubCategory);
+    window.history.replaceState(null, "", buildMenuUrl(category, nextSubCategory));
     const node = document.getElementById(categoryId(category));
     if (node) node.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -179,6 +214,15 @@ export default function MenuPage() {
     const updatedCart = addItem(productId, 1);
     setCartQtyById(toQtyMap(updatedCart));
     router.push("/cart");
+  };
+
+  const openProductPreview = (item: Product) => {
+    setLightbox({
+      src: item.imageSrc,
+      alt: item.name,
+      title: item.name,
+      description: item.description,
+    });
   };
 
   return (
@@ -246,6 +290,11 @@ export default function MenuPage() {
           <div className="space-y-8">
             {categories.map((category) => {
               const items = productsByCategory.get(category) ?? [];
+              const subCategories = subCategoriesByCategory.get(category) ?? [];
+              const filteredItems =
+                activeCategory === category && activeSubCategory
+                  ? items.filter((item) => item.subCategory === activeSubCategory)
+                  : items;
               const sectionRevealId = `section-${categoryId(category)}`;
               return (
                 <section
@@ -267,7 +316,36 @@ export default function MenuPage() {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {items.map((item, index) => (
+                    {activeCategory === category && subCategories.length > 1 ? (
+                      <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => jumpToCategory(category, "")}
+                          className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                            !activeSubCategory
+                              ? "bg-[color:var(--berry)] text-white"
+                              : "border border-black/10 bg-white text-black/65"
+                          }`}
+                        >
+                          All
+                        </button>
+                        {subCategories.map((subCategory) => (
+                          <button
+                            key={subCategory}
+                            type="button"
+                            onClick={() => jumpToCategory(category, subCategory)}
+                            className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                              activeSubCategory === subCategory
+                                ? "bg-[color:var(--berry)] text-white"
+                                : "border border-black/10 bg-white text-black/65"
+                            }`}
+                          >
+                            {subCategory}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {filteredItems.map((item, index) => (
                       <article
                         key={item.id}
                         data-reveal-id={item.id}
@@ -284,13 +362,25 @@ export default function MenuPage() {
                         }}
                       >
                         <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
-                          <img
-                            src={item.imageSrc}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => openProductPreview(item)}
+                            className="h-full w-full"
+                            aria-label={`Expand image for ${item.name}`}
+                          >
+                            <img
+                              src={item.imageSrc}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </button>
                         </div>
-                        <div className="mt-3 flex flex-1 flex-col space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => openProductPreview(item)}
+                          className="mt-3 flex flex-1 flex-col space-y-2 text-left"
+                          aria-label={`Open details for ${item.name}`}
+                        >
                           <div className="flex items-center justify-between gap-3">
                             <h3 className="text-lg font-semibold">{item.name}</h3>
                             <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
@@ -298,10 +388,13 @@ export default function MenuPage() {
                             </span>
                           </div>
                           <p className="min-h-10 text-sm text-black/60">{item.description}</p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--berry)]">
+                            Tap to view details
+                          </p>
                           <p className="text-sm font-semibold text-[color:var(--berry)]">
                             {formatInr(item.priceInr)}
                           </p>
-                        </div>
+                        </button>
                         <div className="mt-4 flex gap-2">
                           <div className="flex flex-1 items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1">
                             <button
@@ -341,6 +434,14 @@ export default function MenuPage() {
         </section>
       </main>
       <SiteFooter />
+      <ImageLightbox
+        open={Boolean(lightbox)}
+        src={lightbox?.src ?? ""}
+        alt={lightbox?.alt ?? ""}
+        title={lightbox?.title ?? ""}
+        description={lightbox?.description ?? ""}
+        onClose={() => setLightbox(null)}
+      />
     </div>
   );
 }

@@ -24,7 +24,25 @@ type Props = {
   onStatusUpdate: (orderId: string, status: string) => Promise<void> | void;
   onVerifyPayment: (orderId: string) => Promise<void> | void;
   onRejectPayment: (orderId: string) => Promise<void> | void;
+  onFinalizeDraft?: (orderId: string) => Promise<void> | void;
+  onVoidInvoice?: (orderId: string) => Promise<void> | void;
+  onCreateReturn?: (orderId: string) => Promise<void> | void;
 };
+
+function parseBuyerGst(value?: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as {
+      businessName?: string;
+      gstin?: string;
+      billingAddress?: string;
+    };
+    if (!parsed.businessName && !parsed.gstin && !parsed.billingAddress) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
@@ -62,6 +80,9 @@ export function SalesOrderDetailDrawer({
   onStatusUpdate,
   onVerifyPayment,
   onRejectPayment,
+  onFinalizeDraft,
+  onVoidInvoice,
+  onCreateReturn,
 }: Props) {
   const [draftStatus, setDraftStatus] = useState(order?.status ?? "Awaiting Approval");
   const [copied, setCopied] = useState("");
@@ -71,6 +92,13 @@ export function SalesOrderDetailDrawer({
     order &&
     (order.payment_status ?? "Verification Pending") === "Verification Pending" &&
     order.source !== "offline";
+  const buyerGst = parseBuyerGst(order?.buyer_gst_json);
+  const isOfflineDraft =
+    order?.source === "offline" && (order.lifecycle_state ?? "finalized") === "draft";
+  const isOfflineFinalized =
+    order?.source === "offline" && (order.lifecycle_state ?? "finalized") === "finalized";
+  const invoiceReady =
+    Number(order?.invoice_ready ?? 0) === 1 && Boolean(order?.invoice_number);
 
   if (!open) return null;
 
@@ -147,7 +175,16 @@ export function SalesOrderDetailDrawer({
                 <p>Email: {order.email || "-"}</p>
                 <p>Pincode: {order.pincode || "-"}</p>
                 <p>Source: {order.source || "online"}</p>
+                <p>Order Kind: {order.order_kind ?? "sale"}</p>
+                <p>Lifecycle: {order.lifecycle_state ?? "finalized"}</p>
                 <p className="md:col-span-2">Address: {order.address || "-"}</p>
+                {buyerGst?.businessName ? (
+                  <p className="md:col-span-2">Buyer GST Name: {buyerGst.businessName}</p>
+                ) : null}
+                {buyerGst?.gstin ? <p>Buyer GSTIN: {buyerGst.gstin}</p> : null}
+                {buyerGst?.billingAddress ? (
+                  <p className="md:col-span-2">Buyer GST Address: {buyerGst.billingAddress}</p>
+                ) : null}
               </div>
             </section>
 
@@ -159,11 +196,17 @@ export function SalesOrderDetailDrawer({
               <p className="text-sm text-black/60">
                 {order.cake_name} • Qty {order.quantity}
               </p>
+              <div className="mt-2 grid gap-1 text-xs text-black/55 md:grid-cols-2">
+                <p>Subtotal: {formatInr(Number(order.subtotal_amount ?? order.total_amount))}</p>
+                <p>Delivery: {formatInr(Number(order.delivery_fee_amount ?? 0))}</p>
+                <p>Discount: {formatInr(Number(order.discount_amount ?? 0))}</p>
+                <p>Coupon: {order.coupon_code || "-"}</p>
+              </div>
               {order.category_summary ? (
                 <p className="text-sm text-black/55">{order.category_summary}</p>
               ) : null}
               {order.cake_message ? (
-                <p className="mt-2 rounded-lg border border-black/10 bg-[color:var(--cream)] px-3 py-2 text-sm">
+                <p className="mt-2 whitespace-pre-wrap rounded-lg border border-black/10 bg-[color:var(--cream)] px-3 py-2 text-sm">
                   Note: {order.cake_message}
                 </p>
               ) : null}
@@ -188,7 +231,9 @@ export function SalesOrderDetailDrawer({
                         {item.unitPrice != null ? ` • ${formatInr(Number(item.unitPrice))} each` : ""}
                       </p>
                       {item.customizationNote ? (
-                        <p className="mt-1 text-xs text-black/55">{item.customizationNote}</p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs text-black/55">
+                          {item.customizationNote}
+                        </p>
                       ) : null}
                     </div>
                   ))
@@ -209,7 +254,7 @@ export function SalesOrderDetailDrawer({
                 <p>Invoice: {order.invoice_number || "Not ready"}</p>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {(Number(order.invoice_ready ?? 0) === 1 || Boolean(order.invoice_number)) && (
+                {invoiceReady && (
                   <a
                     href={`/api/orders/${order.id}/invoice`}
                     target="_blank"
@@ -217,6 +262,34 @@ export function SalesOrderDetailDrawer({
                     className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--berry)]"
                   >
                     Open Invoice PDF
+                  </a>
+                )}
+                {invoiceReady && (
+                  <a
+                    href={`/api/orders/${order.id}/barcode`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--berry)]"
+                  >
+                    Open Barcode
+                  </a>
+                )}
+                {invoiceReady && (
+                  <a
+                    href={`/api/orders/${order.id}/barcode?download=1`}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--berry)]"
+                  >
+                    Download Barcode
+                  </a>
+                )}
+                {invoiceReady && (
+                  <a
+                    href={`/admin/labels/${encodeURIComponent(order.id)}?autoprint=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--berry)]"
+                  >
+                    Print Label
                   </a>
                 )}
                 {paymentPending ? (
@@ -238,6 +311,36 @@ export function SalesOrderDetailDrawer({
                       Reject Payment
                     </button>
                   </>
+                ) : null}
+                {isOfflineDraft && onFinalizeDraft ? (
+                  <button
+                    type="button"
+                    onClick={() => onFinalizeDraft(order.id)}
+                    disabled={busy}
+                    className="rounded-lg bg-[color:var(--berry)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                  >
+                    Finalize Draft
+                  </button>
+                ) : null}
+                {isOfflineFinalized && onVoidInvoice ? (
+                  <button
+                    type="button"
+                    onClick={() => onVoidInvoice(order.id)}
+                    disabled={busy}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-40"
+                  >
+                    Void Invoice
+                  </button>
+                ) : null}
+                {isOfflineFinalized && onCreateReturn ? (
+                  <button
+                    type="button"
+                    onClick={() => onCreateReturn(order.id)}
+                    disabled={busy}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                  >
+                    Create Return
+                  </button>
                 ) : null}
               </div>
             </section>
