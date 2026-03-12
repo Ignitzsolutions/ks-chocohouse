@@ -5,13 +5,11 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
-  BRAND_NAME,
   FULL_ADDRESS,
   PHONE_NUMBER_DISPLAY,
   SELLER_GSTIN,
   SELLER_LEGAL_NAME,
   SELLER_STATE_CODE,
-  TAGLINE,
   WHATSAPP_NUMBER,
 } from "@/lib/brand";
 import {
@@ -89,12 +87,12 @@ const CONTENT_WIDTH = PAGE_WIDTH - CONTENT_X * 2;
 const CONTENT_RIGHT = CONTENT_X + CONTENT_WIDTH;
 const FOOTER_SAFE_TOP = 112;
 
-const colorText = rgb(0.16, 0.12, 0.1);
-const colorMuted = rgb(0.42, 0.38, 0.34);
-const colorLine = rgb(0.9, 0.87, 0.83);
-const colorPanel = rgb(0.985, 0.98, 0.972);
-const colorAccent = rgb(0.36, 0.17, 0.11);
-const colorSoftDecor = rgb(0.96, 0.92, 0.88);
+const colorText = rgb(0.15, 0.15, 0.15);
+const colorMuted = rgb(0.42, 0.42, 0.42);
+const colorLine = rgb(0.88, 0.88, 0.88);
+const colorPanel = rgb(0.985, 0.985, 0.985);
+const colorAccent = rgb(0.2, 0.2, 0.2);
+
 
 const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
@@ -167,28 +165,10 @@ const drawWrappedLines = (params: {
   return cursor;
 };
 
-const drawFloralMotif = (page: PDFPage, centerX: number, centerY: number) => {
-  const petals = [
-    [0, 5],
-    [4.5, 1.6],
-    [2.7, -4.1],
-    [-2.7, -4.1],
-    [-4.5, 1.6],
-  ];
-  petals.forEach(([dx, dy]) => {
-    page.drawCircle({
-      x: centerX + dx,
-      y: centerY + dy,
-      size: 2.1,
-      color: colorSoftDecor,
-    });
-  });
-  page.drawCircle({
-    x: centerX,
-    y: centerY,
-    size: 1.5,
-    color: rgb(0.93, 0.86, 0.78),
-  });
+const truncateLines = (lines: string[], maxLines: number) => {
+  if (lines.length <= maxLines) return lines;
+  if (maxLines <= 1) return ["…"];
+  return [...lines.slice(0, Math.max(1, maxLines - 1)), "…"];
 };
 
 const normalizeItems = (order: OrderRow) => {
@@ -293,20 +273,10 @@ export async function GET(
       readBinaryIfExists("public/images/brand/ks-choco-house-logo.jpg"),
       readBinaryIfExists("public/images/brand/fssai-logo.png"),
     ]);
-    const [invoiceSansRegularBytes, invoiceSansBoldBytes] = await Promise.all([
-      readBinaryIfExists("public/fonts/invoice/Arial.ttf"),
-      readBinaryIfExists("public/fonts/invoice/Arial-Bold.ttf"),
-    ]);
-
     const pdf = await PDFDocument.create();
     pdf.registerFontkit(fontkit);
-    const fontSans = invoiceSansRegularBytes
-      ? await pdf.embedFont(invoiceSansRegularBytes, { subset: true })
-      : await pdf.embedFont(StandardFonts.Helvetica);
-    const fontSansBold = invoiceSansBoldBytes
-      ? await pdf.embedFont(invoiceSansBoldBytes, { subset: true })
-      : await pdf.embedFont(StandardFonts.HelveticaBold);
-    const fontScript = await pdf.embedFont(StandardFonts.TimesRomanBoldItalic);
+    const fontBody = await pdf.embedFont(StandardFonts.Helvetica);
+    const fontBodyBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
     const bakeryLogo = bakeryLogoBytes ? await pdf.embedJpg(bakeryLogoBytes) : null;
     const fssaiLogo = fssaiBytes ? await pdf.embedPng(fssaiBytes) : null;
@@ -335,306 +305,226 @@ export async function GET(
       borderWidth: 1,
     });
 
-    // Subtle decorative markers.
-    [
-      [FRAME_X + 16, FRAME_Y + FRAME_HEIGHT - 16],
-      [FRAME_X + 30, FRAME_Y + FRAME_HEIGHT - 24],
-      [FRAME_X + FRAME_WIDTH - 16, FRAME_Y + FRAME_HEIGHT - 16],
-      [FRAME_X + FRAME_WIDTH - 30, FRAME_Y + FRAME_HEIGHT - 24],
-    ].forEach(([x, y]) => {
-      page.drawCircle({ x, y, size: 2.8, color: colorSoftDecor });
-    });
-    drawFloralMotif(page, FRAME_X + 44, FRAME_Y + FRAME_HEIGHT - 22);
-    drawFloralMotif(page, FRAME_X + FRAME_WIDTH - 44, FRAME_Y + FRAME_HEIGHT - 22);
+    const drawRightText = (
+      text: string,
+      xRight: number,
+      yPos: number,
+      font: PDFFont,
+      size: number,
+      color: ReturnType<typeof rgb>
+    ) => {
+      const width = font.widthOfTextAtSize(text, size);
+      page.drawText(text, { x: xRight - width, y: yPos, size, font, color });
+    };
 
-    let y = PAGE_HEIGHT - 52;
+    const invoiceDate = formatDate(order.paid_at || order.created_at);
+    const dueDate = formatDate(order.delivery_date);
 
-    const logoSize = 64;
+    // Header
+    const headerTop = PAGE_HEIGHT - 56;
+    const logoSize = 40;
     if (bakeryLogo) {
       page.drawImage(bakeryLogo, {
         x: CONTENT_X,
-        y: y - logoSize + 6,
+        y: headerTop - logoSize + 4,
         width: logoSize,
         height: logoSize,
       });
     }
 
     const titleX = bakeryLogo ? CONTENT_X + logoSize + 12 : CONTENT_X;
-    page.drawText(BRAND_NAME, {
+    page.drawText("INVOICE", {
       x: titleX,
-      y,
+      y: headerTop,
       size: 30,
-      font: fontScript,
-      color: colorAccent,
-    });
-    y -= 28;
-
-    page.drawText(TAGLINE, {
-      x: titleX,
-      y,
-      size: 10.5,
-      font: fontSansBold,
-      color: colorMuted,
-    });
-    y -= 16;
-    page.drawText("Tax Invoice", {
-      x: titleX,
-      y,
-      size: 11.5,
-      font: fontSansBold,
+      font: fontBodyBold,
       color: colorText,
     });
 
-    const metaBoxWidth = 208;
-    const metaBoxX = CONTENT_RIGHT - metaBoxWidth;
-    const metaBoxY = PAGE_HEIGHT - 120;
-    page.drawRectangle({
-      x: metaBoxX,
-      y: metaBoxY,
-      width: metaBoxWidth,
-      height: 78,
-      color: colorPanel,
-      borderColor: colorLine,
-      borderWidth: 0.8,
-    });
-
-    const invoiceDate = formatDate(order.paid_at || order.created_at);
+    const metaRightX = CONTENT_RIGHT;
+    const metaStartY = headerTop + 4;
+    const metaLineGap = 14;
     const metaRows = [
-      ["Invoice No", order.invoice_number],
-      ["Order ID", order.id],
+      ["Invoice #", order.invoice_number],
       ["Date", invoiceDate],
+      ["Due", dueDate],
     ] as const;
-    let metaY = metaBoxY + 58;
+    let metaY = metaStartY;
     metaRows.forEach(([label, value]) => {
       page.drawText(`${label}:`, {
-        x: metaBoxX + 10,
+        x: CONTENT_RIGHT - 150,
         y: metaY,
-        size: 9.8,
-        font: fontSansBold,
+        size: 9.6,
+        font: fontBodyBold,
         color: colorMuted,
       });
-      page.drawText(String(value || "-"), {
-        x: metaBoxX + 84,
-        y: metaY,
-        size: 9.8,
-        font: fontSans,
-        color: colorText,
-      });
-      metaY -= 18;
+      drawRightText(String(value || "-"), metaRightX, metaY, fontBody, 9.6, colorText);
+      metaY -= metaLineGap;
+    });
+
+    const headerLineY = headerTop - 22;
+    page.drawLine({
+      start: { x: CONTENT_X, y: headerLineY },
+      end: { x: CONTENT_RIGHT, y: headerLineY },
+      thickness: 1.2,
+      color: colorLine,
     });
 
     if (barcodeImage) {
-      const maxBarcodeWidth = metaBoxWidth - 16;
-      const maxBarcodeHeight = 58;
-      const barcodeScale = Math.min(
+      const maxBarcodeWidth = 180;
+      const maxBarcodeHeight = 38;
+      const scale = Math.min(
         maxBarcodeWidth / barcodeImage.width,
         maxBarcodeHeight / barcodeImage.height
       );
-      const barcodeWidth = barcodeImage.width * barcodeScale;
-      const barcodeHeight = barcodeImage.height * barcodeScale;
-      const barcodeX = metaBoxX + (metaBoxWidth - barcodeWidth) / 2;
-      const barcodeY = metaBoxY - barcodeHeight - 9;
-      page.drawRectangle({
-        x: barcodeX - 4,
-        y: barcodeY - 4,
-        width: barcodeWidth + 8,
-        height: barcodeHeight + 8,
-        color: rgb(1, 1, 1),
-        borderColor: colorLine,
-        borderWidth: 0.8,
-      });
+      const barcodeWidth = barcodeImage.width * scale;
+      const barcodeHeight = barcodeImage.height * scale;
+      const barcodeX = CONTENT_RIGHT - barcodeWidth;
+      const barcodeY = headerLineY - 12 - barcodeHeight;
       page.drawImage(barcodeImage, {
         x: barcodeX,
         y: barcodeY,
         width: barcodeWidth,
         height: barcodeHeight,
       });
-      y = Math.min(PAGE_HEIGHT - 148, barcodeY - 14);
-    } else {
-      y = PAGE_HEIGHT - 148;
     }
 
-    page.drawLine({
-      start: { x: CONTENT_X, y: y + 8 },
-      end: { x: CONTENT_RIGHT, y: y + 8 },
-      thickness: 0.8,
-      color: colorLine,
+    // Parties
+    let cursorY = headerLineY - 40;
+    const partyGap = 24;
+    const partyWidth = (CONTENT_WIDTH - partyGap) / 2;
+    const fromX = CONTENT_X;
+    const toX = CONTENT_X + partyWidth + partyGap;
+    const partyHeaderSize = 9.6;
+    const partyLineSize = 9.6;
+    const partyLineHeight = 12.4;
+
+    page.drawText("From", {
+      x: fromX,
+      y: cursorY,
+      size: partyHeaderSize,
+      font: fontBodyBold,
+      color: colorMuted,
+    });
+    page.drawText("To", {
+      x: toX,
+      y: cursorY,
+      size: partyHeaderSize,
+      font: fontBodyBold,
+      color: colorMuted,
     });
 
-    const leftCardX = CONTENT_X;
-    const cardGap = 12;
-    const cardWidth = (CONTENT_WIDTH - cardGap) / 2;
-    const rightCardX = leftCardX + cardWidth + cardGap;
-
-    const billingEntries = [
-      `Bill To: ${order.customer_name || "Customer"}`,
-      `Email: ${order.email || "-"}`,
-      `Address: ${[order.address, order.pincode].filter(Boolean).join(", ") || "-"}`,
-      `Delivery Date: ${formatDate(order.delivery_date)}`,
-      `Time Slot: ${order.delivery_slot || "-"}`,
-      ...(buyerGst?.businessName ? [`Buyer GST Name: ${buyerGst.businessName}`] : []),
-      ...(buyerGst?.gstin ? [`Buyer GSTIN: ${buyerGst.gstin}`] : []),
-      ...(buyerGst?.billingAddress ? [`Buyer GST Address: ${buyerGst.billingAddress}`] : []),
-    ];
-    const paymentEntries = [
-      `Payment Status: ${order.payment_status || "-"}`,
-      `Payment Method: ${order.payment_method || "-"}`,
-      `Reference: ${order.payment_reference || order.txn_id || "-"}`,
-      `Order Source: ${order.source || "online"}`,
-      `Order Status: ${order.status || "-"}`,
-      `Seller: ${SELLER_LEGAL_NAME}`,
-      `Seller GSTIN: ${SELLER_GSTIN}`,
+    const buyerAddress = [order.address, order.pincode].filter(Boolean).join(", ");
+    const sellerLinesSource = [
+      SELLER_LEGAL_NAME,
+      FULL_ADDRESS,
+      `GSTIN: ${SELLER_GSTIN}`,
       `State Code: ${SELLER_STATE_CODE}`,
-      ...(order.coupon_code ? [`Coupon: ${order.coupon_code}`] : []),
-      ...(order.order_kind === "return" && order.parent_order_id
-        ? [`Return Of: ${order.parent_order_id}`]
-        : []),
+    ];
+    const buyerLinesSource = [
+      order.customer_name || "Customer",
+      buyerAddress || "-",
+      order.email || null,
+      order.phone ? `Phone: ${order.phone}` : null,
+      buyerGst?.businessName ? `GST Name: ${buyerGst.businessName}` : null,
+      buyerGst?.gstin ? `GSTIN: ${buyerGst.gstin}` : null,
     ];
 
-    const measureEntries = (entries: string[]) =>
-      entries.reduce((acc, entry) => {
-        const wrapped = wrapText(entry, cardWidth - 20, fontSans, 9.8);
-        return acc + wrapped.length * 12 + 3;
-      }, 0);
+    const buildLines = (entries: Array<string | null>) =>
+      entries
+        .filter((entry): entry is string => Boolean(entry))
+        .flatMap((entry) => wrapText(entry, partyWidth, fontBody, partyLineSize));
 
-    const cardBodyHeight = Math.max(measureEntries(billingEntries), measureEntries(paymentEntries));
-    const cardHeight = Math.max(126, cardBodyHeight + 24);
-    const cardsTop = y;
+    const sellerLines = buildLines(sellerLinesSource);
+    const buyerLines = buildLines(buyerLinesSource);
 
-    [leftCardX, rightCardX].forEach((x) => {
-      page.drawRectangle({
-        x,
-        y: cardsTop - cardHeight,
-        width: cardWidth,
-        height: cardHeight,
-        color: colorPanel,
-        borderColor: colorLine,
-        borderWidth: 0.8,
-      });
-    });
-
-    page.drawText("Billing Details & GST", {
-      x: leftCardX + 10,
-      y: cardsTop - 16,
-      size: 10.5,
-      font: fontSansBold,
-      color: colorText,
-    });
-    page.drawText("Payment & Seller GST", {
-      x: rightCardX + 10,
-      y: cardsTop - 16,
-      size: 10.5,
-      font: fontSansBold,
-      color: colorText,
-    });
-
-    let leftY = cardsTop - 32;
-    billingEntries.forEach((entry) => {
-      leftY = drawWrappedLines({
-        page,
-        lines: wrapText(entry, cardWidth - 20, fontSans, 9.8),
-        x: leftCardX + 10,
-        y: leftY,
-        font: fontSans,
-        size: 9.8,
+    const linesY = cursorY - 14;
+    let sellerY = linesY;
+    sellerLines.forEach((line) => {
+      page.drawText(line, {
+        x: fromX,
+        y: sellerY,
+        size: partyLineSize,
+        font: fontBody,
         color: colorText,
-        lineGap: 2.4,
       });
-      leftY -= 1;
+      sellerY -= partyLineHeight;
     });
-
-    let rightY = cardsTop - 32;
-    paymentEntries.forEach((entry) => {
-      rightY = drawWrappedLines({
-        page,
-        lines: wrapText(entry, cardWidth - 20, fontSans, 9.8),
-        x: rightCardX + 10,
-        y: rightY,
-        font: fontSans,
-        size: 9.8,
+    let buyerY = linesY;
+    buyerLines.forEach((line) => {
+      page.drawText(line, {
+        x: toX,
+        y: buyerY,
+        size: partyLineSize,
+        font: fontBody,
         color: colorText,
-        lineGap: 2.4,
       });
-      rightY -= 1;
+      buyerY -= partyLineHeight;
     });
 
-    y = cardsTop - cardHeight - 18;
+    const partyHeight = Math.max(sellerLines.length, buyerLines.length) * partyLineHeight;
+    cursorY = linesY - partyHeight - 20;
 
     // Items table
     const tableX = CONTENT_X;
     const tableWidth = CONTENT_WIDTH;
-    const headerHeight = 28;
+    const headerHeight = 24;
     page.drawRectangle({
       x: tableX,
-      y: y - headerHeight,
+      y: cursorY - headerHeight,
       width: tableWidth,
       height: headerHeight,
-      color: rgb(0.972, 0.958, 0.94),
+      color: rgb(0.965, 0.965, 0.965),
       borderColor: colorLine,
       borderWidth: 0.8,
     });
 
-    const colItemX = tableX + 12;
-    const colQtyX = tableX + 336;
-    const colPriceX = tableX + 392;
-    const colTotalX = tableX + 456;
+    const colDescX = tableX + 12;
+    const qtyRightX = tableX + tableWidth - 180;
+    const amountRightX = tableX + tableWidth - 12;
 
-    page.drawText("Item", {
-      x: colItemX,
-      y: y - 19,
-      size: 10,
-      font: fontSansBold,
+    page.drawText("Description", {
+      x: colDescX,
+      y: cursorY - 16,
+      size: 9.6,
+      font: fontBodyBold,
       color: colorMuted,
     });
-    page.drawText("Qty", {
-      x: colQtyX,
-      y: y - 19,
-      size: 10,
-      font: fontSansBold,
-      color: colorMuted,
-    });
-    page.drawText("Price", {
-      x: colPriceX,
-      y: y - 19,
-      size: 10,
-      font: fontSansBold,
-      color: colorMuted,
-    });
-    page.drawText("Total", {
-      x: colTotalX,
-      y: y - 19,
-      size: 10,
-      font: fontSansBold,
-      color: colorMuted,
-    });
+    drawRightText("Qty", qtyRightX, cursorY - 16, fontBodyBold, 9.6, colorMuted);
+    drawRightText("Amount", amountRightX, cursorY - 16, fontBodyBold, 9.6, colorMuted);
 
-    y -= headerHeight + 10;
+    cursorY -= headerHeight + 10;
 
     const itemRows = items.length > 0 ? items : [];
     let truncatedItems = false;
+    const footerReserve = 96;
+    const noteText = order.cake_message?.trim();
+    const noteLines = noteText
+      ? wrapMultilineText(noteText, CONTENT_WIDTH - 24, fontBody, 9.4)
+      : [];
+    const noteBoxHeight = noteLines.length ? Math.min(120, noteLines.length * 12 + 20) : 0;
+    const totalsBoxWidth = 300;
+    const totalsBoxHeight = 110;
+    const postTableReserve = totalsBoxHeight + noteBoxHeight + 48;
+
     for (let index = 0; index < itemRows.length; index += 1) {
       const item = itemRows[index];
       const titleLines = wrapText(
         `${index + 1}. ${item.name}`,
-        colQtyX - colItemX - 20,
-        fontSans,
+        qtyRightX - colDescX - 16,
+        fontBody,
         10
       );
-      const noteLines = item.customizationNote
-        ? wrapMultilineText(
-            `Customization:\n${item.customizationNote}`,
-            colQtyX - colItemX - 24,
-            fontSans,
-            9.2
-          )
+      const noteLinesItem = item.customizationNote
+        ? wrapMultilineText(item.customizationNote, qtyRightX - colDescX - 24, fontBody, 9)
         : [];
 
-      const topPadding = 8;
-      const bottomPadding = 8;
+      const topPadding = 6;
+      const bottomPadding = 6;
       const titleHeight = titleLines.length * 14;
-      const noteHeight = noteLines.length > 0 ? 4 + noteLines.length * 12 : 0;
+      const noteHeight = noteLinesItem.length > 0 ? 4 + noteLinesItem.length * 12 : 0;
       const rowHeight = topPadding + titleHeight + noteHeight + bottomPadding;
-      if (y - rowHeight < FOOTER_SAFE_TOP) {
+      if (cursorY - rowHeight < FRAME_Y + footerReserve + postTableReserve) {
         truncatedItems = true;
         break;
       }
@@ -642,97 +532,79 @@ export async function GET(
       if (index % 2 === 0) {
         page.drawRectangle({
           x: tableX,
-          y: y - rowHeight + 2,
+          y: cursorY - rowHeight + 2,
           width: tableWidth,
           height: rowHeight - 2,
-          color: rgb(0.998, 0.996, 0.992),
+          color: rgb(0.995, 0.995, 0.995),
         });
       }
 
-      let rowY = y - topPadding;
+      let rowY = cursorY - topPadding;
       rowY = drawWrappedLines({
         page,
         lines: titleLines,
-        x: colItemX,
+        x: colDescX,
         y: rowY,
-        font: fontSans,
+        font: fontBody,
         size: 10,
         color: colorText,
         lineGap: 4,
       });
 
-      if (noteLines.length > 0) {
+      if (noteLinesItem.length > 0) {
         rowY = drawWrappedLines({
           page,
-          lines: noteLines,
-          x: colItemX + 8,
+          lines: noteLinesItem,
+          x: colDescX + 8,
           y: rowY - 2,
-          font: fontSans,
-          size: 9.2,
+          font: fontBody,
+          size: 9,
           color: colorMuted,
-          lineGap: 2.8,
+          lineGap: 2.4,
         });
       }
 
-      const numbersY = y - 10;
-      page.drawText(String(item.qty), {
-        x: colQtyX,
-        y: numbersY,
-        size: 10,
-        font: fontSans,
-        color: colorText,
-      });
-      page.drawText(formatInr(item.unitPrice), {
-        x: colPriceX,
-        y: numbersY,
-        size: 10,
-        font: fontSans,
-        color: colorText,
-      });
-      page.drawText(formatInr(item.lineTotal), {
-        x: colTotalX,
-        y: numbersY,
-        size: 10,
-        font: fontSans,
-        color: colorText,
-      });
+      const numbersY = cursorY - 10;
+      drawRightText(String(item.qty), qtyRightX, numbersY, fontBody, 9.8, colorText);
+      drawRightText(formatInr(item.lineTotal), amountRightX, numbersY, fontBody, 9.8, colorText);
 
-      y -= rowHeight;
+      cursorY -= rowHeight;
       page.drawLine({
-        start: { x: tableX, y: y + 3 },
-        end: { x: tableX + tableWidth, y: y + 3 },
+        start: { x: tableX, y: cursorY + 3 },
+        end: { x: tableX + tableWidth, y: cursorY + 3 },
         thickness: 0.6,
         color: colorLine,
       });
-      y -= 8;
+      cursorY -= 8;
     }
 
     if (itemRows.length === 0) {
       page.drawText("No item data recorded for this order.", {
-        x: colItemX,
-        y,
-        size: 9.8,
-        font: fontSans,
+        x: colDescX,
+        y: cursorY,
+        size: 9.4,
+        font: fontBody,
         color: colorMuted,
       });
-      y -= 20;
+      cursorY -= 20;
     }
 
     if (truncatedItems) {
       page.drawText("Additional items continue in order record.", {
-        x: colItemX,
-        y,
+        x: colDescX,
+        y: cursorY,
         size: 8.6,
-        font: fontSans,
+        font: fontBody,
         color: colorMuted,
       });
-      y -= 14;
+      cursorY -= 14;
     }
 
-    const totalsBoxWidth = 220;
-    const totalsBoxHeight = 110;
     const totalsX = CONTENT_RIGHT - totalsBoxWidth;
-    const totalsY = Math.max(FOOTER_SAFE_TOP + 8, y - totalsBoxHeight - 4);
+    const totalsY = Math.max(
+      FRAME_Y + footerReserve + noteBoxHeight + 24,
+      cursorY - totalsBoxHeight - 12
+    );
     page.drawRectangle({
       x: totalsX,
       y: totalsY,
@@ -745,56 +617,59 @@ export async function GET(
 
     const drawAmount = (label: string, value: string, yy: number, bold = false) => {
       page.drawText(label, {
-        x: totalsX + 10,
+        x: totalsX + 12,
         y: yy,
-        size: bold ? 10.8 : 9.8,
-        font: bold ? fontSansBold : fontSans,
+        size: bold ? 11 : 9.6,
+        font: bold ? fontBodyBold : fontBody,
         color: colorMuted,
       });
-      const activeFont = bold ? fontSansBold : fontSans;
-      const size = bold ? 10.8 : 9.8;
-      const width = activeFont.widthOfTextAtSize(value, size);
-      page.drawText(value, {
-        x: totalsX + totalsBoxWidth - 10 - width,
-        y: yy,
-        size,
-        font: activeFont,
-        color: bold ? colorAccent : colorText,
-      });
+      drawRightText(
+        value,
+        totalsX + totalsBoxWidth - 12,
+        yy,
+        bold ? fontBodyBold : fontBody,
+        bold ? 11 : 9.6,
+        bold ? colorAccent : colorText
+      );
     };
 
-    drawAmount("Subtotal", formatInr(subtotal), totalsY + 76);
-    drawAmount("Discount", formatInr(discountAmount), totalsY + 58);
-    drawAmount("Tax", formatInr(taxAmount), totalsY + 40);
-    drawAmount("Delivery Fee", formatInr(deliveryFee), totalsY + 22);
-    drawAmount("Grand Total", formatInr(total), totalsY + 4, true);
+    drawAmount("Subtotal", formatInr(subtotal), totalsY + 78);
+    drawAmount("Discount", formatInr(discountAmount), totalsY + 60);
+    drawAmount("Tax", formatInr(taxAmount), totalsY + 42);
+    drawAmount("Delivery Fee", formatInr(deliveryFee), totalsY + 24);
+    drawAmount("Total", formatInr(total), totalsY + 6, true);
 
-    const noteText = order.cake_message?.trim();
-    if (noteText) {
-      const noteLines = wrapMultilineText(
-        `Customization / Message:\n${noteText}`,
-        totalsX - CONTENT_X - 12,
-        fontSans,
-        9.2
-      );
+    if (noteBoxHeight > 0) {
+      const notesY = totalsY - 24 - noteBoxHeight;
+      page.drawRectangle({
+        x: CONTENT_X,
+        y: notesY,
+        width: CONTENT_WIDTH,
+        height: noteBoxHeight,
+        color: rgb(0.975, 0.975, 0.975),
+        borderColor: colorLine,
+        borderWidth: 0.8,
+      });
+      const maxNoteLines = Math.floor((noteBoxHeight - 16) / 12.2);
+      const clippedNoteLines = truncateLines(noteLines, Math.max(1, maxNoteLines));
       drawWrappedLines({
         page,
-        lines: noteLines,
-        x: CONTENT_X,
-        y: totalsY + 62,
-        font: fontSans,
-        size: 9.2,
+        lines: clippedNoteLines,
+        x: CONTENT_X + 10,
+        y: notesY + noteBoxHeight - 14,
+        font: fontBody,
+        size: 9.4,
         color: colorMuted,
-        lineGap: 2,
+        lineGap: 2.4,
       });
     }
 
     if ((order.lifecycle_state ?? "finalized") === "void") {
       page.drawText("VOID", {
-        x: 180,
-        y: 430,
+        x: 170,
+        y: 420,
         size: 76,
-        font: fontSansBold,
+        font: fontBodyBold,
         color: rgb(0.84, 0.3, 0.3),
         rotate: degrees(-28),
         opacity: 0.16,
@@ -802,57 +677,56 @@ export async function GET(
     }
 
     // Footer
-    const footerTop = FRAME_Y + 74;
+    const footerLineY = FRAME_Y + 86;
     page.drawLine({
-      start: { x: CONTENT_X, y: footerTop + 12 },
-      end: { x: CONTENT_RIGHT, y: footerTop + 12 },
+      start: { x: CONTENT_X, y: footerLineY },
+      end: { x: CONTENT_RIGHT, y: footerLineY },
       thickness: 0.8,
       color: colorLine,
     });
 
-    page.drawText("Thank you for your order. Invoice generated after payment verification.", {
-      x: CONTENT_X,
-      y: footerTop - 4,
-      size: 8.8,
-      font: fontSans,
-      color: colorMuted,
-    });
+    const footerRightWidth = 120;
+    const footerLeftWidth = CONTENT_WIDTH - footerRightWidth - 12;
+    const footerLeftLines: string[] = [];
     if (order.order_kind === "return" && order.parent_order_id) {
-      page.drawText(`Return Reference: ${order.parent_order_id}`, {
+      footerLeftLines.push(`Return Reference: ${order.parent_order_id}`);
+    }
+    footerLeftLines.push("Thank you for your order. Invoice generated after payment verification.");
+    footerLeftLines.push(`Address: ${FULL_ADDRESS}`);
+    footerLeftLines.push(`Contact: ${PHONE_NUMBER_DISPLAY}  |  WhatsApp: +${WHATSAPP_NUMBER}`);
+
+    const wrappedFooterLines = footerLeftLines.flatMap((line) =>
+      wrapText(line, footerLeftWidth, fontBody, 8.6)
+    );
+    let footerTextY = footerLineY - 12;
+    wrappedFooterLines.forEach((line) => {
+      page.drawText(line, {
         x: CONTENT_X,
-        y: footerTop + 8,
-        size: 8.8,
-        font: fontSansBold,
+        y: footerTextY,
+        size: 8.6,
+        font: fontBody,
         color: colorMuted,
       });
-    }
-    page.drawText(`Address: ${FULL_ADDRESS}`, {
-      x: CONTENT_X,
-      y: footerTop - 20,
-      size: 8.8,
-      font: fontSans,
-      color: colorMuted,
-    });
-    page.drawText(`Contact: ${PHONE_NUMBER_DISPLAY}  |  WhatsApp: +${WHATSAPP_NUMBER}`, {
-      x: CONTENT_X,
-      y: footerTop - 36,
-      size: 8.8,
-      font: fontSans,
-      color: colorMuted,
+      footerTextY -= 11;
     });
 
     if (fssaiLogo) {
+      const fssaiLogoWidth = 96;
+      const fssaiLogoHeight = 30;
+      const fssaiX = CONTENT_RIGHT - fssaiLogoWidth;
+      const fssaiBottomY = FRAME_Y + 22;
+      const fssaiLogoY = fssaiBottomY + 12;
       page.drawImage(fssaiLogo, {
-        x: CONTENT_RIGHT - 116,
-        y: footerTop - 40,
-        width: 104,
-        height: 34.8,
+        x: fssaiX,
+        y: fssaiLogoY,
+        width: fssaiLogoWidth,
+        height: fssaiLogoHeight,
       });
-      page.drawText("FSSAI Validation", {
-        x: CONTENT_RIGHT - 114,
-        y: footerTop - 48,
-        size: 7.8,
-        font: fontSans,
+      page.drawText("FSSAI No: 20124233000089", {
+        x: fssaiX,
+        y: fssaiBottomY,
+        size: 7.6,
+        font: fontBody,
         color: colorMuted,
       });
     }

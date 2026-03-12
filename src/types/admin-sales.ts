@@ -95,3 +95,27 @@ export type SalesSummaryResponse = {
     filteredRevenue: number;
   };
 };
+
+export type ProductAnalyticsRow = {
+  productId: string;
+  name: string;
+  category: string;
+  orders: number;
+  quantity: number;
+  revenue: number;
+};
+
+export type CategoryAnalyticsRow = {
+  category: string;
+  orders: number;
+  quantity: number;
+  revenue: number;
+};
+
+export type ProductAnalyticsResponse = {
+  rows: ProductAnalyticsRow[];
+};
+
+export type CategoryAnalyticsResponse = {
+  rows: CategoryAnalyticsRow[];
+};

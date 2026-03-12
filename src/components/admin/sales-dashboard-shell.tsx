@@ -14,7 +14,9 @@ import { SalesOrderDetailDrawer } from "@/components/admin/sales-order-detail-dr
 import { SalesOrdersTable } from "@/components/admin/sales-orders-table";
 import { SalesTablePagination } from "@/components/admin/sales-table-pagination";
 import type {
+  CategoryAnalyticsResponse,
   OrderEvent,
+  ProductAnalyticsResponse,
   SalesOrderDetail,
   SalesOrderFilters,
   SalesOrderListResponse,
@@ -45,6 +47,8 @@ type QuickPreset =
   | "today_deliveries"
   | "delivered_today"
   | "all";
+
+type SalesTab = "summary" | "products" | "categories";
 
 function todayIst() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -97,13 +101,21 @@ function parseItemSummary(orderItemsJson?: string | null) {
 }
 
 export function SalesDashboardShell() {
+  const [activeTab, setActiveTab] = useState<SalesTab>("summary");
   const [filters, setFilters] = useState<SalesOrderFilters>(INITIAL_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState(INITIAL_FILTERS.q);
   const [list, setList] = useState<SalesOrderListResponse | null>(null);
   const [summary, setSummary] = useState<SalesSummaryResponse | null>(null);
+  const [productAnalytics, setProductAnalytics] = useState<ProductAnalyticsResponse | null>(
+    null
+  );
+  const [categoryAnalytics, setCategoryAnalytics] =
+    useState<CategoryAnalyticsResponse | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [updatingIds, setUpdatingIds] = useState<Record<string, boolean>>({});
@@ -181,6 +193,42 @@ export function SalesDashboardShell() {
   useEffect(() => {
     void loadDashboardData();
   }, [loadDashboardData]);
+
+  const loadAnalytics = useCallback(
+    async (tab: SalesTab) => {
+      if (tab === "summary") return;
+      setAnalyticsLoading(true);
+      setAnalyticsError(null);
+      try {
+        if (tab === "products") {
+          const response = await fetch(`/api/admin/sales/analytics/products?${queryString}`, {
+            cache: "no-store",
+            credentials: "include",
+          });
+          const data = (await response.json()) as ProductAnalyticsResponse & { error?: string };
+          if (!response.ok) throw new Error(data.error ?? "Failed to load product analytics");
+          setProductAnalytics(data);
+        } else if (tab === "categories") {
+          const response = await fetch(`/api/admin/sales/analytics/categories?${queryString}`, {
+            cache: "no-store",
+            credentials: "include",
+          });
+          const data = (await response.json()) as CategoryAnalyticsResponse & { error?: string };
+          if (!response.ok) throw new Error(data.error ?? "Failed to load category analytics");
+          setCategoryAnalytics(data);
+        }
+      } catch (err) {
+        setAnalyticsError(String(err));
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    },
+    [queryString]
+  );
+
+  useEffect(() => {
+    void loadAnalytics(activeTab);
+  }, [activeTab, loadAnalytics]);
 
   const loadOrderDetail = useCallback(async (orderId: string) => {
     setActiveOrderId(orderId);
@@ -336,6 +384,39 @@ export function SalesDashboardShell() {
       });
     },
     [runOrderMutation]
+  );
+
+  const handleDeleteOrder = useCallback(
+    async (orderId: string) => {
+      const ok = window.confirm(
+        "This permanently deletes the order and its events. This cannot be undone."
+      );
+      if (!ok) return;
+      setUpdatingIds((prev) => ({ ...prev, [orderId]: true }));
+      setError(null);
+      setMessage(null);
+      try {
+        const response = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(data.error ?? "Failed to delete order");
+        setMessage(`Deleted ${orderId}`);
+        await loadDashboardData("refresh");
+        if (activeOrderId === orderId) {
+          setDrawerOpen(false);
+          setActiveOrderId(null);
+          setDetailOrder(null);
+          setDetailEvents([]);
+        }
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setUpdatingIds((prev) => ({ ...prev, [orderId]: false }));
+      }
+    },
+    [activeOrderId, loadDashboardData]
   );
 
   const handleFinalizeDraft = useCallback(
@@ -509,9 +590,37 @@ export function SalesDashboardShell() {
             </div>
           </div>
 
-          <div className="mt-6">
-            <SalesKpiCards summary={summary} loading={loading || refreshing} />
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            {(["summary", "products", "categories"] as SalesTab[]).map((tab) => {
+              const label =
+                tab === "summary"
+                  ? "Sales Summary"
+                  : tab === "products"
+                    ? "Product Analytics"
+                    : "Category Analytics";
+              const active = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                    active
+                      ? "border-black bg-[color:var(--ink)] text-white"
+                      : "border-black/10 bg-white text-black/60"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
+
+          {activeTab === "summary" ? (
+            <div className="mt-6">
+              <SalesKpiCards summary={summary} loading={loading || refreshing} />
+            </div>
+          ) : null}
 
           <div className="mt-5">
             <SalesFilterBar
@@ -522,22 +631,29 @@ export function SalesDashboardShell() {
             />
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-black/55">
-              {list ? `${list.totalRows} orders • ${formatInr(summary?.totals.filteredRevenue ?? 0)}` : "Loading..."}
+          {activeTab === "summary" ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-black/55">
+                {list ? `${list.totalRows} orders • ${formatInr(summary?.totals.filteredRevenue ?? 0)}` : "Loading..."}
+              </div>
+              <SalesBulkActions
+                selectedCount={selectedCount}
+                busy={bulkBusy}
+                onClear={() => setSelectedIds({})}
+                onExportSelected={exportSelectedCsv}
+                onApplyStatus={(status) => void applyBulkStatus(status)}
+              />
             </div>
-            <SalesBulkActions
-              selectedCount={selectedCount}
-              busy={bulkBusy}
-              onClear={() => setSelectedIds({})}
-              onExportSelected={exportSelectedCsv}
-              onApplyStatus={(status) => void applyBulkStatus(status)}
-            />
-          </div>
+          ) : null}
 
           {error ? (
             <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
+            </div>
+          ) : null}
+          {analyticsError ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {analyticsError}
             </div>
           ) : null}
           {message ? (
@@ -546,50 +662,119 @@ export function SalesDashboardShell() {
             </div>
           ) : null}
 
-          <div className="mt-4">
-            <SalesOrdersTable
-              rows={rows}
-              loading={loading}
-              selectedIds={selectedIds}
-              updatingIds={updatingIds}
-              sortBy={filters.sortBy}
-              sortDir={filters.sortDir}
-              onSort={sortTable}
-              onToggleSelect={(orderId, checked) =>
-                setSelectedIds((prev) => ({ ...prev, [orderId]: checked }))
-              }
-              onToggleSelectAll={(checked) => {
-                if (!checked) {
-                  setSelectedIds({});
-                  return;
-                }
-                setSelectedIds(
-                  rows.reduce<Record<string, boolean>>((acc, row) => {
-                    acc[row.id] = true;
-                    return acc;
-                  }, {})
-                );
-              }}
-              onOpenOrder={(orderId) => void loadOrderDetail(orderId)}
-              onStatusUpdate={handleStatusUpdate}
-              onVerifyPayment={handleVerifyPayment}
-              onRejectPayment={handleRejectPayment}
-              onFinalizeDraft={handleFinalizeDraft}
-              onVoidInvoice={handleVoidInvoice}
-              onCreateReturn={handleCreateReturn}
-            />
-          </div>
+          {activeTab === "summary" ? (
+            <>
+              <div className="mt-4">
+                <SalesOrdersTable
+                  rows={rows}
+                  loading={loading}
+                  selectedIds={selectedIds}
+                  updatingIds={updatingIds}
+                  sortBy={filters.sortBy}
+                  sortDir={filters.sortDir}
+                  onSort={sortTable}
+                  onToggleSelect={(orderId, checked) =>
+                    setSelectedIds((prev) => ({ ...prev, [orderId]: checked }))
+                  }
+                  onToggleSelectAll={(checked) => {
+                    if (!checked) {
+                      setSelectedIds({});
+                      return;
+                    }
+                    setSelectedIds(
+                      rows.reduce<Record<string, boolean>>((acc, row) => {
+                        acc[row.id] = true;
+                        return acc;
+                      }, {})
+                    );
+                  }}
+                  onOpenOrder={(orderId) => void loadOrderDetail(orderId)}
+                  onStatusUpdate={handleStatusUpdate}
+                  onVerifyPayment={handleVerifyPayment}
+                  onRejectPayment={handleRejectPayment}
+                  onFinalizeDraft={handleFinalizeDraft}
+                  onVoidInvoice={handleVoidInvoice}
+                  onCreateReturn={handleCreateReturn}
+                  onDeleteOrder={handleDeleteOrder}
+                />
+              </div>
 
-          <div className="mt-2">
-            <SalesTablePagination
-              page={list?.page ?? filters.page}
-              pageSize={list?.pageSize ?? filters.pageSize}
-              totalRows={list?.totalRows ?? 0}
-              totalPages={list?.totalPages ?? 1}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
-          </div>
+              <div className="mt-2">
+                <SalesTablePagination
+                  page={list?.page ?? filters.page}
+                  pageSize={list?.pageSize ?? filters.pageSize}
+                  totalRows={list?.totalRows ?? 0}
+                  totalPages={list?.totalPages ?? 1}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-black/5 bg-white">
+              <div className="overflow-auto">
+                <table className="min-w-[900px] w-full text-sm">
+                  <thead className="bg-[color:var(--cream)]">
+                    <tr className="border-b border-black/5 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
+                      {activeTab === "products" ? <th className="px-4 py-3">Product</th> : null}
+                      <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Orders</th>
+                      <th className="px-4 py-3">Qty</th>
+                      <th className="px-4 py-3">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/5">
+                    {analyticsLoading ? (
+                      <tr>
+                        <td
+                          colSpan={activeTab === "products" ? 5 : 4}
+                          className="px-4 py-8 text-center text-black/50"
+                        >
+                          Loading analytics...
+                        </td>
+                      </tr>
+                    ) : activeTab === "products" ? (
+                      (productAnalytics?.rows ?? []).length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-black/50">
+                            No product analytics data for the current filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        productAnalytics?.rows.map((row) => (
+                          <tr key={row.productId}>
+                            <td className="px-4 py-3">
+                              <p className="font-semibold text-[color:var(--ink)]">{row.name}</p>
+                              <p className="text-xs text-black/45">{row.productId}</p>
+                            </td>
+                            <td className="px-4 py-3">{row.category}</td>
+                            <td className="px-4 py-3">{row.orders}</td>
+                            <td className="px-4 py-3">{row.quantity}</td>
+                            <td className="px-4 py-3 font-semibold">{formatInr(row.revenue)}</td>
+                          </tr>
+                        ))
+                      )
+                    ) : (categoryAnalytics?.rows ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-black/50">
+                          No category analytics data for the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      categoryAnalytics?.rows.map((row) => (
+                        <tr key={row.category}>
+                          <td className="px-4 py-3 font-semibold">{row.category}</td>
+                          <td className="px-4 py-3">{row.orders}</td>
+                          <td className="px-4 py-3">{row.quantity}</td>
+                          <td className="px-4 py-3 font-semibold">{formatInr(row.revenue)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </main>
         <SiteFooter />
 
@@ -612,6 +797,7 @@ export function SalesDashboardShell() {
           onFinalizeDraft={handleFinalizeDraft}
           onVoidInvoice={handleVoidInvoice}
           onCreateReturn={handleCreateReturn}
+          onDeleteOrder={handleDeleteOrder}
         />
       </div>
     </AdminGuard>

@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { HeroFloatingCarousel } from "@/components/hero-floating-carousel";
 import { HomeCategoriesGrid } from "@/components/home-categories-grid";
+import { ReviewsMarquee } from "@/components/reviews-marquee";
 import { JsonLd } from "@/components/seo/json-ld";
 import {
   BRAND_NAME,
@@ -302,6 +303,10 @@ export default function Home() {
               Explore the Menu
             </Link>
           </div>
+        </section>
+
+        <section className="mt-16">
+          <ReviewsMarquee />
         </section>
       </main>
       <SiteFooter />

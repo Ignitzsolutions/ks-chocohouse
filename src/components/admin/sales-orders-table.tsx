@@ -21,6 +21,7 @@ type Props = {
   onFinalizeDraft?: (orderId: string) => Promise<void> | void;
   onVoidInvoice?: (orderId: string) => Promise<void> | void;
   onCreateReturn?: (orderId: string) => Promise<void> | void;
+  onDeleteOrder?: (orderId: string) => Promise<void> | void;
 };
 
 function formatDateTime(value?: string | null) {
@@ -68,6 +69,7 @@ export function SalesOrdersTable({
   onFinalizeDraft,
   onVoidInvoice,
   onCreateReturn,
+  onDeleteOrder,
 }: Props) {
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds[row.id]);
 
@@ -217,6 +219,7 @@ export function SalesOrdersTable({
                         onFinalizeDraft={onFinalizeDraft}
                         onVoidInvoice={onVoidInvoice}
                         onCreateReturn={onCreateReturn}
+                        onDeleteOrder={onDeleteOrder}
                       />
                     </td>
                   </tr>

@@ -48,7 +48,7 @@ export default function RootLayout({
   `;
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${displayFont.variable} ${openSans.variable} ${brandScript.variable} antialiased`}
       >

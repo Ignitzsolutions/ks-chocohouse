@@ -31,6 +31,9 @@ export function SiteFooter() {
               height={47}
               className="mt-1 h-auto w-[130px] object-contain"
             />
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/45">
+              FSSAI No: 20124233000089
+            </p>
           </div>
         </div>
         <div className="space-y-2 text-sm">

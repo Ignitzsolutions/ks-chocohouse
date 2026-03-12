@@ -22,6 +22,7 @@ type Props = {
   onFinalizeDraft?: (orderId: string) => Promise<void> | void;
   onVoidInvoice?: (orderId: string) => Promise<void> | void;
   onCreateReturn?: (orderId: string) => Promise<void> | void;
+  onDeleteOrder?: (orderId: string) => Promise<void> | void;
 };
 
 export function SalesOrderRowActions({
@@ -33,6 +34,7 @@ export function SalesOrderRowActions({
   onFinalizeDraft,
   onVoidInvoice,
   onCreateReturn,
+  onDeleteOrder,
 }: Props) {
   const [draftStatus, setDraftStatus] = useState(order.status);
 
@@ -114,6 +116,16 @@ export function SalesOrderRowActions({
           className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-semibold disabled:opacity-40"
         >
           Create Return
+        </button>
+      ) : null}
+      {onDeleteOrder ? (
+        <button
+          type="button"
+          onClick={() => onDeleteOrder(order.id)}
+          disabled={busy}
+          className="rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-40"
+        >
+          Delete Order
         </button>
       ) : null}
     </div>

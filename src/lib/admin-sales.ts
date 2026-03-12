@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { getDb, initDb } from "@/lib/db";
 import type {
   OrderEvent,
+  CategoryAnalyticsResponse,
+  CategoryAnalyticsRow,
+  ProductAnalyticsResponse,
+  ProductAnalyticsRow,
   SalesOrderDetail,
   SalesOrderFilters,
   SalesOrderListResponse,
@@ -19,6 +23,21 @@ type EventInput = {
   actor?: string | null;
   meta?: Record<string, unknown> | null;
   createdAt?: string;
+};
+
+type AnalyticsOrderRow = {
+  id: string;
+  order_kind?: string | null;
+  lifecycle_state?: string | null;
+  order_items_json?: string | null;
+};
+
+type AnalyticsItemRow = {
+  id?: string;
+  name?: string;
+  category?: string;
+  qty?: number;
+  lineTotal?: number;
 };
 
 const DEFAULT_FILTERS: SalesOrderFilters = {
@@ -186,6 +205,15 @@ function buildWhere(filters: SalesOrderFilters) {
   return { whereSql, params };
 }
 
+function buildAnalyticsWhere(filters: SalesOrderFilters) {
+  const { whereSql, params } = buildWhere(filters);
+  const voidClause = "COALESCE(lifecycle_state, 'finalized') <> 'void'";
+  if (!whereSql) {
+    return { whereSql: `WHERE ${voidClause}`, params };
+  }
+  return { whereSql: `${whereSql} AND ${voidClause}`, params };
+}
+
 function appliedFilters(filters: SalesOrderFilters): Record<string, string | number | boolean | null> {
   return {
     q: filters.q || null,
@@ -350,6 +378,135 @@ export function getSalesOrderDetail(orderId: string): {
     order: order ?? null,
     events,
   };
+}
+
+export function getProductAnalytics(filters: SalesOrderFilters): ProductAnalyticsResponse {
+  initDb();
+  const db = getDb();
+  const { whereSql, params } = buildAnalyticsWhere(filters);
+  const rows = db
+    .prepare(
+      `SELECT id, order_kind, lifecycle_state, order_items_json
+       FROM orders
+       ${whereSql}`
+    )
+    .all(params) as AnalyticsOrderRow[];
+
+  const map = new Map<string, ProductAnalyticsRow>();
+
+  rows.forEach((order) => {
+    const items = (() => {
+      try {
+        const parsed = JSON.parse(order.order_items_json ?? "[]") as AnalyticsItemRow[];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    if (items.length === 0) return;
+
+    const isReturn = order.order_kind === "return";
+    const seenInOrder = new Set<string>();
+    items.forEach((item) => {
+      const productId = String(item.id ?? "").trim();
+      if (!productId) return;
+      const name = String(item.name ?? "").trim() || productId;
+      const category = String(item.category ?? "").trim() || "Uncategorized";
+      const qty = Number(item.qty ?? 0);
+      const lineTotal = Number(item.lineTotal ?? 0);
+      const effectiveQty = isReturn ? -Math.abs(qty) : qty;
+      const effectiveRevenue = isReturn ? -Math.abs(lineTotal) : lineTotal;
+
+      if (!map.has(productId)) {
+        map.set(productId, {
+          productId,
+          name,
+          category,
+          orders: 0,
+          quantity: 0,
+          revenue: 0,
+        });
+      }
+
+      const entry = map.get(productId);
+      if (!entry) return;
+      entry.quantity += effectiveQty;
+      entry.revenue += effectiveRevenue;
+
+      if (!seenInOrder.has(productId)) {
+        entry.orders += isReturn ? -1 : 1;
+        seenInOrder.add(productId);
+      }
+    });
+  });
+
+  const rowsOut = Array.from(map.values()).sort(
+    (a, b) => Math.abs(b.revenue) - Math.abs(a.revenue)
+  );
+
+  return { rows: rowsOut };
+}
+
+export function getCategoryAnalytics(filters: SalesOrderFilters): CategoryAnalyticsResponse {
+  initDb();
+  const db = getDb();
+  const { whereSql, params } = buildAnalyticsWhere(filters);
+  const rows = db
+    .prepare(
+      `SELECT id, order_kind, lifecycle_state, order_items_json
+       FROM orders
+       ${whereSql}`
+    )
+    .all(params) as AnalyticsOrderRow[];
+
+  const map = new Map<string, CategoryAnalyticsRow>();
+
+  rows.forEach((order) => {
+    const items = (() => {
+      try {
+        const parsed = JSON.parse(order.order_items_json ?? "[]") as AnalyticsItemRow[];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    if (items.length === 0) return;
+
+    const isReturn = order.order_kind === "return";
+    const seenInOrder = new Set<string>();
+    items.forEach((item) => {
+      const category = String(item.category ?? "").trim() || "Uncategorized";
+      const qty = Number(item.qty ?? 0);
+      const lineTotal = Number(item.lineTotal ?? 0);
+      const effectiveQty = isReturn ? -Math.abs(qty) : qty;
+      const effectiveRevenue = isReturn ? -Math.abs(lineTotal) : lineTotal;
+
+      if (!map.has(category)) {
+        map.set(category, {
+          category,
+          orders: 0,
+          quantity: 0,
+          revenue: 0,
+        });
+      }
+
+      const entry = map.get(category);
+      if (!entry) return;
+      entry.quantity += effectiveQty;
+      entry.revenue += effectiveRevenue;
+
+      if (!seenInOrder.has(category)) {
+        entry.orders += isReturn ? -1 : 1;
+        seenInOrder.add(category);
+      }
+    });
+  });
+
+  const rowsOut = Array.from(map.values()).sort(
+    (a, b) => Math.abs(b.revenue) - Math.abs(a.revenue)
+  );
+
+  return { rows: rowsOut };
 }
 
 export function parseOrderItemsSummary(orderItemsJson?: string | null) {
