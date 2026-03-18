@@ -124,7 +124,7 @@ export default function Home() {
       <JsonLd data={structuredData} />
       <SiteHeader />
       <section className="py-6">
-        <div className="mx-auto w-full px-[5px]">
+        <div className="mx-auto w-[97%] px-[5px]">
           <div className="rounded-[38px] bg-[color:var(--cocoa)] p-[3px]">
             <HeroFloatingCarousel />
           </div>

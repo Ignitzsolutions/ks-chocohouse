@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Image from "next/image";
 import {
   BRAND_NAME,
@@ -10,12 +11,10 @@ import {
 export function SiteFooter() {
   return (
     <footer className="mt-24 border-t border-[color:var(--line)] bg-white/95">
-      <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 md:grid-cols-[1.5fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:grid-cols-[1.3fr_0.9fr_1fr_1fr]">
         <div className="space-y-3">
           <h3 className="hero-display text-3xl">{BRAND_NAME}</h3>
-          <p className="text-sm text-black/70">
-            {TAGLINE}
-          </p>
+          <p className="text-sm text-black/70">{TAGLINE}</p>
           <p className="text-sm text-black/70">{DESCRIPTION}</p>
           <p className="text-xs uppercase tracking-[0.2em] text-black/50">
             100% Eggless · Freshly Made · Custom Designs
@@ -36,12 +35,36 @@ export function SiteFooter() {
             </p>
           </div>
         </div>
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold">Location</p>
-          <p className="text-black/60">{FULL_ADDRESS}</p>
+        <div className="space-y-3 text-sm">
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Quick Links</p>
+          <nav className="flex flex-col gap-2 text-black/65">
+            <Link href="/" className="transition hover:text-[color:var(--berry)]">
+              Home
+            </Link>
+            <Link href="/menu" className="transition hover:text-[color:var(--berry)]">
+              Menu
+            </Link>
+            <Link href="/about" className="transition hover:text-[color:var(--berry)]">
+              About Us
+            </Link>
+            <Link href="/contact" className="transition hover:text-[color:var(--berry)]">
+              Contact
+            </Link>
+            <Link href="/gallery" className="transition hover:text-[color:var(--berry)]">
+              Gallery
+            </Link>
+            <Link href="/policies" className="transition hover:text-[color:var(--berry)]">
+              Policies
+            </Link>
+          </nav>
         </div>
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold">Social</p>
+        <div className="space-y-3 text-sm">
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Location</p>
+          <p className="leading-6 text-black/60">{FULL_ADDRESS}</p>
+          <p className="text-black/55">Open daily · Custom orders available</p>
+        </div>
+        <div className="space-y-3 text-sm">
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Social</p>
           <p className="text-black/60">
             <a
               href={INSTAGRAM_URL}
@@ -52,7 +75,9 @@ export function SiteFooter() {
               Instagram
             </a>
           </p>
-          <p className="text-black/60">Open daily · Custom orders available</p>
+          <p className="leading-6 text-black/55">
+            Follow our latest cakes, chocolates, custom orders, and seasonal creations.
+          </p>
         </div>
       </div>
       <div className="border-t border-[color:var(--line)] py-4 text-center text-xs text-black/50">

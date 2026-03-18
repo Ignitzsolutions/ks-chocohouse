@@ -1,15 +1,16 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import puppeteer from "puppeteer";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
+  BRAND_NAME,
   FULL_ADDRESS,
   PHONE_NUMBER_DISPLAY,
   SELLER_GSTIN,
   SELLER_LEGAL_NAME,
   SELLER_STATE_CODE,
+  TAGLINE,
   WHATSAPP_NUMBER,
 } from "@/lib/brand";
 import {
@@ -76,23 +77,7 @@ type BuyerGstRow = {
   billingAddress?: string;
 };
 
-const PAGE_WIDTH = 595.28; // A4
-const PAGE_HEIGHT = 841.89; // A4
-const FRAME_X = 24;
-const FRAME_Y = 24;
-const FRAME_WIDTH = PAGE_WIDTH - FRAME_X * 2;
-const FRAME_HEIGHT = PAGE_HEIGHT - FRAME_Y * 2;
-const CONTENT_X = 44;
-const CONTENT_WIDTH = PAGE_WIDTH - CONTENT_X * 2;
-const CONTENT_RIGHT = CONTENT_X + CONTENT_WIDTH;
-const FOOTER_SAFE_TOP = 112;
-
-const colorText = rgb(0.15, 0.15, 0.15);
-const colorMuted = rgb(0.42, 0.42, 0.42);
-const colorLine = rgb(0.88, 0.88, 0.88);
-const colorPanel = rgb(0.985, 0.985, 0.985);
-const colorAccent = rgb(0.2, 0.2, 0.2);
-
+const INVOICE_TEMPLATE_PATH = path.join(process.cwd(), "src/templates/invoice.html");
 
 const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
@@ -116,59 +101,29 @@ const safeNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const wrapText = (text: string, maxWidth: number, font: PDFFont, size: number) => {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [""];
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
-  const lines: string[] = [];
-  let current = words[0];
-  for (let index = 1; index < words.length; index += 1) {
-    const candidate = `${current} ${words[index]}`;
-    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-      current = candidate;
-      continue;
-    }
-    lines.push(current);
-    current = words[index];
+const toDataUri = (bytes: Buffer, mimeType: string) =>
+  `data:${mimeType};base64,${bytes.toString("base64")}`;
+
+const parseBuyerGst = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as BuyerGstRow;
+    const businessName = String(parsed.businessName ?? "").trim();
+    const gstin = String(parsed.gstin ?? "").trim();
+    const billingAddress = String(parsed.billingAddress ?? "").trim();
+    if (!businessName && !gstin && !billingAddress) return null;
+    return { businessName, gstin, billingAddress };
+  } catch {
+    return null;
   }
-  lines.push(current);
-  return lines;
-};
-
-const wrapMultilineText = (text: string, maxWidth: number, font: PDFFont, size: number) => {
-  return text
-    .split(/\r?\n/)
-    .flatMap((line, index, all) => {
-      const safeLine = line.trimEnd();
-      const wrapped = wrapText(safeLine || " ", maxWidth, font, size);
-      if (index === all.length - 1) return wrapped;
-      return [...wrapped, ""];
-    });
-};
-
-const drawWrappedLines = (params: {
-  page: PDFPage;
-  lines: string[];
-  x: number;
-  y: number;
-  font: PDFFont;
-  size: number;
-  color: ReturnType<typeof rgb>;
-  lineGap?: number;
-}) => {
-  const { page, lines, x, y, font, size, color, lineGap = 3 } = params;
-  let cursor = y;
-  lines.forEach((line) => {
-    page.drawText(line, { x, y: cursor, size, font, color });
-    cursor -= size + lineGap;
-  });
-  return cursor;
-};
-
-const truncateLines = (lines: string[], maxLines: number) => {
-  if (lines.length <= maxLines) return lines;
-  if (maxLines <= 1) return ["…"];
-  return [...lines.slice(0, Math.max(1, maxLines - 1)), "…"];
 };
 
 const normalizeItems = (order: OrderRow) => {
@@ -200,37 +155,26 @@ const normalizeItems = (order: OrderRow) => {
   if (fromJson.length > 0) return fromJson;
 
   const fallbackName = String(order.cake_name ?? "").trim();
-  if (fallbackName) {
-    const qty = Math.max(1, safeNumber(order.quantity, 1));
-    const total = safeNumber(order.total_amount, 0);
-    return [
-      {
-        name: fallbackName,
-        qty,
-        unitPrice: qty ? total / qty : total,
-        lineTotal: total,
-      },
-    ] satisfies InvoiceItem[];
-  }
+  if (!fallbackName) return [] as InvoiceItem[];
 
-  return [] as InvoiceItem[];
+  const qty = Math.max(1, safeNumber(order.quantity, 1));
+  const total = safeNumber(order.total_amount, 0);
+  return [
+    {
+      name: fallbackName,
+      qty,
+      unitPrice: qty ? total / qty : total,
+      lineTotal: total,
+      customizationNote: order.cake_message?.trim() || undefined,
+    },
+  ] satisfies InvoiceItem[];
 };
 
-const parseBuyerGst = (value?: string | null) => {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value) as BuyerGstRow;
-    const businessName = String(parsed.businessName ?? "").trim();
-    const gstin = String(parsed.gstin ?? "").trim();
-    const billingAddress = String(parsed.billingAddress ?? "").trim();
-    if (!businessName && !gstin && !billingAddress) {
-      return null;
-    }
-    return { businessName, gstin, billingAddress };
-  } catch {
-    return null;
-  }
-};
+const renderTemplate = (template: string, replacements: Record<string, string>) =>
+  Object.entries(replacements).reduce(
+    (html, [key, value]) => html.replaceAll(`{{${key}}}`, value),
+    template
+  );
 
 const readBinaryIfExists = async (relativePath: string) => {
   try {
@@ -244,6 +188,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ orderId: string }> }
 ) {
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
+
   try {
     const { orderId: rawOrderId } = await context.params;
     const orderId = decodeURIComponent(rawOrderId ?? "").trim();
@@ -264,474 +210,174 @@ export async function GET(
         : subtotalFromItems;
     const deliveryFee =
       order.delivery_fee_amount != null
-        ? safeNumber(order.delivery_fee_amount, Math.max(0, total - subtotalFromItems - taxAmount))
-        : Math.max(0, total - subtotalFromItems - taxAmount);
+        ? safeNumber(order.delivery_fee_amount, Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0)))
+        : Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0));
     const discountAmount = safeNumber(order.discount_amount, 0);
     const buyerGst = parseBuyerGst(order.buyer_gst_json);
 
-    const [bakeryLogoBytes, fssaiBytes] = await Promise.all([
+    const [template, bakeryLogoBytes, fssaiBytes, barcodeBytes] = await Promise.all([
+      readFile(INVOICE_TEMPLATE_PATH, "utf8"),
       readBinaryIfExists("public/images/brand/ks-choco-house-logo.jpg"),
       readBinaryIfExists("public/images/brand/fssai-logo.png"),
+      generateOrderBarcodePng(order.id, {
+        includeText: true,
+        scale: 2,
+        height: 14,
+      }).catch(() => null),
     ]);
-    const pdf = await PDFDocument.create();
-    pdf.registerFontkit(fontkit);
-    const fontBody = await pdf.embedFont(StandardFonts.Helvetica);
-    const fontBodyBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-    const bakeryLogo = bakeryLogoBytes ? await pdf.embedJpg(bakeryLogoBytes) : null;
-    const fssaiLogo = fssaiBytes ? await pdf.embedPng(fssaiBytes) : null;
-    const barcodeImage = await generateOrderBarcodePng(order.id, {
-      includeText: true,
-      scale: 2,
-      height: 14,
-    })
-      .then((pngBytes) => pdf.embedPng(pngBytes))
-      .catch((error) => {
-        console.error(
-          `[invoice] barcode embed failed for order ${order.id}: ${String(error)}`
-        );
-        return null;
-      });
+    const badgeValues = [
+      order.source ? `Source: ${order.source}` : "",
+      order.coupon_code ? `Coupon: ${order.coupon_code}` : "",
+      order.order_kind === "return" ? "Return Order" : "Sale Order",
+      (order.lifecycle_state ?? "finalized") === "void" ? "Void" : "",
+    ].filter(Boolean);
 
-    const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const badges = badgeValues
+      .map((badge) => `<span class="badge">${escapeHtml(badge)}</span>`)
+      .join("");
 
-    page.drawRectangle({
-      x: FRAME_X,
-      y: FRAME_Y,
-      width: FRAME_WIDTH,
-      height: FRAME_HEIGHT,
-      color: rgb(1, 1, 1),
-      borderColor: colorLine,
-      borderWidth: 1,
-    });
-
-    const drawRightText = (
-      text: string,
-      xRight: number,
-      yPos: number,
-      font: PDFFont,
-      size: number,
-      color: ReturnType<typeof rgb>
-    ) => {
-      const width = font.widthOfTextAtSize(text, size);
-      page.drawText(text, { x: xRight - width, y: yPos, size, font, color });
-    };
-
-    const invoiceDate = formatDate(order.paid_at || order.created_at);
-    const dueDate = formatDate(order.delivery_date);
-
-    // Header
-    const headerTop = PAGE_HEIGHT - 56;
-    const logoSize = 40;
-    if (bakeryLogo) {
-      page.drawImage(bakeryLogo, {
-        x: CONTENT_X,
-        y: headerTop - logoSize + 4,
-        width: logoSize,
-        height: logoSize,
-      });
-    }
-
-    const titleX = bakeryLogo ? CONTENT_X + logoSize + 12 : CONTENT_X;
-    page.drawText("INVOICE", {
-      x: titleX,
-      y: headerTop,
-      size: 30,
-      font: fontBodyBold,
-      color: colorText,
-    });
-
-    const metaRightX = CONTENT_RIGHT;
-    const metaStartY = headerTop + 4;
-    const metaLineGap = 14;
-    const metaRows = [
-      ["Invoice #", order.invoice_number],
-      ["Date", invoiceDate],
-      ["Due", dueDate],
-    ] as const;
-    let metaY = metaStartY;
-    metaRows.forEach(([label, value]) => {
-      page.drawText(`${label}:`, {
-        x: CONTENT_RIGHT - 150,
-        y: metaY,
-        size: 9.6,
-        font: fontBodyBold,
-        color: colorMuted,
-      });
-      drawRightText(String(value || "-"), metaRightX, metaY, fontBody, 9.6, colorText);
-      metaY -= metaLineGap;
-    });
-
-    const headerLineY = headerTop - 22;
-    page.drawLine({
-      start: { x: CONTENT_X, y: headerLineY },
-      end: { x: CONTENT_RIGHT, y: headerLineY },
-      thickness: 1.2,
-      color: colorLine,
-    });
-
-    if (barcodeImage) {
-      const maxBarcodeWidth = 180;
-      const maxBarcodeHeight = 38;
-      const scale = Math.min(
-        maxBarcodeWidth / barcodeImage.width,
-        maxBarcodeHeight / barcodeImage.height
-      );
-      const barcodeWidth = barcodeImage.width * scale;
-      const barcodeHeight = barcodeImage.height * scale;
-      const barcodeX = CONTENT_RIGHT - barcodeWidth;
-      const barcodeY = headerLineY - 12 - barcodeHeight;
-      page.drawImage(barcodeImage, {
-        x: barcodeX,
-        y: barcodeY,
-        width: barcodeWidth,
-        height: barcodeHeight,
-      });
-    }
-
-    // Parties
-    let cursorY = headerLineY - 40;
-    const partyGap = 24;
-    const partyWidth = (CONTENT_WIDTH - partyGap) / 2;
-    const fromX = CONTENT_X;
-    const toX = CONTENT_X + partyWidth + partyGap;
-    const partyHeaderSize = 9.6;
-    const partyLineSize = 9.6;
-    const partyLineHeight = 12.4;
-
-    page.drawText("From", {
-      x: fromX,
-      y: cursorY,
-      size: partyHeaderSize,
-      font: fontBodyBold,
-      color: colorMuted,
-    });
-    page.drawText("To", {
-      x: toX,
-      y: cursorY,
-      size: partyHeaderSize,
-      font: fontBodyBold,
-      color: colorMuted,
-    });
-
-    const buyerAddress = [order.address, order.pincode].filter(Boolean).join(", ");
-    const sellerLinesSource = [
-      SELLER_LEGAL_NAME,
+    const senderLines = [
       FULL_ADDRESS,
+      `Phone: ${PHONE_NUMBER_DISPLAY}`,
+      `WhatsApp: +${WHATSAPP_NUMBER}`,
       `GSTIN: ${SELLER_GSTIN}`,
       `State Code: ${SELLER_STATE_CODE}`,
-    ];
-    const buyerLinesSource = [
-      order.customer_name || "Customer",
+    ]
+      .filter(Boolean)
+      .map((line) => escapeHtml(line))
+      .join("\n");
+
+    const buyerAddress = [order.address, order.pincode].filter(Boolean).join(", ");
+    const receiverLines = [
       buyerAddress || "-",
-      order.email || null,
-      order.phone ? `Phone: ${order.phone}` : null,
-      buyerGst?.businessName ? `GST Name: ${buyerGst.businessName}` : null,
-      buyerGst?.gstin ? `GSTIN: ${buyerGst.gstin}` : null,
-    ];
+      order.email || "",
+      order.phone ? `Phone: ${order.phone}` : "",
+      buyerGst?.businessName ? `GST Name: ${buyerGst.businessName}` : "",
+      buyerGst?.gstin ? `GSTIN: ${buyerGst.gstin}` : "",
+      buyerGst?.billingAddress ? `GST Address: ${buyerGst.billingAddress}` : "",
+    ]
+      .filter(Boolean)
+      .map((line) => escapeHtml(line))
+      .join("\n");
 
-    const buildLines = (entries: Array<string | null>) =>
-      entries
-        .filter((entry): entry is string => Boolean(entry))
-        .flatMap((entry) => wrapText(entry, partyWidth, fontBody, partyLineSize));
+    const itemRows = items
+      .map((item, index) => {
+        const note = item.customizationNote?.trim()
+          ? `<div class="item-note">${escapeHtml(item.customizationNote.trim())}</div>`
+          : "";
+        return `
+          <tr class="item${index === items.length - 1 ? " last" : ""}">
+            <td>
+              <div class="item-title">${escapeHtml(item.name)}</div>
+              ${note}
+            </td>
+            <td class="right">${escapeHtml(String(item.qty))}</td>
+            <td class="right">${escapeHtml(formatInr(item.lineTotal))}</td>
+          </tr>
+        `;
+      })
+      .join("");
 
-    const sellerLines = buildLines(sellerLinesSource);
-    const buyerLines = buildLines(buyerLinesSource);
-
-    const linesY = cursorY - 14;
-    let sellerY = linesY;
-    sellerLines.forEach((line) => {
-      page.drawText(line, {
-        x: fromX,
-        y: sellerY,
-        size: partyLineSize,
-        font: fontBody,
-        color: colorText,
-      });
-      sellerY -= partyLineHeight;
-    });
-    let buyerY = linesY;
-    buyerLines.forEach((line) => {
-      page.drawText(line, {
-        x: toX,
-        y: buyerY,
-        size: partyLineSize,
-        font: fontBody,
-        color: colorText,
-      });
-      buyerY -= partyLineHeight;
-    });
-
-    const partyHeight = Math.max(sellerLines.length, buyerLines.length) * partyLineHeight;
-    cursorY = linesY - partyHeight - 20;
-
-    // Items table
-    const tableX = CONTENT_X;
-    const tableWidth = CONTENT_WIDTH;
-    const headerHeight = 24;
-    page.drawRectangle({
-      x: tableX,
-      y: cursorY - headerHeight,
-      width: tableWidth,
-      height: headerHeight,
-      color: rgb(0.965, 0.965, 0.965),
-      borderColor: colorLine,
-      borderWidth: 0.8,
-    });
-
-    const colDescX = tableX + 12;
-    const qtyRightX = tableX + tableWidth - 180;
-    const amountRightX = tableX + tableWidth - 12;
-
-    page.drawText("Description", {
-      x: colDescX,
-      y: cursorY - 16,
-      size: 9.6,
-      font: fontBodyBold,
-      color: colorMuted,
-    });
-    drawRightText("Qty", qtyRightX, cursorY - 16, fontBodyBold, 9.6, colorMuted);
-    drawRightText("Amount", amountRightX, cursorY - 16, fontBodyBold, 9.6, colorMuted);
-
-    cursorY -= headerHeight + 10;
-
-    const itemRows = items.length > 0 ? items : [];
-    let truncatedItems = false;
-    const footerReserve = 96;
-    const noteText = order.cake_message?.trim();
-    const noteLines = noteText
-      ? wrapMultilineText(noteText, CONTENT_WIDTH - 24, fontBody, 9.4)
-      : [];
-    const noteBoxHeight = noteLines.length ? Math.min(120, noteLines.length * 12 + 20) : 0;
-    const totalsBoxWidth = 300;
-    const totalsBoxHeight = 110;
-    const postTableReserve = totalsBoxHeight + noteBoxHeight + 48;
-
-    for (let index = 0; index < itemRows.length; index += 1) {
-      const item = itemRows[index];
-      const titleLines = wrapText(
-        `${index + 1}. ${item.name}`,
-        qtyRightX - colDescX - 16,
-        fontBody,
-        10
+    const itemNotes = items
+      .filter((item) => item.customizationNote?.trim())
+      .map(
+        (item, index) =>
+          `Item ${index + 1} - ${item.name}\n${item.customizationNote?.trim() ?? ""}`
       );
-      const noteLinesItem = item.customizationNote
-        ? wrapMultilineText(item.customizationNote, qtyRightX - colDescX - 24, fontBody, 9)
-        : [];
+    const noteSections = [
+      order.cake_message?.trim() ? `Customization / Message\n${order.cake_message.trim()}` : "",
+      itemNotes.length > 0 ? itemNotes.join("\n\n") : "",
+      order.parent_order_id ? `Parent Order Reference\n${order.parent_order_id}` : "",
+      order.void_reason ? `Void Reason\n${order.void_reason}` : "",
+    ].filter(Boolean);
 
-      const topPadding = 6;
-      const bottomPadding = 6;
-      const titleHeight = titleLines.length * 14;
-      const noteHeight = noteLinesItem.length > 0 ? 4 + noteLinesItem.length * 12 : 0;
-      const rowHeight = topPadding + titleHeight + noteHeight + bottomPadding;
-      if (cursorY - rowHeight < FRAME_Y + footerReserve + postTableReserve) {
-        truncatedItems = true;
-        break;
-      }
+    const notesBlock = noteSections.length
+      ? `
+        <div class="notes">
+          <strong>Notes</strong>
+          <div class="notes-body">${escapeHtml(noteSections.join("\n\n"))}</div>
+        </div>
+      `
+      : "";
 
-      if (index % 2 === 0) {
-        page.drawRectangle({
-          x: tableX,
-          y: cursorY - rowHeight + 2,
-          width: tableWidth,
-          height: rowHeight - 2,
-          color: rgb(0.995, 0.995, 0.995),
-        });
-      }
+    const barcodeBlock =
+      barcodeBytes != null
+        ? `
+          <div class="barcode-wrap">
+            <img src="${toDataUri(barcodeBytes, "image/png")}" alt="Order barcode" />
+          </div>
+        `
+        : "";
 
-      let rowY = cursorY - topPadding;
-      rowY = drawWrappedLines({
-        page,
-        lines: titleLines,
-        x: colDescX,
-        y: rowY,
-        font: fontBody,
-        size: 10,
-        color: colorText,
-        lineGap: 4,
-      });
+    const fssaiBlock =
+      fssaiBytes != null
+        ? `
+          <img src="${toDataUri(fssaiBytes, "image/png")}" alt="FSSAI logo" />
+          <div>FSSAI No: 20124233000089</div>
+        `
+        : `<div>FSSAI No: 20124233000089</div>`;
 
-      if (noteLinesItem.length > 0) {
-        rowY = drawWrappedLines({
-          page,
-          lines: noteLinesItem,
-          x: colDescX + 8,
-          y: rowY - 2,
-          font: fontBody,
-          size: 9,
-          color: colorMuted,
-          lineGap: 2.4,
-        });
-      }
+    const footerLines = [
+      "Thank you for choosing K S Choco House.",
+      `Address: ${FULL_ADDRESS}`,
+      `Contact: ${PHONE_NUMBER_DISPLAY} | WhatsApp: +${WHATSAPP_NUMBER}`,
+      order.payment_reference || order.txn_id
+        ? `Payment Reference: ${order.payment_reference || order.txn_id}`
+        : "",
+    ]
+      .filter(Boolean)
+      .map((line) => escapeHtml(line))
+      .join("\n");
 
-      const numbersY = cursorY - 10;
-      drawRightText(String(item.qty), qtyRightX, numbersY, fontBody, 9.8, colorText);
-      drawRightText(formatInr(item.lineTotal), amountRightX, numbersY, fontBody, 9.8, colorText);
-
-      cursorY -= rowHeight;
-      page.drawLine({
-        start: { x: tableX, y: cursorY + 3 },
-        end: { x: tableX + tableWidth, y: cursorY + 3 },
-        thickness: 0.6,
-        color: colorLine,
-      });
-      cursorY -= 8;
-    }
-
-    if (itemRows.length === 0) {
-      page.drawText("No item data recorded for this order.", {
-        x: colDescX,
-        y: cursorY,
-        size: 9.4,
-        font: fontBody,
-        color: colorMuted,
-      });
-      cursorY -= 20;
-    }
-
-    if (truncatedItems) {
-      page.drawText("Additional items continue in order record.", {
-        x: colDescX,
-        y: cursorY,
-        size: 8.6,
-        font: fontBody,
-        color: colorMuted,
-      });
-      cursorY -= 14;
-    }
-
-    const totalsX = CONTENT_RIGHT - totalsBoxWidth;
-    const totalsY = Math.max(
-      FRAME_Y + footerReserve + noteBoxHeight + 24,
-      cursorY - totalsBoxHeight - 12
-    );
-    page.drawRectangle({
-      x: totalsX,
-      y: totalsY,
-      width: totalsBoxWidth,
-      height: totalsBoxHeight,
-      color: colorPanel,
-      borderColor: colorLine,
-      borderWidth: 0.8,
+    const html = renderTemplate(template, {
+      LOGO_SRC: bakeryLogoBytes ? toDataUri(bakeryLogoBytes, "image/jpeg") : "",
+      BRAND_NAME: escapeHtml(BRAND_NAME),
+      BRAND_SUBTITLE: escapeHtml(TAGLINE),
+      BADGES: badges,
+      INVOICE_NUMBER: escapeHtml(order.invoice_number || `INV-${order.id}`),
+      ORDER_ID: escapeHtml(order.id),
+      CREATED_DATE: escapeHtml(formatDate(order.paid_at || order.created_at)),
+      DUE_DATE: escapeHtml(formatDate(order.delivery_date)),
+      PAYMENT_METHOD: escapeHtml(order.payment_method || "-"),
+      PAYMENT_STATUS: escapeHtml(order.payment_status || "-"),
+      BARCODE_BLOCK: barcodeBlock,
+      SENDER_NAME: escapeHtml(SELLER_LEGAL_NAME),
+      SENDER_LINES: senderLines,
+      RECEIVER_NAME: escapeHtml(order.customer_name || "Customer"),
+      RECEIVER_LINES: receiverLines,
+      ITEM_ROWS:
+        itemRows ||
+        `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="right">-</td><td class="right">-</td></tr>`,
+      SUBTOTAL: escapeHtml(formatInr(subtotal)),
+      DISCOUNT: escapeHtml(formatInr(discountAmount)),
+      TAX: escapeHtml(formatInr(taxAmount)),
+      DELIVERY_FEE: escapeHtml(formatInr(deliveryFee)),
+      TOTAL: escapeHtml(formatInr(total)),
+      NOTES_BLOCK: notesBlock,
+      FOOTER_TEXT: footerLines,
+      FSSAI_BLOCK: fssaiBlock,
     });
 
-    const drawAmount = (label: string, value: string, yy: number, bold = false) => {
-      page.drawText(label, {
-        x: totalsX + 12,
-        y: yy,
-        size: bold ? 11 : 9.6,
-        font: bold ? fontBodyBold : fontBody,
-        color: colorMuted,
-      });
-      drawRightText(
-        value,
-        totalsX + totalsBoxWidth - 12,
-        yy,
-        bold ? fontBodyBold : fontBody,
-        bold ? 11 : 9.6,
-        bold ? colorAccent : colorText
-      );
-    };
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.emulateMediaType("screen");
 
-    drawAmount("Subtotal", formatInr(subtotal), totalsY + 78);
-    drawAmount("Discount", formatInr(discountAmount), totalsY + 60);
-    drawAmount("Tax", formatInr(taxAmount), totalsY + 42);
-    drawAmount("Delivery Fee", formatInr(deliveryFee), totalsY + 24);
-    drawAmount("Total", formatInr(total), totalsY + 6, true);
-
-    if (noteBoxHeight > 0) {
-      const notesY = totalsY - 24 - noteBoxHeight;
-      page.drawRectangle({
-        x: CONTENT_X,
-        y: notesY,
-        width: CONTENT_WIDTH,
-        height: noteBoxHeight,
-        color: rgb(0.975, 0.975, 0.975),
-        borderColor: colorLine,
-        borderWidth: 0.8,
-      });
-      const maxNoteLines = Math.floor((noteBoxHeight - 16) / 12.2);
-      const clippedNoteLines = truncateLines(noteLines, Math.max(1, maxNoteLines));
-      drawWrappedLines({
-        page,
-        lines: clippedNoteLines,
-        x: CONTENT_X + 10,
-        y: notesY + noteBoxHeight - 14,
-        font: fontBody,
-        size: 9.4,
-        color: colorMuted,
-        lineGap: 2.4,
-      });
-    }
-
-    if ((order.lifecycle_state ?? "finalized") === "void") {
-      page.drawText("VOID", {
-        x: 170,
-        y: 420,
-        size: 76,
-        font: fontBodyBold,
-        color: rgb(0.84, 0.3, 0.3),
-        rotate: degrees(-28),
-        opacity: 0.16,
-      });
-    }
-
-    // Footer
-    const footerLineY = FRAME_Y + 86;
-    page.drawLine({
-      start: { x: CONTENT_X, y: footerLineY },
-      end: { x: CONTENT_RIGHT, y: footerLineY },
-      thickness: 0.8,
-      color: colorLine,
+    const pdfBytes = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "0",
+        right: "0",
+        bottom: "0",
+        left: "0",
+      },
     });
 
-    const footerRightWidth = 120;
-    const footerLeftWidth = CONTENT_WIDTH - footerRightWidth - 12;
-    const footerLeftLines: string[] = [];
-    if (order.order_kind === "return" && order.parent_order_id) {
-      footerLeftLines.push(`Return Reference: ${order.parent_order_id}`);
-    }
-    footerLeftLines.push("Thank you for your order. Invoice generated after payment verification.");
-    footerLeftLines.push(`Address: ${FULL_ADDRESS}`);
-    footerLeftLines.push(`Contact: ${PHONE_NUMBER_DISPLAY}  |  WhatsApp: +${WHATSAPP_NUMBER}`);
-
-    const wrappedFooterLines = footerLeftLines.flatMap((line) =>
-      wrapText(line, footerLeftWidth, fontBody, 8.6)
-    );
-    let footerTextY = footerLineY - 12;
-    wrappedFooterLines.forEach((line) => {
-      page.drawText(line, {
-        x: CONTENT_X,
-        y: footerTextY,
-        size: 8.6,
-        font: fontBody,
-        color: colorMuted,
-      });
-      footerTextY -= 11;
-    });
-
-    if (fssaiLogo) {
-      const fssaiLogoWidth = 96;
-      const fssaiLogoHeight = 30;
-      const fssaiX = CONTENT_RIGHT - fssaiLogoWidth;
-      const fssaiBottomY = FRAME_Y + 22;
-      const fssaiLogoY = fssaiBottomY + 12;
-      page.drawImage(fssaiLogo, {
-        x: fssaiX,
-        y: fssaiLogoY,
-        width: fssaiLogoWidth,
-        height: fssaiLogoHeight,
-      });
-      page.drawText("FSSAI No: 20124233000089", {
-        x: fssaiX,
-        y: fssaiBottomY,
-        size: 7.6,
-        font: fontBody,
-        color: colorMuted,
-      });
-    }
-
-    const pdfBytes = await pdf.save();
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
@@ -754,5 +400,9 @@ export async function GET(
       { error: "Failed to generate invoice", details: String(error) },
       { status: 500 }
     );
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
   }
 }
