@@ -1,5 +1,5 @@
 export const BRAND_NAME = "K S Choco House";
-export const TAGLINE = "Ultimate choco destination";
+export const TAGLINE = "The Ultimate Choco Destination";
 export const DESCRIPTION =
   "Indulge in sweetness with our homemade customised cakes and chocolates.";
 export const LOCATION = "Sastry Nagar, Bollavaram, Proddatur";
