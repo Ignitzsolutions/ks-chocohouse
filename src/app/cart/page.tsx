@@ -86,7 +86,11 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-5 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/50">
+                    Quantity
+                  </p>
+                  <div className="flex items-center gap-2">
                   <button
                     className="h-8 w-8 rounded-full border border-[color:var(--line)] bg-white text-sm"
                     onClick={() => setItems(updateQty(product.id, qty - 1))}
@@ -107,10 +111,11 @@ export default function CartPage() {
                     Remove
                   </button>
                 </div>
+                </div>
 
-                <div className="mt-4">
-                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-black/55">
-                    Customization Note
+                <div className="mt-5">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/55">
+                    Message Note
                   </label>
                   <textarea
                     value={customizationNote ?? ""}
@@ -122,7 +127,7 @@ export default function CartPage() {
                     rows={2}
                     maxLength={240}
                     placeholder="Example: Name on cake, color theme, topper style, less sweet..."
-                    className="mt-2 w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 text-sm"
+                    className="mt-2 w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 text-sm leading-relaxed"
                   />
                 </div>
               </div>

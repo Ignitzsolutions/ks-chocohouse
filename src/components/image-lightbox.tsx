@@ -1,7 +1,8 @@
 "use client";
 
-import Image from "next/image";
-import { useEffect } from "react";
+/* eslint-disable @next/next/no-img-element */
+
+import { useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -12,6 +13,13 @@ type Props = {
   onClose: () => void;
 };
 
+const FALLBACK_PREVIEW_IMAGE = "/images/categories/cakes.svg";
+
+function normalizePreviewSrc(value: string) {
+  const normalized = value.trim();
+  return normalized || FALLBACK_PREVIEW_IMAGE;
+}
+
 export function ImageLightbox({
   open,
   src,
@@ -20,6 +28,11 @@ export function ImageLightbox({
   description,
   onClose,
 }: Props) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const normalizedSrc = normalizePreviewSrc(src);
+  const showingFallback = failedSrc === normalizedSrc;
+  const displaySrc = showingFallback ? FALLBACK_PREVIEW_IMAGE : normalizedSrc;
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,7 +72,22 @@ export function ImageLightbox({
           </button>
         </div>
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[color:var(--cream)]">
-          <Image src={src} alt={alt} fill sizes="(max-width: 1024px) 100vw, 960px" className="object-contain" />
+          <img
+            src={displaySrc}
+            alt={alt}
+            className="h-full w-full object-contain"
+            referrerPolicy="no-referrer"
+            loading="eager"
+            onError={() => {
+              if (normalizedSrc === FALLBACK_PREVIEW_IMAGE) return;
+              setFailedSrc(normalizedSrc);
+            }}
+          />
+          {showingFallback && normalizedSrc !== FALLBACK_PREVIEW_IMAGE ? (
+            <p className="absolute bottom-2 left-2 rounded-full bg-black/65 px-3 py-1 text-[11px] font-semibold text-white">
+              Original image unavailable. Showing fallback.
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

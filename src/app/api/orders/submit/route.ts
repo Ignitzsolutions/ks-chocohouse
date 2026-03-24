@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
 import { generateOrderId } from "@/lib/order-id";
 import { recordOrderEvent } from "@/lib/admin-sales";
+import { CITY, PINCODE } from "@/lib/brand";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
 
@@ -16,6 +17,32 @@ type NormalizedOrderItem = {
 };
 
 const VALID_PAYMENT_METHODS = new Set(["UPI QR", "UPI Transfer", "Bank Transfer"]);
+const SERVICEABLE_PIN_PREFIXES = ["5163"];
+const SERVICEABLE_LOCALITY_KEYWORDS = [
+  CITY.toLowerCase(),
+  "proddatur",
+  "proddutur",
+  "bollavaram",
+  "sastry nagar",
+];
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isServiceableLocation(address: string, pincode: string) {
+  const normalizedAddress = normalizeText(address);
+  const normalizedPincode = String(pincode ?? "").trim().replace(/\D/g, "");
+
+  const localityMatch = SERVICEABLE_LOCALITY_KEYWORDS.some((keyword) =>
+    normalizedAddress.includes(keyword)
+  );
+  const pincodeMatch = SERVICEABLE_PIN_PREFIXES.some((prefix) =>
+    normalizedPincode.startsWith(prefix)
+  );
+
+  return localityMatch || pincodeMatch;
+}
 
 export async function POST(request: Request) {
   try {
@@ -55,6 +82,17 @@ export async function POST(request: Request) {
     if (normalizedItems.length === 0) {
       return NextResponse.json(
         { error: "At least one item is required" },
+        { status: 400 }
+      );
+    }
+
+    const deliveryAddress = String(orderDetails?.address ?? "").trim();
+    const deliveryPincode = String(orderDetails?.pincode ?? "").trim();
+    if (!isServiceableLocation(deliveryAddress, deliveryPincode)) {
+      return NextResponse.json(
+        {
+          error: `Delivery is currently available only in Proddatur surroundings (for example ${PINCODE}).`,
+        },
         { status: 400 }
       );
     }

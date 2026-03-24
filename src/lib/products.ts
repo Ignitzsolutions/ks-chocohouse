@@ -10,6 +10,7 @@ export type Product = {
   subCategory: string;
   priceInr: number;
   imageSrc: string;
+  sizeOptions?: string[];
   eggless: boolean;
   available: boolean;
 };
@@ -49,4 +50,18 @@ export function formatInr(value: number): string {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+const DEFAULT_CAKE_SIZE_OPTIONS = ["500g", "1kg", "1.5kg", "2kg"];
+
+export function getDisplaySizeOptions(product: Product): string[] {
+  if (product.sizeOptions?.length) {
+    return product.sizeOptions.map((value) => value.trim()).filter(Boolean);
+  }
+
+  if (/(^| )cakes?$/i.test(product.category) || /cake/i.test(product.category)) {
+    return DEFAULT_CAKE_SIZE_OPTIONS;
+  }
+
+  return [];
 }

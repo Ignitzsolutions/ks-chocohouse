@@ -9,9 +9,20 @@ type ProductRow = {
   sub_category: string;
   price_inr: number;
   image_src: string;
+  size_options_json: string;
   eggless: number;
   available: number;
 };
+
+function parseSizeOptions(value: string | null | undefined) {
+  try {
+    const parsed = JSON.parse(value ?? "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => String(item).trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 function toApiProduct(row: ProductRow) {
   return {
@@ -22,6 +33,7 @@ function toApiProduct(row: ProductRow) {
     subCategory: row.sub_category,
     priceInr: Number(row.price_inr),
     imageSrc: row.image_src,
+    sizeOptions: parseSizeOptions(row.size_options_json),
     eggless: row.eggless === 1,
     available: row.available === 1,
   };
@@ -35,7 +47,7 @@ export async function GET(request: Request) {
     const subCategory = String(searchParams.get("subCategory") ?? "").trim();
 
     let query =
-      `SELECT id, name, description, category, sub_category, price_inr, image_src, eggless, available
+      `SELECT id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available
        FROM products
        WHERE available = 1`;
     const params: Record<string, string> = {};

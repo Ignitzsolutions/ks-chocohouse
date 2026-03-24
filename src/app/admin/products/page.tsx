@@ -16,6 +16,7 @@ type AdminProduct = {
   subCategory: string;
   priceInr: number;
   imageSrc: string;
+  sizeOptions?: string[];
   eggless: boolean;
   available: boolean;
   createdAt?: string;
@@ -29,6 +30,7 @@ type ProductForm = {
   subCategory: string;
   priceInr: string;
   imageSrc: string;
+  sizeOptions: string;
   eggless: boolean;
   available: boolean;
 };
@@ -48,6 +50,7 @@ function buildEmptyForm(defaultCategory: string): ProductForm {
     subCategory: "",
     priceInr: "",
     imageSrc: "",
+    sizeOptions: "",
     eggless: true,
     available: true,
   };
@@ -170,6 +173,7 @@ export default function AdminProductsPage() {
       const payload = {
         ...form,
         priceInr: Number(form.priceInr),
+        sizeOptions: form.sizeOptions,
       };
 
       const response = await fetch("/api/admin/products", {
@@ -199,6 +203,7 @@ export default function AdminProductsPage() {
       subCategory: product.subCategory,
       priceInr: String(product.priceInr),
       imageSrc: product.imageSrc,
+      sizeOptions: (product.sizeOptions ?? []).join(", "),
       eggless: product.eggless,
       available: product.available,
     });
@@ -417,6 +422,20 @@ export default function AdminProductsPage() {
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
               />
             </label>
+            <label className="text-sm font-semibold text-black/70">
+              Quantity / Weight Options
+              <input
+                value={form.sizeOptions}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, sizeOptions: event.target.value }))
+                }
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                placeholder="500g, 1kg, 1.5kg, 2kg"
+              />
+              <p className="mt-1 text-xs font-normal text-black/55">
+                Enter comma-separated size options for this product.
+              </p>
+            </label>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
               Image URL
               <input
@@ -619,6 +638,11 @@ export default function AdminProductsPage() {
                       <p className="text-xs text-black/60">
                         {product.category} · {product.subCategory || "General"}
                       </p>
+                      {(product.sizeOptions ?? []).length > 0 ? (
+                        <p className="mt-1 text-xs text-black/55">
+                          {(product.sizeOptions ?? []).join(" · ")}
+                        </p>
+                      ) : null}
                       <p className="text-sm font-semibold text-[color:var(--berry)]">
                         {formatInr(product.priceInr)}
                       </p>

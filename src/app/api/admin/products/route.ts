@@ -10,11 +10,33 @@ type ProductRow = {
   sub_category: string;
   price_inr: number;
   image_src: string;
+  size_options_json: string;
   eggless: number;
   available: number;
   created_at: string;
   updated_at: string;
 };
+
+function parseSizeOptions(value: string | null | undefined) {
+  try {
+    const parsed = JSON.parse(value ?? "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => String(item).trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeSizeOptions(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 function toApiProduct(row: ProductRow) {
   return {
@@ -25,6 +47,7 @@ function toApiProduct(row: ProductRow) {
     subCategory: row.sub_category,
     priceInr: Number(row.price_inr),
     imageSrc: row.image_src,
+    sizeOptions: parseSizeOptions(row.size_options_json),
     eggless: row.eggless === 1,
     available: row.available === 1,
     createdAt: row.created_at,
@@ -84,7 +107,7 @@ export async function GET() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT id, name, description, category, sub_category, price_inr, image_src, eggless, available, created_at, updated_at
+        `SELECT id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at
          FROM products
          ORDER BY category ASC, name ASC`
       )
@@ -112,6 +135,7 @@ export async function POST(request: Request) {
     const category = ensureCategory(body?.category);
     const subCategory = String(body?.subCategory ?? "").trim() || "General";
     const imageSrc = String(body?.imageSrc ?? "").trim();
+    const sizeOptions = normalizeSizeOptions(body?.sizeOptions);
     const priceInr = Number(body?.priceInr ?? 0);
     const eggless = body?.eggless !== false;
     const available = body?.available !== false;
@@ -131,8 +155,8 @@ export async function POST(request: Request) {
     getDb()
       .prepare(
         `INSERT INTO products
-          (id, name, description, category, sub_category, price_inr, image_src, eggless, available, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -142,6 +166,7 @@ export async function POST(request: Request) {
         subCategory,
         Math.round(priceInr),
         imageSrc,
+        JSON.stringify(sizeOptions),
         eggless ? 1 : 0,
         available ? 1 : 0,
         now,
@@ -204,6 +229,10 @@ export async function PATCH(request: Request) {
     if (body?.imageSrc !== undefined) {
       fields.push("image_src = ?");
       values.push(String(body.imageSrc).trim());
+    }
+    if (body?.sizeOptions !== undefined) {
+      fields.push("size_options_json = ?");
+      values.push(JSON.stringify(normalizeSizeOptions(body.sizeOptions)));
     }
     if (body?.eggless !== undefined) {
       fields.push("eggless = ?");

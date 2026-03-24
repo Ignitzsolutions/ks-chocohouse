@@ -323,6 +323,7 @@ export function initDb() {
         sub_category TEXT NOT NULL,
         price_inr INTEGER NOT NULL,
         image_src TEXT NOT NULL,
+        size_options_json TEXT NOT NULL DEFAULT '[]',
         eggless INTEGER NOT NULL DEFAULT 1,
         available INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
@@ -418,6 +419,13 @@ export function initDb() {
       `CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`
     )
     .run();
+  try {
+    instance
+      .prepare("ALTER TABLE products ADD COLUMN size_options_json TEXT NOT NULL DEFAULT '[]'")
+      .run();
+  } catch {
+    // column already exists
+  }
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order, name)`
@@ -431,8 +439,8 @@ export function initDb() {
   if (productsCount.count === 0) {
     const insertProduct = instance.prepare(
       `INSERT INTO products
-        (id, name, description, category, sub_category, price_inr, image_src, eggless, available, created_at, updated_at)
-        VALUES (@id, @name, @description, @category, @sub_category, @price_inr, @image_src, @eggless, @available, @created_at, @updated_at)`
+        (id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at)
+        VALUES (@id, @name, @description, @category, @sub_category, @price_inr, @image_src, @size_options_json, @eggless, @available, @created_at, @updated_at)`
     );
 
     const now = new Date().toISOString();
@@ -444,6 +452,7 @@ export function initDb() {
       subCategory: string;
       priceInr: number;
       imageSrc: string;
+      sizeOptions?: string[];
       eggless: boolean;
       available: boolean;
     }>;
@@ -458,6 +467,7 @@ export function initDb() {
           sub_category: product.subCategory,
           price_inr: product.priceInr,
           image_src: product.imageSrc,
+          size_options_json: JSON.stringify(product.sizeOptions ?? []),
           eggless: product.eggless ? 1 : 0,
           available: product.available ? 1 : 0,
           created_at: now,

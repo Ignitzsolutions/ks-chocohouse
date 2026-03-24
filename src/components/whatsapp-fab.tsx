@@ -8,9 +8,9 @@ export function WhatsappFab() {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="fixed bottom-24 right-5 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--berry)] text-white shadow-lg transition hover:opacity-95 md:bottom-6"
-      aria-label="WhatsApp"
-      title="WhatsApp"
+      className="fixed bottom-24 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-[color:var(--berry)] px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 md:bottom-6"
+      aria-label="Chat on WhatsApp"
+      title="Chat on WhatsApp"
     >
       <svg
         width="22"
@@ -31,6 +31,7 @@ export function WhatsappFab() {
           fill="currentColor"
         />
       </svg>
+      <span className="hidden md:inline">Chat on WhatsApp</span>
     </a>
   );
 }

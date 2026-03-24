@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Dancing_Script, Open_Sans } from "next/font/google";
 import "./globals.css";
+import { WhatsappFab } from "@/components/whatsapp-fab";
 import { BRAND_NAME, DESCRIPTION, TAGLINE } from "@/lib/brand";
 import { buildPageMetadata, DEFAULT_SEO_KEYWORDS } from "@/lib/seo";
 
@@ -54,6 +55,7 @@ export default function RootLayout({
       >
         <script dangerouslySetInnerHTML={{ __html: motionInitScript }} />
         {children}
+        <WhatsappFab />
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
@@ -12,6 +12,7 @@ import { addItem, getCart, type CartItem, updateQty } from "@/lib/cart";
 import {
   formatInr,
   getCategories,
+  getDisplaySizeOptions,
   type Product,
   type ProductCategory,
 } from "@/lib/products";
@@ -69,6 +70,7 @@ export default function MenuPage() {
     fallbackCategories[0] ?? "Chocolates"
   );
   const [activeSubCategory, setActiveSubCategory] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const activeCategoryRef = useRef(activeCategory);
   const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>(
@@ -214,6 +216,68 @@ export default function MenuPage() {
     () => toCategoryIconMap(categories, allProducts),
     [categories, allProducts]
   );
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+  const hasSearchQuery = normalizedSearchQuery.length > 0;
+
+  const searchMatchedProductsByCategory = useMemo(() => {
+    const map = new Map<ProductCategory, Product[]>();
+
+    categories.forEach((category) => {
+      const items = productsByCategory.get(category) ?? [];
+      if (!hasSearchQuery) {
+        map.set(category, items);
+        return;
+      }
+
+      map.set(
+        category,
+        items.filter((item) => {
+          const haystack = [
+            item.name,
+            item.description,
+            item.category,
+            item.subCategory,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(normalizedSearchQuery);
+        })
+      );
+    });
+
+    return map;
+  }, [categories, hasSearchQuery, normalizedSearchQuery, productsByCategory]);
+
+  const totalSearchMatches = useMemo(
+    () =>
+      categories.reduce(
+        (sum, category) => sum + (searchMatchedProductsByCategory.get(category)?.length ?? 0),
+        0
+      ),
+    [categories, searchMatchedProductsByCategory]
+  );
+  const allSearchMatches = useMemo(
+    () =>
+      categories.flatMap((category) =>
+        (searchMatchedProductsByCategory.get(category) ?? []).map((item) => ({
+          ...item,
+          matchedCategory: category,
+        }))
+      ),
+    [categories, searchMatchedProductsByCategory]
+  );
+
+  useEffect(() => {
+    if (!hasSearchQuery) return;
+    const desktopCatalogRoot = shouldUseDesktopCatalogScroll()
+      ? document.querySelector<HTMLElement>(".menu-catalog-viewport")
+      : null;
+    if (desktopCatalogRoot) {
+      desktopCatalogRoot.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [hasSearchQuery, deferredSearchQuery]);
 
   const jumpToCategory = (category: ProductCategory, subCategory = "") => {
     setActiveCategory(category);
@@ -269,6 +333,103 @@ export default function MenuPage() {
     });
   };
 
+  const renderProductCard = (
+    item: Product,
+    index: number,
+    extraLabel?: string
+  ) => {
+    const sizeOptions = getDisplaySizeOptions(item);
+
+    return (
+      <article
+      key={item.id}
+      data-reveal-id={item.id}
+      data-reveal-type="card"
+      className={`premium-panel flex h-full flex-col rounded-3xl p-4 transition-all duration-700 motion-reduce:transition-none ${
+        visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+      }`}
+      style={{
+        transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
+      }}
+    >
+      <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
+        <button
+          type="button"
+          onClick={() => openProductPreview(item)}
+          className="h-full w-full"
+          aria-label={`Expand image for ${item.name}`}
+        >
+          <img src={item.imageSrc} alt={item.name} className="h-full w-full object-cover" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => openProductPreview(item)}
+        className="mt-3 flex flex-1 flex-col space-y-2 text-left"
+        aria-label={`Open details for ${item.name}`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold leading-snug">{item.name}</h3>
+          <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
+            Eggless
+          </span>
+        </div>
+        <p className="min-h-12 text-sm leading-6 text-black/62">{item.description}</p>
+        {extraLabel ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
+            {extraLabel}
+          </p>
+        ) : null}
+        {sizeOptions.length > 0 ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {sizeOptions.map((size) => (
+              <span
+                key={`${item.id}-${size}`}
+                className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-black/65"
+              >
+                {size}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <p className="text-xs font-semibold tracking-[0.04em] text-[color:var(--berry)]">
+          View photos and details
+        </p>
+        <p className="text-sm font-semibold text-[color:var(--berry)]">{formatInr(item.priceInr)}</p>
+      </button>
+      <div className="mt-4 flex gap-2">
+        <div className="flex flex-1 items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1">
+          <button
+            onClick={() => handleDecreaseQty(item.id)}
+            disabled={(cartQtyById[item.id] ?? 0) === 0}
+            className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
+            aria-label={`Decrease ${item.name}`}
+          >
+            -
+          </button>
+          <span className="min-w-7 text-center text-xs font-semibold">
+            {cartQtyById[item.id] ?? 0}
+          </span>
+          <button
+            onClick={() => handleIncreaseQty(item.id)}
+            className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
+            aria-label={`Increase ${item.name}`}
+          >
+            +
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleBuyNow(item.id)}
+          className="flex-1 rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white"
+        >
+          Buy Now
+        </button>
+      </div>
+    </article>
+    );
+  };
+
   return (
     <div>
       <SiteHeader />
@@ -300,6 +461,53 @@ export default function MenuPage() {
               <span className="line-clamp-2 text-center leading-tight">{category}</span>
             </button>
           ))}
+        </div>
+
+        <div className="premium-panel mt-6 rounded-3xl p-4 md:p-5">
+          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">
+            Search Products
+          </label>
+          <div className="mt-2 flex items-center gap-2 rounded-2xl border border-[color:var(--line)] bg-white px-3 py-2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="text-black/45"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="M20 20L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by product name, flavor, or category"
+              className="w-full bg-transparent text-sm text-black/80 outline-none placeholder:text-black/40"
+              aria-label="Search products"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="rounded-full border border-[color:var(--line)] px-2 py-1 text-[11px] font-semibold text-black/55"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          {hasSearchQuery ? (
+            <p className="mt-2 text-xs text-black/55">
+              {totalSearchMatches > 0
+                ? `${totalSearchMatches} match${totalSearchMatches > 1 ? "es" : ""} found for "${deferredSearchQuery}".`
+                : `No matches found for "${deferredSearchQuery}".`}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-black/50">
+              Tip: use search to quickly find specific cakes, chocolates, or flavors.
+            </p>
+          )}
         </div>
 
         <MenuDesktopShell
@@ -419,14 +627,54 @@ export default function MenuPage() {
           )}
           catalog={(api) => (
             <>
-              {categories.map((category) => {
+              {hasSearchQuery ? (
+                <section
+                  key="search-results"
+                  data-reveal-id="section-search-results"
+                  data-reveal-type="section"
+                  className="space-y-4 rounded-3xl border border-[color:var(--line)] bg-white/70 p-4 transition-all duration-700 motion-reduce:transition-none md:p-5"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h2 className="hero-display text-4xl leading-none">Search Results</h2>
+                      <p className="mt-2 text-sm text-black/58">
+                        Showing matches for &quot;{deferredSearchQuery}&quot; across all categories.
+                      </p>
+                    </div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-black/50">
+                      {totalSearchMatches} item{totalSearchMatches === 1 ? "" : "s"}
+                    </p>
+                  </div>
+
+                  {allSearchMatches.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/80 px-4 py-5 text-sm text-black/55">
+                      No products match this search yet. Try a different flavor, category, or cake name.
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {allSearchMatches.map((item, index) =>
+                        renderProductCard(item, index, item.matchedCategory)
+                      )}
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
+              {hasSearchQuery
+                ? null
+                : categories.map((category) => {
                 const items = productsByCategory.get(category) ?? [];
+                const searchedItems = searchMatchedProductsByCategory.get(category) ?? [];
                 const subCategories = subCategoriesByCategory.get(category) ?? [];
                 const filteredItems =
                   activeCategory === category && activeSubCategory
-                    ? items.filter((item) => item.subCategory === activeSubCategory)
-                    : items;
+                    ? searchedItems.filter((item) => item.subCategory === activeSubCategory)
+                    : searchedItems;
+                const showSection = !hasSearchQuery || searchedItems.length > 0;
                 const sectionRevealId = `section-${categoryId(category)}`;
+                const sectionItemCount = hasSearchQuery ? filteredItems.length : items.length;
+                if (!showSection) return null;
+
                 return (
                   <section
                     key={category}
@@ -443,7 +691,7 @@ export default function MenuPage() {
                     <div className="flex items-end justify-between gap-3">
                       <h2 className="hero-display text-4xl leading-none">{category}</h2>
                       <p className="text-xs uppercase tracking-[0.2em] text-black/50">
-                        {items.length} items
+                        {sectionItemCount} item{sectionItemCount === 1 ? "" : "s"}
                       </p>
                     </div>
 
@@ -477,87 +725,12 @@ export default function MenuPage() {
                           ))}
                         </div>
                       ) : null}
-                      {filteredItems.map((item, index) => (
-                        <article
-                          key={item.id}
-                          data-reveal-id={item.id}
-                          data-reveal-type="card"
-                          className={`premium-panel flex h-full flex-col rounded-3xl p-4 transition-all duration-700 motion-reduce:transition-none ${
-                            visibleCards[item.id]
-                              ? "translate-y-0 opacity-100"
-                              : "translate-y-6 opacity-0"
-                          }`}
-                          style={{
-                            transitionDelay: visibleCards[item.id]
-                              ? `${(index % 3) * 70}ms`
-                              : "0ms",
-                          }}
-                        >
-                          <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
-                            <button
-                              type="button"
-                              onClick={() => openProductPreview(item)}
-                              className="h-full w-full"
-                              aria-label={`Expand image for ${item.name}`}
-                            >
-                              <img
-                                src={item.imageSrc}
-                                alt={item.name}
-                                className="h-full w-full object-cover"
-                              />
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => openProductPreview(item)}
-                            className="mt-3 flex flex-1 flex-col space-y-2 text-left"
-                            aria-label={`Open details for ${item.name}`}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <h3 className="text-lg font-semibold">{item.name}</h3>
-                              <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
-                                Eggless
-                              </span>
-                            </div>
-                            <p className="min-h-10 text-sm text-black/60">{item.description}</p>
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--berry)]">
-                              Tap to view details
-                            </p>
-                            <p className="text-sm font-semibold text-[color:var(--berry)]">
-                              {formatInr(item.priceInr)}
-                            </p>
-                          </button>
-                          <div className="mt-4 flex gap-2">
-                            <div className="flex flex-1 items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1">
-                              <button
-                                onClick={() => handleDecreaseQty(item.id)}
-                                disabled={(cartQtyById[item.id] ?? 0) === 0}
-                                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
-                                aria-label={`Decrease ${item.name}`}
-                              >
-                                -
-                              </button>
-                              <span className="min-w-7 text-center text-xs font-semibold">
-                                {cartQtyById[item.id] ?? 0}
-                              </span>
-                              <button
-                                onClick={() => handleIncreaseQty(item.id)}
-                                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
-                                aria-label={`Increase ${item.name}`}
-                              >
-                                +
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleBuyNow(item.id)}
-                              className="flex-1 rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white"
-                            >
-                              Buy Now
-                            </button>
-                          </div>
-                        </article>
-                      ))}
+                      {filteredItems.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/80 px-4 py-5 text-sm text-black/55 sm:col-span-2 xl:col-span-3">
+                          No products match this filter.
+                        </div>
+                      ) : null}
+                      {filteredItems.map((item, index) => renderProductCard(item, index))}
                     </div>
                   </section>
                 );
