@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
+import crypto from "node:crypto";
 import { requireAdminApi } from "@/lib/admin-auth";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/avif": ".avif",
+  "image/gif": ".gif",
+};
 
 export async function POST(request: Request) {
   try {
@@ -24,9 +33,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const ext = path.extname(safeName) || ".jpg";
-    const fileName = `product-${Date.now()}${ext}`;
+    const mimeType = String(file.type ?? "").toLowerCase();
+    const ext =
+      ALLOWED_IMAGE_TYPES[mimeType] ||
+      ALLOWED_IMAGE_TYPES[`image/${path.extname(file.name).replace(".", "").toLowerCase()}`];
+
+    if (!ext) {
+      return NextResponse.json(
+        {
+          error:
+            "Unsupported image format. Please upload JPG, PNG, WEBP, AVIF, or GIF.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const fileName = `product-${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
     const uploadDir = path.join(process.cwd(), "public", "images", "uploads");
     const outputPath = path.join(uploadDir, fileName);
 

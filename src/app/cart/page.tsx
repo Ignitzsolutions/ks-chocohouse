@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   getCart,
+  getCartItemKey,
   updateQty,
   removeItem,
   clearCart,
@@ -29,6 +30,7 @@ export default function CartPage() {
         return {
           ...item,
           product,
+          sizeLabel: item.sizeLabel,
           lineTotal: item.qty * product.priceInr,
         };
       })
@@ -67,9 +69,9 @@ export default function CartPage() {
               </div>
             )}
 
-            {detailed.map(({ product, qty, lineTotal, customizationNote }) => (
+            {detailed.map(({ product, qty, lineTotal, customizationNote, sizeLabel }) => (
               <div
-                key={product.id}
+                key={getCartItemKey(product.id, sizeLabel)}
                 className="premium-panel rounded-3xl p-6"
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -79,6 +81,11 @@ export default function CartPage() {
                     <p className="mt-1 text-xs uppercase tracking-[0.2em] text-black/50">
                       {product.category}
                     </p>
+                    {sizeLabel ? (
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--berry)]">
+                        Weight: {sizeLabel}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-semibold">{formatInr(lineTotal)}</p>
@@ -93,20 +100,20 @@ export default function CartPage() {
                   <div className="flex items-center gap-2">
                   <button
                     className="h-8 w-8 rounded-full border border-[color:var(--line)] bg-white text-sm"
-                    onClick={() => setItems(updateQty(product.id, qty - 1))}
+                    onClick={() => setItems(updateQty(product.id, qty - 1, sizeLabel))}
                   >
                     -
                   </button>
                   <span className="min-w-8 text-center text-sm font-semibold">{qty}</span>
                   <button
                     className="h-8 w-8 rounded-full border border-[color:var(--line)] bg-white text-sm"
-                    onClick={() => setItems(updateQty(product.id, qty + 1))}
+                    onClick={() => setItems(updateQty(product.id, qty + 1, sizeLabel))}
                   >
                     +
                   </button>
                   <button
                     className="ml-3 rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-semibold"
-                    onClick={() => setItems(removeItem(product.id))}
+                    onClick={() => setItems(removeItem(product.id, sizeLabel))}
                   >
                     Remove
                   </button>
@@ -121,7 +128,7 @@ export default function CartPage() {
                     value={customizationNote ?? ""}
                     onChange={(event) =>
                       setItems(
-                        setItemCustomizationNote(product.id, event.target.value)
+                        setItemCustomizationNote(product.id, event.target.value, sizeLabel)
                       )
                     }
                     rows={2}

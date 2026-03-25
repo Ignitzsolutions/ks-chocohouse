@@ -16,6 +16,7 @@ import { useProducts } from "@/lib/use-products";
 type DetailedItem = {
   productId: string;
   qty: number;
+  sizeLabel?: string;
   customizationNote?: string;
   id: string;
   name: string;
@@ -127,6 +128,7 @@ export default function BillingPage() {
       rows.push({
         productId: entry.productId,
         qty: entry.qty,
+        sizeLabel: entry.sizeLabel,
         customizationNote: entry.customizationNote,
         id: product.id,
         name: product.name,
@@ -240,9 +242,10 @@ export default function BillingPage() {
       const orderDetails = {
         items: detailed.map((item) => ({
           id: item.id,
-          name: item.name,
+          name: item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name,
           category: item.category,
           qty: item.qty,
+          sizeLabel: item.sizeLabel ?? "",
           customizationNote: item.customizationNote ?? "",
           unitPrice: item.priceInr,
           lineTotal: item.lineTotal,
@@ -544,13 +547,18 @@ export default function BillingPage() {
 
               <div className="space-y-3">
                 {detailed.map((item) => (
-                  <div key={item.productId} className="space-y-1 text-sm">
+                  <div key={`${item.productId}-${item.sizeLabel ?? ""}`} className="space-y-1 text-sm">
                     <div className="flex items-center justify-between">
                       <span>
                         {item.name} x {item.qty}
                       </span>
                       <span>{formatInr(item.lineTotal)}</span>
                     </div>
+                    {item.sizeLabel ? (
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--berry)]">
+                        Weight: {item.sizeLabel}
+                      </p>
+                    ) : null}
                     {item.customizationNote ? (
                       <p className="whitespace-pre-wrap text-xs text-black/55">
                         Message Note:{"\n"}

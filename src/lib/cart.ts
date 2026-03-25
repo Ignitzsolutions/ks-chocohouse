@@ -1,6 +1,7 @@
 export type CartItem = {
   productId: string;
   qty: number;
+  sizeLabel?: string;
   customizationNote?: string;
 };
 
@@ -8,6 +9,14 @@ const CART_KEY = "bakery_cart_v1";
 
 function hasWindow() {
   return typeof window !== "undefined";
+}
+
+export function getCartItemKey(productId: string, sizeLabel?: string) {
+  return `${productId}::${sizeLabel?.trim() || ""}`;
+}
+
+function matchesCartItem(item: CartItem, productId: string, sizeLabel?: string) {
+  return getCartItemKey(item.productId, item.sizeLabel) === getCartItemKey(productId, sizeLabel);
 }
 
 export function getCart(): CartItem[] {
@@ -20,6 +29,7 @@ export function getCart(): CartItem[] {
       .map((item) => ({
         productId: item.productId,
         qty: Number(item.qty ?? 0),
+        sizeLabel: item.sizeLabel?.trim() || undefined,
         customizationNote: item.customizationNote?.trimEnd() || undefined,
       }))
       .filter((i) => i.qty > 0 && Boolean(i.productId));
@@ -33,39 +43,41 @@ export function saveCart(items: CartItem[]) {
   localStorage.setItem(CART_KEY, JSON.stringify(items.filter((i) => i.qty > 0)));
 }
 
-export function addItem(productId: string, qty = 1) {
+export function addItem(productId: string, qty = 1, sizeLabel?: string) {
   const cart = getCart();
-  const existing = cart.find((item) => item.productId === productId);
+  const existing = cart.find((item) => matchesCartItem(item, productId, sizeLabel));
   if (existing) {
     existing.qty += qty;
   } else {
-    cart.push({ productId, qty });
+    cart.push({ productId, qty, sizeLabel: sizeLabel?.trim() || undefined });
   }
   saveCart(cart);
   return cart;
 }
 
-export function updateQty(productId: string, qty: number) {
+export function updateQty(productId: string, qty: number, sizeLabel?: string) {
   const cart = getCart();
   const next = cart
     .map((item) =>
-      item.productId === productId ? { ...item, qty: Math.max(0, qty) } : item
+      matchesCartItem(item, productId, sizeLabel)
+        ? { ...item, qty: Math.max(0, qty) }
+        : item
     )
     .filter((item) => item.qty > 0);
   saveCart(next);
   return next;
 }
 
-export function removeItem(productId: string) {
-  const cart = getCart().filter((item) => item.productId !== productId);
+export function removeItem(productId: string, sizeLabel?: string) {
+  const cart = getCart().filter((item) => !matchesCartItem(item, productId, sizeLabel));
   saveCart(cart);
   return cart;
 }
 
-export function setItemCustomizationNote(productId: string, note: string) {
+export function setItemCustomizationNote(productId: string, note: string, sizeLabel?: string) {
   const trimmed = note.trimEnd();
   const cart = getCart().map((item) =>
-    item.productId === productId
+    matchesCartItem(item, productId, sizeLabel)
       ? {
           ...item,
           customizationNote: trimmed ? trimmed.slice(0, 240) : undefined,

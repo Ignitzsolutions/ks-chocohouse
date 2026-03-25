@@ -61,6 +61,13 @@ const EMPTY_CATEGORY_FORM = {
   imageSrc: "",
 };
 
+function normalizeImageSrc(value: string) {
+  const cleaned = value.trim().replaceAll("\\", "/");
+  if (!cleaned) return "";
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  return `/${cleaned.replace(/^\/+/, "")}`;
+}
+
 export default function AdminProductsPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -155,7 +162,10 @@ export default function AdminProductsPage() {
       if (!response.ok || !data.imageSrc) {
         throw new Error(data.error ?? "Upload failed");
       }
-      setForm((prev) => ({ ...prev, imageSrc: data.imageSrc ?? prev.imageSrc }));
+      setForm((prev) => ({
+        ...prev,
+        imageSrc: normalizeImageSrc(data.imageSrc ?? prev.imageSrc),
+      }));
       setMessage("Image uploaded.");
     } catch (err) {
       setError(String(err));
@@ -172,6 +182,7 @@ export default function AdminProductsPage() {
     try {
       const payload = {
         ...form,
+        imageSrc: normalizeImageSrc(form.imageSrc),
         priceInr: Number(form.priceInr),
         sizeOptions: form.sizeOptions,
       };
@@ -441,18 +452,25 @@ export default function AdminProductsPage() {
               <input
                 value={form.imageSrc}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, imageSrc: event.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    imageSrc: normalizeImageSrc(event.target.value),
+                  }))
                 }
                 required
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                 placeholder="/images/uploads/your-file.jpg"
               />
+              <p className="mt-1 text-xs text-black/55">
+                Use uploaded images or a full `https://` URL. Unsupported formats like HEIC will
+                be rejected.
+              </p>
             </label>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
               Upload Image
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
                 className="mt-2 block w-full text-sm"
                 onChange={(event) => {
                   const file = event.target.files?.[0];

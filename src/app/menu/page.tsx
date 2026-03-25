@@ -7,7 +7,7 @@ import { ImageLightbox } from "@/components/image-lightbox";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { addItem, getCart, type CartItem, updateQty } from "@/lib/cart";
+import { addItem, getCart, getCartItemKey, type CartItem, updateQty } from "@/lib/cart";
 import {
   formatInr,
   getCategories,
@@ -23,7 +23,7 @@ function categoryId(category: string) {
 
 function toQtyMap(items: CartItem[]) {
   return items.reduce<Record<string, number>>((acc, item) => {
-    acc[item.productId] = item.qty;
+    acc[getCartItemKey(item.productId, item.sizeLabel)] = item.qty;
     return acc;
   }, {});
 }
@@ -69,6 +69,7 @@ export default function MenuPage() {
   );
   const [activeSubCategory, setActiveSubCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSizeByProduct, setSelectedSizeByProduct] = useState<Record<string, string>>({});
   const activeCategoryRef = useRef(activeCategory);
   const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>(
@@ -305,24 +306,25 @@ export default function MenuPage() {
     node.scrollIntoView({ behavior, block: "start" });
   };
 
-  const handleIncreaseQty = (productId: string) => {
-    const updatedCart = addItem(productId, 1);
+  const handleIncreaseQty = (productId: string, sizeLabel?: string) => {
+    const updatedCart = addItem(productId, 1, sizeLabel);
     setCartQtyById(toQtyMap(updatedCart));
   };
 
-  const handleDecreaseQty = (productId: string) => {
-    const currentQty = cartQtyById[productId] ?? 0;
-    const updatedCart = updateQty(productId, Math.max(0, currentQty - 1));
+  const handleDecreaseQty = (productId: string, sizeLabel?: string) => {
+    const currentQty = cartQtyById[getCartItemKey(productId, sizeLabel)] ?? 0;
+    const updatedCart = updateQty(productId, Math.max(0, currentQty - 1), sizeLabel);
     setCartQtyById(toQtyMap(updatedCart));
   };
 
   const handleBuyNow = (
     productId: string,
+    sizeLabel?: string,
     event?: React.MouseEvent<HTMLButtonElement>
   ) => {
     event?.preventDefault();
     event?.stopPropagation();
-    const updatedCart = addItem(productId, 1);
+    const updatedCart = addItem(productId, 1, sizeLabel);
     setCartQtyById(toQtyMap(updatedCart));
     window.location.assign("/cart");
   };
@@ -342,6 +344,11 @@ export default function MenuPage() {
     extraLabel?: string
   ) => {
     const sizeOptions = getDisplaySizeOptions(item);
+    const selectedSize =
+      (sizeOptions.length > 0
+        ? selectedSizeByProduct[item.id] ?? sizeOptions[0]
+        : "") || "";
+    const cartKey = getCartItemKey(item.id, selectedSize);
 
     return (
       <article
@@ -384,15 +391,27 @@ export default function MenuPage() {
           </p>
         ) : null}
         {sizeOptions.length > 0 ? (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {sizeOptions.map((size) => (
-              <span
-                key={`${item.id}-${size}`}
-                className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-black/65"
-              >
-                {size}
-              </span>
-            ))}
+          <div className="space-y-2 pt-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
+              Weight
+            </p>
+            <select
+              value={selectedSize}
+              onChange={(event) =>
+                setSelectedSizeByProduct((prev) => ({
+                  ...prev,
+                  [item.id]: event.target.value,
+                }))
+              }
+              className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-black/70 outline-none"
+              aria-label={`Select weight for ${item.name}`}
+            >
+              {sizeOptions.map((size) => (
+                <option key={`${item.id}-${size}`} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
         <p className="text-xs font-semibold tracking-[0.04em] text-[color:var(--berry)]">
@@ -403,18 +422,18 @@ export default function MenuPage() {
       <div className="mt-4 flex gap-2">
         <div className="flex flex-1 items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1">
           <button
-            onClick={() => handleDecreaseQty(item.id)}
-            disabled={(cartQtyById[item.id] ?? 0) === 0}
+            onClick={() => handleDecreaseQty(item.id, selectedSize || undefined)}
+            disabled={(cartQtyById[cartKey] ?? 0) === 0}
             className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
             aria-label={`Decrease ${item.name}`}
           >
             -
           </button>
           <span className="min-w-7 text-center text-xs font-semibold">
-            {cartQtyById[item.id] ?? 0}
+            {cartQtyById[cartKey] ?? 0}
           </span>
           <button
-            onClick={() => handleIncreaseQty(item.id)}
+            onClick={() => handleIncreaseQty(item.id, selectedSize || undefined)}
             className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
             aria-label={`Increase ${item.name}`}
           >
@@ -423,7 +442,7 @@ export default function MenuPage() {
         </div>
         <button
           type="button"
-          onClick={(event) => handleBuyNow(item.id, event)}
+          onClick={(event) => handleBuyNow(item.id, selectedSize || undefined, event)}
           className="flex-1 rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white"
         >
           Buy Now

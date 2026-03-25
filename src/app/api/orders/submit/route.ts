@@ -11,6 +11,7 @@ type NormalizedOrderItem = {
   name: string;
   category: string;
   qty: number;
+  sizeLabel?: string;
   customizationNote?: string;
   unitPrice: number;
   lineTotal: number;
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
             name: String(item.name ?? ""),
             category: String(item.category ?? ""),
             qty: Number(item.qty ?? 0),
+            sizeLabel: String(item.sizeLabel ?? "").trim() || undefined,
             customizationNote: String(item.customizationNote ?? "").trim() || undefined,
             unitPrice: Number(item.unitPrice ?? 0),
             lineTotal: Number(item.lineTotal ?? 0),
