@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
 import { SiteHeader } from "@/components/site-header";
@@ -61,7 +60,6 @@ function shouldReduceMotion() {
 }
 
 export default function MenuPage() {
-  const router = useRouter();
   const fallbackCategories = getCategories();
   const { products: allProducts } = useProducts();
   const [categories, setCategories] = useState<ProductCategory[]>(fallbackCategories);
@@ -318,10 +316,15 @@ export default function MenuPage() {
     setCartQtyById(toQtyMap(updatedCart));
   };
 
-  const handleBuyNow = (productId: string) => {
+  const handleBuyNow = (
+    productId: string,
+    event?: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    event?.preventDefault();
+    event?.stopPropagation();
     const updatedCart = addItem(productId, 1);
     setCartQtyById(toQtyMap(updatedCart));
-    router.push("/cart");
+    window.location.assign("/cart");
   };
 
   const openProductPreview = (item: Product) => {
@@ -420,7 +423,7 @@ export default function MenuPage() {
         </div>
         <button
           type="button"
-          onClick={() => handleBuyNow(item.id)}
+          onClick={(event) => handleBuyNow(item.id, event)}
           className="flex-1 rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white"
         >
           Buy Now
