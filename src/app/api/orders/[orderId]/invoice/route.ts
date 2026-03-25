@@ -22,6 +22,7 @@ import {
 type RawOrderItem = {
   name?: string;
   qty?: number;
+  sizeLabel?: string;
   unitPrice?: number;
   lineTotal?: number;
   customizationNote?: string;
@@ -141,7 +142,12 @@ const normalizeItems = (order: OrderRow) => {
       const qty = Math.max(1, safeNumber(item.qty, 1));
       const lineTotal = safeNumber(item.lineTotal, safeNumber(item.unitPrice, 0) * qty);
       const unitPrice = safeNumber(item.unitPrice, qty ? lineTotal / qty : 0);
-      const name = String(item.name ?? "").trim() || "Custom Order";
+      const baseName = String(item.name ?? "").trim() || "Custom Order";
+      const sizeLabel = String(item.sizeLabel ?? "").trim();
+      const name =
+        sizeLabel && !baseName.includes(sizeLabel)
+          ? `${baseName} (${sizeLabel})`
+          : baseName;
       return {
         name,
         qty,

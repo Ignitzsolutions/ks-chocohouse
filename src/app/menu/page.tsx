@@ -338,6 +338,16 @@ export default function MenuPage() {
     });
   };
 
+  const swallowPointerEvent = (
+    event:
+      | React.MouseEvent<HTMLElement>
+      | React.PointerEvent<HTMLElement>
+      | React.TouchEvent<HTMLElement>
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   const renderProductCard = (
     item: Product,
     index: number,
@@ -352,103 +362,157 @@ export default function MenuPage() {
 
     return (
       <article
-      key={item.id}
-      data-reveal-id={item.id}
-      data-reveal-type="card"
-      className={`premium-panel flex h-full flex-col rounded-3xl p-4 transition-all duration-700 motion-reduce:transition-none ${
-        visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-      }`}
-      style={{
-        transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
-      }}
-    >
-      <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
-        <button
-          type="button"
-          onClick={() => openProductPreview(item)}
-          className="h-full w-full"
-          aria-label={`Expand image for ${item.name}`}
-        >
-          <img src={item.imageSrc} alt={item.name} className="h-full w-full object-cover" />
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={() => openProductPreview(item)}
-        className="mt-3 flex flex-1 flex-col space-y-2 text-left"
-        aria-label={`Open details for ${item.name}`}
+        key={item.id}
+        data-reveal-id={item.id}
+        data-reveal-type="card"
+        className={`premium-panel flex h-full flex-col rounded-3xl p-4 transition-all duration-700 motion-reduce:transition-none ${
+          visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+        }`}
+        style={{
+          transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
+        }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold leading-snug">{item.name}</h3>
-          <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
-            Eggless
-          </span>
+        <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
+          <button
+            type="button"
+            onClick={() => openProductPreview(item)}
+            className="h-full w-full"
+            aria-label={`Expand image for ${item.name}`}
+          >
+            <img src={item.imageSrc} alt={item.name} className="h-full w-full object-cover" />
+          </button>
         </div>
-        <p className="min-h-12 text-sm leading-6 text-black/62">{item.description}</p>
-        {extraLabel ? (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
-            {extraLabel}
-          </p>
-        ) : null}
-        {sizeOptions.length > 0 ? (
-          <div className="space-y-2 pt-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
-              Weight
-            </p>
-            <select
-              value={selectedSize}
-              onChange={(event) =>
-                setSelectedSizeByProduct((prev) => ({
-                  ...prev,
-                  [item.id]: event.target.value,
-                }))
-              }
-              className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm font-medium text-black/70 outline-none"
-              aria-label={`Select weight for ${item.name}`}
-            >
-              {sizeOptions.map((size) => (
-                <option key={`${item.id}-${size}`} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
+
+        <div className="mt-3 flex flex-1 flex-col space-y-3 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold leading-snug">{item.name}</h3>
+            <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
+              Eggless
+            </span>
           </div>
-        ) : null}
-        <p className="text-xs font-semibold tracking-[0.04em] text-[color:var(--berry)]">
-          View photos and details
-        </p>
-        <p className="text-sm font-semibold text-[color:var(--berry)]">{formatInr(item.priceInr)}</p>
-      </button>
-      <div className="mt-4 flex gap-2">
-        <div className="flex flex-1 items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1">
-          <button
-            onClick={() => handleDecreaseQty(item.id, selectedSize || undefined)}
-            disabled={(cartQtyById[cartKey] ?? 0) === 0}
-            className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
-            aria-label={`Decrease ${item.name}`}
-          >
-            -
-          </button>
-          <span className="min-w-7 text-center text-xs font-semibold">
-            {cartQtyById[cartKey] ?? 0}
-          </span>
-          <button
-            onClick={() => handleIncreaseQty(item.id, selectedSize || undefined)}
-            className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
-            aria-label={`Increase ${item.name}`}
-          >
-            +
-          </button>
+
+          <p className="text-sm leading-6 text-black/62 sm:min-h-12">{item.description}</p>
+
+          {extraLabel ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
+              {extraLabel}
+            </p>
+          ) : null}
+
+          {sizeOptions.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2 rounded-2xl border border-black/8 bg-white px-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)] sm:items-center sm:gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/45">
+                Sizes
+              </p>
+              <div
+                className="relative"
+                onClick={swallowPointerEvent}
+                onPointerDown={swallowPointerEvent}
+                onTouchStart={swallowPointerEvent}
+              >
+                <select
+                  value={selectedSize}
+                  onChange={(event) =>
+                    setSelectedSizeByProduct((prev) => ({
+                      ...prev,
+                      [item.id]: event.target.value,
+                    }))
+                  }
+                  onClick={swallowPointerEvent}
+                  onPointerDown={swallowPointerEvent}
+                  onTouchStart={swallowPointerEvent}
+                  className="w-full appearance-none rounded-xl border border-dashed border-black/25 bg-[color:var(--cream)] px-4 py-3 pr-10 text-sm font-medium text-black/72 outline-none transition focus:border-[color:var(--berry)] focus:bg-white"
+                  aria-label={`Select weight for ${item.name}`}
+                >
+                  {sizeOptions.map((size) => (
+                    <option key={`${item.id}-${size}`} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/35">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 7.5L10 12.5L15 7.5"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-[color:var(--berry)]">
+              {formatInr(item.priceInr)}
+            </p>
+            <button
+              type="button"
+              onClick={() => openProductPreview(item)}
+              className="text-left text-xs font-semibold tracking-[0.04em] text-[color:var(--berry)] underline-offset-4 hover:underline"
+            >
+              View photos and details
+            </button>
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2 sm:flex-row">
+            <div
+              className="flex items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1 sm:flex-1"
+              onClick={swallowPointerEvent}
+              onPointerDown={swallowPointerEvent}
+              onTouchStart={swallowPointerEvent}
+            >
+              <button
+                onClick={(event) => {
+                  swallowPointerEvent(event);
+                  handleDecreaseQty(item.id, selectedSize || undefined);
+                }}
+                onPointerDown={swallowPointerEvent}
+                onTouchStart={swallowPointerEvent}
+                disabled={(cartQtyById[cartKey] ?? 0) === 0}
+                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
+                aria-label={`Decrease ${item.name}`}
+              >
+                -
+              </button>
+              <span className="min-w-7 text-center text-xs font-semibold">
+                {cartQtyById[cartKey] ?? 0}
+              </span>
+              <button
+                onClick={(event) => {
+                  swallowPointerEvent(event);
+                  handleIncreaseQty(item.id, selectedSize || undefined);
+                }}
+                onPointerDown={swallowPointerEvent}
+                onTouchStart={swallowPointerEvent}
+                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
+                aria-label={`Increase ${item.name}`}
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={(event) => handleBuyNow(item.id, selectedSize || undefined, event)}
+              onPointerDown={swallowPointerEvent}
+              onTouchStart={swallowPointerEvent}
+              className="w-full rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white sm:flex-1"
+            >
+              Buy Now
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={(event) => handleBuyNow(item.id, selectedSize || undefined, event)}
-          className="flex-1 rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white"
-        >
-          Buy Now
-        </button>
-      </div>
-    </article>
+      </article>
     );
   };
 

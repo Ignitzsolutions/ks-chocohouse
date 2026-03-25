@@ -52,7 +52,14 @@ export function formatInr(value: number): string {
   }).format(value);
 }
 
-const DEFAULT_CAKE_SIZE_OPTIONS = ["500g", "1kg", "1.5kg", "2kg"];
+const DEFAULT_CAKE_SIZE_OPTIONS = [
+  "Small (500gm)",
+  "Medium (1000gm)",
+  "Medium Plus (1500gm)",
+  "Large (2000gm)",
+  "Large Plus (2500gm)",
+  "Extra Large (3000gm)",
+];
 
 export function getDisplaySizeOptions(product: Product): string[] {
   if (product.sizeOptions?.length) {
