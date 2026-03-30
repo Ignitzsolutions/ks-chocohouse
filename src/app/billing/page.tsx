@@ -92,6 +92,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+  const [messageTouched, setMessageTouched] = useState(false);
   const successTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -147,15 +148,22 @@ export default function BillingPage() {
   );
   const totalQty = detailed.reduce((sum, item) => sum + item.qty, 0);
   const categorySummary = Array.from(new Set(detailed.map((i) => i.category))).join(", ");
-  const composedMessage = useMemo(() => {
-    const manual = message.trimEnd();
-    if (manual) return manual;
-    return detailed
+  const cartMessageDefault = useMemo(
+    () =>
+      detailed
       .filter((item) => item.customizationNote)
       .map((item) => `${item.name}:\n${item.customizationNote}`)
       .join("\n\n")
-      .trimEnd();
-  }, [detailed, message]);
+      .trimEnd(),
+    [detailed]
+  );
+  const composedMessage = useMemo(() => message.trimEnd(), [message]);
+
+  useEffect(() => {
+    if (!messageTouched) {
+      setMessage(cartMessageDefault);
+    }
+  }, [cartMessageDefault, messageTouched]);
 
   const blockedInfo = useMemo(() => {
     if (!deliveryDate) return null;
@@ -307,7 +315,7 @@ export default function BillingPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="premium-panel sticky top-20 z-20 rounded-2xl px-5 py-3">
           <p className="text-xs uppercase tracking-[0.3em] text-black/40">Ordering</p>
           <p className="text-lg font-semibold">
@@ -424,10 +432,14 @@ export default function BillingPage() {
                   Message Note
                   <textarea
                     value={message}
-                    onChange={(event) => setMessage(event.target.value)}
+                    onChange={(event) => {
+                      setMessageTouched(true);
+                      setMessage(event.target.value);
+                    }}
                     rows={3}
                     className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm leading-relaxed"
-                    placeholder="Happy birthday&#10;Less sweet&#10;Add gold topper"
+                    placeholder="Example: Name on cake, color theme, topper style, less sweet..."
+                    spellCheck={false}
                   />
                 </label>
 

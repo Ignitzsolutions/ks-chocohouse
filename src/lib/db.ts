@@ -55,6 +55,7 @@ export function initDb() {
         email TEXT,
         address TEXT,
         pincode TEXT,
+        sale_date TEXT,
         delivery_date TEXT,
         delivery_slot TEXT,
         cake_message TEXT,
@@ -92,6 +93,11 @@ export function initDb() {
     )
     .run();
 
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN sale_date TEXT").run();
+  } catch {
+    // column already exists
+  }
   try {
     instance.prepare("ALTER TABLE orders ADD COLUMN cake_message TEXT").run();
   } catch {
@@ -283,6 +289,13 @@ export function initDb() {
            discount_amount = COALESCE(discount_amount, 0),
            order_kind = COALESCE(NULLIF(order_kind, ''), 'sale'),
            lifecycle_state = COALESCE(NULLIF(lifecycle_state, ''), 'finalized'),
+           sale_date = COALESCE(
+             NULLIF(sale_date, ''),
+             CASE
+               WHEN source = 'offline' THEN substr(COALESCE(paid_at, created_at), 1, 10)
+               ELSE sale_date
+             END
+           ),
            updated_at = COALESCE(updated_at, created_at),
            status_updated_at = COALESCE(status_updated_at, created_at),
            payment_updated_at = COALESCE(payment_updated_at, payment_verified_at, created_at)`

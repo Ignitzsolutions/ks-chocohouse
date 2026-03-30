@@ -6,6 +6,7 @@ export type CartItem = {
 };
 
 const CART_KEY = "bakery_cart_v1";
+const CART_EVENT = "bakery-cart-updated";
 
 function hasWindow() {
   return typeof window !== "undefined";
@@ -20,17 +21,27 @@ function matchesCartItem(item: CartItem, productId: string, sizeLabel?: string) 
 }
 
 export function getCart(): CartItem[] {
+  return parseCartStorageSnapshot(getCartStorageSnapshot());
+}
+
+export function getCartStorageSnapshot() {
+  if (!hasWindow()) return "[]";
+  return localStorage.getItem(CART_KEY) ?? "[]";
+}
+
+export function parseCartStorageSnapshot(raw: string): CartItem[] {
   if (!hasWindow()) return [];
   try {
-    const raw = localStorage.getItem(CART_KEY);
-    if (!raw) return [];
     const parsed = JSON.parse(raw) as CartItem[];
     return parsed
       .map((item) => ({
         productId: item.productId,
         qty: Number(item.qty ?? 0),
         sizeLabel: item.sizeLabel?.trim() || undefined,
-        customizationNote: item.customizationNote?.trimEnd() || undefined,
+        customizationNote:
+          typeof item.customizationNote === "string" && item.customizationNote.length > 0
+            ? item.customizationNote.slice(0, 240)
+            : undefined,
       }))
       .filter((i) => i.qty > 0 && Boolean(i.productId));
   } catch {
@@ -38,9 +49,28 @@ export function getCart(): CartItem[] {
   }
 }
 
+export function subscribeCart(listener: () => void) {
+  if (!hasWindow()) return () => undefined;
+
+  const onCartChange = () => listener();
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === CART_KEY) {
+      listener();
+    }
+  };
+
+  window.addEventListener(CART_EVENT, onCartChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(CART_EVENT, onCartChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
 export function saveCart(items: CartItem[]) {
   if (!hasWindow()) return;
   localStorage.setItem(CART_KEY, JSON.stringify(items.filter((i) => i.qty > 0)));
+  window.dispatchEvent(new Event(CART_EVENT));
 }
 
 export function addItem(productId: string, qty = 1, sizeLabel?: string) {
@@ -75,12 +105,12 @@ export function removeItem(productId: string, sizeLabel?: string) {
 }
 
 export function setItemCustomizationNote(productId: string, note: string, sizeLabel?: string) {
-  const trimmed = note.trimEnd();
+  const normalized = note.replace(/\r\n/g, "\n").slice(0, 240);
   const cart = getCart().map((item) =>
     matchesCartItem(item, productId, sizeLabel)
       ? {
           ...item,
-          customizationNote: trimmed ? trimmed.slice(0, 240) : undefined,
+          customizationNote: normalized.length > 0 ? normalized : undefined,
         }
       : item
   );

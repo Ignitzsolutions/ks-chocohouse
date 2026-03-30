@@ -43,6 +43,7 @@ type OrderRow = {
   email?: string;
   address?: string;
   pincode?: string;
+  sale_date?: string | null;
   delivery_date?: string;
   delivery_slot?: string;
   status?: string;
@@ -343,7 +344,13 @@ export async function GET(
       BADGES: badges,
       INVOICE_NUMBER: escapeHtml(order.invoice_number || `INV-${order.id}`),
       ORDER_ID: escapeHtml(order.id),
-      CREATED_DATE: escapeHtml(formatDate(order.paid_at || order.created_at)),
+      CREATED_DATE: escapeHtml(
+        formatDate(
+          order.source === "offline" && order.sale_date
+            ? order.sale_date
+            : order.paid_at || order.created_at
+        )
+      ),
       DUE_DATE: escapeHtml(formatDate(order.delivery_date)),
       PAYMENT_METHOD: escapeHtml(order.payment_method || "-"),
       PAYMENT_STATUS: escapeHtml(order.payment_status || "-"),

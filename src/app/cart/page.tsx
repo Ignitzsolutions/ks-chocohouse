@@ -1,26 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  getCart,
   getCartItemKey,
+  getCartStorageSnapshot,
+  parseCartStorageSnapshot,
   updateQty,
   removeItem,
   clearCart,
-  setItemCustomizationNote,
+  subscribeCart,
   type CartItem,
 } from "@/lib/cart";
 import { formatInr } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
 export default function CartPage() {
-  const [items, setItems] = useState<CartItem[]>(() => getCart());
   const { productById } = useProducts();
+  const cartSnapshot = useSyncExternalStore(subscribeCart, getCartStorageSnapshot, () => "[]");
+  const items = useMemo<CartItem[]>(
+    () => parseCartStorageSnapshot(cartSnapshot),
+    [cartSnapshot]
+  );
 
   const detailed = useMemo(() => {
     return items
@@ -44,7 +49,7 @@ export default function CartPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="premium-panel flex flex-wrap items-center justify-between gap-6 rounded-3xl p-6">
           <div className="space-y-3">
             <Badge tone="rose">Cart</Badge>
@@ -100,43 +105,36 @@ export default function CartPage() {
                   <div className="flex items-center gap-2">
                   <button
                     className="h-8 w-8 rounded-full border border-[color:var(--line)] bg-white text-sm"
-                    onClick={() => setItems(updateQty(product.id, qty - 1, sizeLabel))}
+                    onClick={() => updateQty(product.id, qty - 1, sizeLabel)}
                   >
                     -
                   </button>
                   <span className="min-w-8 text-center text-sm font-semibold">{qty}</span>
                   <button
                     className="h-8 w-8 rounded-full border border-[color:var(--line)] bg-white text-sm"
-                    onClick={() => setItems(updateQty(product.id, qty + 1, sizeLabel))}
+                    onClick={() => updateQty(product.id, qty + 1, sizeLabel)}
                   >
                     +
                   </button>
                   <button
                     className="ml-3 rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-semibold"
-                    onClick={() => setItems(removeItem(product.id, sizeLabel))}
+                    onClick={() => removeItem(product.id, sizeLabel)}
                   >
                     Remove
                   </button>
                 </div>
                 </div>
 
-                <div className="mt-5">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/55">
-                    Message Note
-                  </label>
-                  <textarea
-                    value={customizationNote ?? ""}
-                    onChange={(event) =>
-                      setItems(
-                        setItemCustomizationNote(product.id, event.target.value, sizeLabel)
-                      )
-                    }
-                    rows={2}
-                    maxLength={240}
-                    placeholder="Example: Name on cake, color theme, topper style, less sweet..."
-                    className="mt-2 w-full rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 text-sm leading-relaxed"
-                  />
-                </div>
+                {customizationNote ? (
+                  <div className="mt-5 border border-[color:var(--line)] bg-[color:var(--cream)] px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/55">
+                      Message Note
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-black/80">
+                      {customizationNote}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -167,10 +165,7 @@ export default function CartPage() {
                 <Button
                   className="w-full"
                   variant="outline"
-                  onClick={() => {
-                    clearCart();
-                    setItems([]);
-                  }}
+                  onClick={() => clearCart()}
                   disabled={detailed.length === 0}
                 >
                   Clear cart

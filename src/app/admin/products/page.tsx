@@ -334,7 +334,7 @@ export default function AdminProductsPage() {
     <AdminGuard>
       <div>
         <SiteHeader />
-        <main className="mx-auto max-w-6xl px-6 py-10">
+        <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
               <Badge tone="gold">Admin Dashboard</Badge>

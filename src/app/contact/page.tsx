@@ -55,7 +55,7 @@ export default function ContactPage() {
     <div>
       <JsonLd data={contactSchema} />
       <SiteHeader />
-      <main className="mx-auto max-w-4xl px-6 py-12">
+      <main className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="premium-panel space-y-3 rounded-3xl p-6">
           <p className="text-xs uppercase tracking-[0.3em] text-black/50">
             Contact

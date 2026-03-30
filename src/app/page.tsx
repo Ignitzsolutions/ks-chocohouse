@@ -131,7 +131,7 @@ export default function Home() {
         </div>
       </section>
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
         <section className="premium-panel rounded-3xl p-7 md:p-9">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
             Eggless Bakery in Proddatur

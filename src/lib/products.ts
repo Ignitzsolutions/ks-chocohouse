@@ -44,6 +44,29 @@ export function getProductById(id: string): Product | undefined {
   return products.find((item) => item.id === id);
 }
 
+function slugifySegment(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+export function getProductSlug(product: Product) {
+  return `${slugifySegment(product.name)}--${product.id}`;
+}
+
+export function getProductHref(product: Product) {
+  return `/products/${getProductSlug(product)}`;
+}
+
+export function getProductIdFromSlug(slug: string) {
+  const parts = slug.split("--");
+  return parts.length > 1 ? parts.at(-1) ?? "" : slug;
+}
+
 export function formatInr(value: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",

@@ -543,7 +543,7 @@ export function SalesDashboardShell() {
     <AdminGuard>
       <div>
         <SiteHeader />
-        <main className="mx-auto max-w-[1400px] px-4 py-8 md:px-6">
+        <main className="mx-auto max-w-[1520px] px-4 py-8 md:px-6 xl:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
               <Badge tone="gold">Sales Dashboard</Badge>

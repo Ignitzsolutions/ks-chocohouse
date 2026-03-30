@@ -37,7 +37,7 @@ export default function AboutPage() {
     <div>
       <JsonLd data={aboutData} />
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
         <section className="premium-panel rounded-[34px] p-8 md:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">About Us</p>
           <h1 className="hero-display mt-3 text-5xl leading-[0.95] md:text-6xl">

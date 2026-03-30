@@ -26,7 +26,7 @@ export default function AccountPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="premium-panel space-y-3 rounded-3xl p-6">
           <Badge tone="sage">Customer profile</Badge>
           <h1 className="hero-display text-5xl leading-none">Welcome back, Mira.</h1>

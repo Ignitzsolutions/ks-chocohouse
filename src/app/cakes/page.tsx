@@ -72,7 +72,7 @@ export default function CakesPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="premium-panel flex flex-wrap items-end justify-between gap-6 rounded-3xl p-6">
           <div className="space-y-3">
             <Badge tone="sage">Catalog</Badge>

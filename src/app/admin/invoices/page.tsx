@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/admin-guard";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -16,6 +16,15 @@ type OfflineItem = {
 
 const emptyItem = (): OfflineItem => ({ productId: "", qty: 1 });
 
+function getTodayAdminDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 export default function AdminInvoicesPage() {
   const { products } = useProducts();
   const [customerName, setCustomerName] = useState("");
@@ -23,6 +32,7 @@ export default function AdminInvoicesPage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [pincode, setPincode] = useState("");
+  const [saleDate, setSaleDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [paymentReference, setPaymentReference] = useState("");
   const [gstBusinessName, setGstBusinessName] = useState("");
@@ -35,6 +45,10 @@ export default function AdminInvoicesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ orderId: string; invoiceUrl: string } | null>(null);
+
+  useEffect(() => {
+    setSaleDate((current) => current || getTodayAdminDate());
+  }, []);
 
   const productMap = useMemo(() => {
     const map = new Map<string, { name: string; priceInr: number }>();
@@ -60,6 +74,7 @@ export default function AdminInvoicesPage() {
   }, [items, productMap]);
 
   const canGenerate =
+    Boolean(saleDate) &&
     items.length > 0 &&
     items.every((item) => item.productId && item.qty > 0) &&
     totals.amount > 0 &&
@@ -74,6 +89,28 @@ export default function AdminInvoicesPage() {
   const addItemRow = () => setItems((prev) => [...prev, emptyItem()]);
   const removeItemRow = (index: number) =>
     setItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+
+  const clearForm = (options?: { keepResult?: boolean }) => {
+    setCustomerName("");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setPincode("");
+    setSaleDate(getTodayAdminDate());
+    setPaymentMethod("Cash");
+    setPaymentReference("");
+    setGstBusinessName("");
+    setGstin("");
+    setGstBillingAddress("");
+    setCouponCode("");
+    setNote("");
+    setItems([emptyItem()]);
+    setDraftOrderId(null);
+    setError(null);
+    if (!options?.keepResult) {
+      setResult(null);
+    }
+  };
 
   const saveOfflineOrder = async (mode: "draft" | "finalize") => {
     setLoading(true);
@@ -93,6 +130,7 @@ export default function AdminInvoicesPage() {
           email,
           address,
           pincode,
+          saleDate,
           paymentMethod,
           paymentReference,
           couponCode,
@@ -120,18 +158,7 @@ export default function AdminInvoicesPage() {
           orderId: nextOrderId,
           invoiceUrl: String(data.invoiceUrl ?? ""),
         });
-        setItems([emptyItem()]);
-        setDraftOrderId(null);
-        setPhone("");
-        setEmail("");
-        setAddress("");
-        setPincode("");
-        setPaymentReference("");
-        setCouponCode("");
-        setGstBusinessName("");
-        setGstin("");
-        setGstBillingAddress("");
-        setNote("");
+        clearForm({ keepResult: true });
       } else {
         setResult(null);
       }
@@ -146,7 +173,7 @@ export default function AdminInvoicesPage() {
     <AdminGuard>
       <div>
         <SiteHeader />
-        <main className="mx-auto max-w-5xl px-6 py-10">
+        <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <Badge tone="gold">Admin Invoices</Badge>
@@ -214,6 +241,15 @@ export default function AdminInvoicesPage() {
                   onChange={(event) => setPincode(event.target.value)}
                   className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                   placeholder="Optional"
+                />
+              </label>
+              <label className="text-sm font-semibold text-black/70">
+                Offline Sale Date
+                <input
+                  type="date"
+                  value={saleDate}
+                  onChange={(event) => setSaleDate(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                 />
               </label>
               <label className="text-sm font-semibold text-black/70">
@@ -381,6 +417,14 @@ export default function AdminInvoicesPage() {
             ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => clearForm()}
+                disabled={loading}
+                className="rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear Form
+              </button>
               <button
                 type="button"
                 onClick={() => saveOfflineOrder("draft")}

@@ -1,14 +1,14 @@
 import type { ButtonHTMLAttributes } from "react";
 
 const base =
-  "relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-full font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--berry)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--vanilla)] disabled:opacity-60 disabled:cursor-not-allowed";
+  "relative inline-flex items-center justify-center gap-2 overflow-hidden border font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--berry)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--vanilla)] disabled:cursor-not-allowed disabled:opacity-60";
 
 const variants = {
   primary:
-    "bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] text-white shadow-[0_14px_28px_rgba(32,22,16,0.24)] before:absolute before:inset-x-0 before:top-0 before:h-1/2 before:bg-white/20 before:content-[''] hover:shadow-[0_20px_36px_rgba(32,22,16,0.28)]",
+    "border-[color:var(--berry-dark)] bg-[color:var(--berry)] text-white shadow-[0_10px_18px_rgba(18,13,10,0.18)] hover:bg-[color:var(--berry-dark)]",
   outline:
-    "border border-[color:var(--line)] bg-white/90 text-[color:var(--ink)] hover:bg-white",
-  ghost: "text-[color:var(--ink)] hover:bg-[color:var(--ink)]/5",
+    "border-[color:var(--line)] bg-white text-[color:var(--ink)] hover:bg-[color:var(--cream)]",
+  ghost: "border-transparent bg-transparent text-[color:var(--ink)] hover:bg-[color:var(--cream)]",
 };
 
 const sizes = {

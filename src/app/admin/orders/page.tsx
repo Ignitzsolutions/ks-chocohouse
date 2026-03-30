@@ -32,6 +32,7 @@ type OrderRow = {
   quantity: number;
   customer_name: string;
   phone: string;
+  sale_date?: string | null;
   delivery_date: string;
   delivery_slot: string;
   status: string;
@@ -113,7 +114,7 @@ export default function AdminOrdersPage() {
     <AdminGuard>
       <div>
         <SiteHeader />
-        <main className="mx-auto max-w-6xl px-6 py-10">
+        <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="space-y-2">
               <Badge tone="gold">Admin Dashboard</Badge>
@@ -233,7 +234,11 @@ export default function AdminOrdersPage() {
                     </div>
 
                     <div>
-                      <p>{order.delivery_date || "-"}</p>
+                      <p>
+                        {order.source === "offline"
+                          ? order.sale_date || "-"
+                          : order.delivery_date || "-"}
+                      </p>
                       <p className="text-xs text-black/50">{order.delivery_slot || "-"}</p>
                     </div>
 

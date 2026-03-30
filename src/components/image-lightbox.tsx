@@ -50,7 +50,7 @@ export function ImageLightbox({
       onClick={onClose}
     >
       <div
-        className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white p-4 shadow-2xl"
+        className="max-h-[92vh] w-full max-w-4xl overflow-hidden border border-black/10 bg-white p-4 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -66,12 +66,12 @@ export function ImageLightbox({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold"
+            className="border border-black/10 bg-white px-4 py-2 text-xs font-semibold"
           >
             Close
           </button>
         </div>
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[color:var(--cream)]">
+        <div className="relative aspect-[4/3] w-full overflow-hidden border border-black/10 bg-[color:var(--cream)]">
           <img
             src={displaySrc}
             alt={alt}
@@ -84,7 +84,7 @@ export function ImageLightbox({
             }}
           />
           {showingFallback && normalizedSrc !== FALLBACK_PREVIEW_IMAGE ? (
-            <p className="absolute bottom-2 left-2 rounded-full bg-black/65 px-3 py-1 text-[11px] font-semibold text-white">
+            <p className="absolute bottom-2 left-2 bg-black/65 px-3 py-1 text-[11px] font-semibold text-white">
               Original image unavailable. Showing fallback.
             </p>
           ) : null}

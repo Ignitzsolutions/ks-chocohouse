@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
 import { SiteHeader } from "@/components/site-header";
@@ -12,6 +13,7 @@ import {
   formatInr,
   getCategories,
   getDisplaySizeOptions,
+  getProductHref,
   type Product,
   type ProductCategory,
 } from "@/lib/products";
@@ -348,6 +350,15 @@ export default function MenuPage() {
     event.stopPropagation();
   };
 
+  const stopEventPropagation = (
+    event:
+      | React.MouseEvent<HTMLElement>
+      | React.PointerEvent<HTMLElement>
+      | React.TouchEvent<HTMLElement>
+  ) => {
+    event.stopPropagation();
+  };
+
   const renderProductCard = (
     item: Product,
     index: number,
@@ -365,14 +376,14 @@ export default function MenuPage() {
         key={item.id}
         data-reveal-id={item.id}
         data-reveal-type="card"
-        className={`premium-panel flex h-full flex-col rounded-3xl p-4 transition-all duration-700 motion-reduce:transition-none ${
+        className={`premium-panel flex h-full flex-col rounded-sm p-4 transition-all duration-700 motion-reduce:transition-none ${
           visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
         }`}
         style={{
           transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
         }}
       >
-        <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[color:var(--cream)]">
+        <div className="aspect-[4/3] overflow-hidden border border-[color:var(--line)] bg-[color:var(--cream)]">
           <button
             type="button"
             onClick={() => openProductPreview(item)}
@@ -385,8 +396,12 @@ export default function MenuPage() {
 
         <div className="mt-3 flex flex-1 flex-col space-y-3 text-left">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold leading-snug">{item.name}</h3>
-            <span className="rounded-full bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
+            <Link href={getProductHref(item)} className="min-w-0">
+              <h3 className="text-lg font-semibold leading-snug hover:text-[color:var(--berry)]">
+                {item.name}
+              </h3>
+            </Link>
+            <span className="bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
               Eggless
             </span>
           </div>
@@ -400,15 +415,15 @@ export default function MenuPage() {
           ) : null}
 
           {sizeOptions.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 rounded-2xl border border-black/8 bg-white px-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)] sm:items-center sm:gap-3">
+            <div className="grid grid-cols-1 gap-2 border border-black/8 bg-white px-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)] sm:items-center sm:gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/45">
                 Sizes
               </p>
               <div
                 className="relative"
-                onClick={swallowPointerEvent}
-                onPointerDown={swallowPointerEvent}
-                onTouchStart={swallowPointerEvent}
+                onClick={stopEventPropagation}
+                onPointerDown={stopEventPropagation}
+                onTouchStart={stopEventPropagation}
               >
                 <select
                   value={selectedSize}
@@ -418,10 +433,10 @@ export default function MenuPage() {
                       [item.id]: event.target.value,
                     }))
                   }
-                  onClick={swallowPointerEvent}
-                  onPointerDown={swallowPointerEvent}
-                  onTouchStart={swallowPointerEvent}
-                  className="w-full appearance-none rounded-xl border border-dashed border-black/25 bg-[color:var(--cream)] px-4 py-3 pr-10 text-sm font-medium text-black/72 outline-none transition focus:border-[color:var(--berry)] focus:bg-white"
+                  onClick={stopEventPropagation}
+                  onPointerDown={stopEventPropagation}
+                  onTouchStart={stopEventPropagation}
+                  className="w-full appearance-none border border-dashed border-black/25 bg-[color:var(--cream)] px-4 py-3 pr-10 text-sm font-medium text-black/72 outline-none transition focus:border-[color:var(--berry)] focus:bg-white"
                   aria-label={`Select weight for ${item.name}`}
                 >
                   {sizeOptions.map((size) => (
@@ -456,18 +471,26 @@ export default function MenuPage() {
             <p className="text-sm font-semibold text-[color:var(--berry)]">
               {formatInr(item.priceInr)}
             </p>
-            <button
-              type="button"
-              onClick={() => openProductPreview(item)}
-              className="text-left text-xs font-semibold tracking-[0.04em] text-[color:var(--berry)] underline-offset-4 hover:underline"
-            >
-              View photos and details
-            </button>
+            <div className="flex flex-wrap gap-3 text-xs font-semibold tracking-[0.04em]">
+              <button
+                type="button"
+                onClick={() => openProductPreview(item)}
+                className="text-left text-[color:var(--berry)] underline-offset-4 hover:underline"
+              >
+                View image
+              </button>
+              <Link
+                href={getProductHref(item)}
+                className="text-left text-black/68 underline-offset-4 hover:text-[color:var(--berry)] hover:underline"
+              >
+                Open product page
+              </Link>
+            </div>
           </div>
 
           <div className="mt-auto flex flex-col gap-2 sm:flex-row">
             <div
-              className="flex items-center justify-between rounded-full border border-black/10 bg-[color:var(--cream)] px-2 py-1 sm:flex-1"
+              className="flex items-center justify-between border border-black/10 bg-[color:var(--cream)] px-2 py-1 sm:flex-1"
               onClick={swallowPointerEvent}
               onPointerDown={swallowPointerEvent}
               onTouchStart={swallowPointerEvent}
@@ -480,7 +503,7 @@ export default function MenuPage() {
                 onPointerDown={swallowPointerEvent}
                 onTouchStart={swallowPointerEvent}
                 disabled={(cartQtyById[cartKey] ?? 0) === 0}
-                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
+                className="h-7 w-7 border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
                 aria-label={`Decrease ${item.name}`}
               >
                 -
@@ -495,7 +518,7 @@ export default function MenuPage() {
                 }}
                 onPointerDown={swallowPointerEvent}
                 onTouchStart={swallowPointerEvent}
-                className="h-7 w-7 rounded-full border border-[color:var(--line)] bg-white text-xs font-semibold"
+                className="h-7 w-7 border border-[color:var(--line)] bg-white text-xs font-semibold"
                 aria-label={`Increase ${item.name}`}
               >
                 +
@@ -506,7 +529,7 @@ export default function MenuPage() {
               onClick={(event) => handleBuyNow(item.id, selectedSize || undefined, event)}
               onPointerDown={swallowPointerEvent}
               onTouchStart={swallowPointerEvent}
-              className="w-full rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white sm:flex-1"
+              className="w-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white sm:flex-1"
             >
               Buy Now
             </button>
@@ -519,7 +542,7 @@ export default function MenuPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="premium-panel rounded-3xl p-6 md:p-7">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/45">Menu</p>
           <h1 className="hero-display mt-2 text-5xl">All Eggless Products</h1>
@@ -550,7 +573,7 @@ export default function MenuPage() {
         </div>
 
         <div className="premium-panel mt-6 rounded-3xl p-4 md:p-5">
-          <label className="text-xs font-semibold uppercase tracking-[0.18em] text-black/45">
+          <label className="text-xs font-bold uppercase tracking-[0.18em] text-black/55">
             Search Products
           </label>
           <div className="mt-2 flex items-center gap-2 rounded-2xl border border-[color:var(--line)] bg-white px-3 py-2">
@@ -570,7 +593,7 @@ export default function MenuPage() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search by product name, flavor, or category"
-              className="w-full bg-transparent text-sm text-black/80 outline-none placeholder:text-black/40"
+              className="w-full bg-transparent text-sm font-semibold text-black/85 outline-none placeholder:font-medium placeholder:text-black/45"
               aria-label="Search products"
             />
             {searchQuery ? (
@@ -584,13 +607,13 @@ export default function MenuPage() {
             ) : null}
           </div>
           {hasSearchQuery ? (
-            <p className="mt-2 text-xs text-black/55">
+            <p className="mt-2 text-xs font-semibold text-black/60">
               {totalSearchMatches > 0
                 ? `${totalSearchMatches} match${totalSearchMatches > 1 ? "es" : ""} found for "${deferredSearchQuery}".`
                 : `No matches found for "${deferredSearchQuery}".`}
             </p>
           ) : (
-            <p className="mt-2 text-xs text-black/50">
+            <p className="mt-2 text-xs font-semibold text-black/55">
               Tip: use search to quickly find specific cakes, chocolates, or flavors.
             </p>
           )}

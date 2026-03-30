@@ -102,7 +102,7 @@ export default function CakeDetailPage({
     <div>
       <JsonLd data={detailSchema} />
       <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-12">
+      <main className="mx-auto max-w-[1440px] px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <Link href="/cakes" className="text-sm text-black/60">
