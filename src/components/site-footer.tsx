@@ -10,17 +10,17 @@ import {
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-[color:var(--line)] bg-white">
+    <footer className="mt-24 border-t border-[color:var(--line)] bg-white/95">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.3fr_0.9fr_1fr_1fr] lg:px-8">
         <div className="space-y-3">
           <h3 className="hero-display text-3xl">{BRAND_NAME}</h3>
-          <p className="text-sm text-black/85">{TAGLINE}</p>
-          <p className="text-sm text-black/82">{DESCRIPTION}</p>
-          <p className="text-xs uppercase tracking-[0.2em] text-black/72">
+          <p className="text-sm text-black/70">{TAGLINE}</p>
+          <p className="text-sm text-black/70">{DESCRIPTION}</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-black/50">
             100% Eggless · Freshly Made · Custom Designs
           </p>
           <div className="pt-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/72">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/45">
               FSSAI Validation
             </p>
             <Image
@@ -30,14 +30,14 @@ export function SiteFooter() {
               height={47}
               className="mt-1 h-auto w-[130px] object-contain"
             />
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/72">
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/45">
               FSSAI No: 20124233000089
             </p>
           </div>
         </div>
         <div className="space-y-3 text-sm">
-          <p className="font-semibold uppercase tracking-[0.14em] text-black/80">Quick Links</p>
-          <nav className="flex flex-col gap-2 text-black/82">
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Quick Links</p>
+          <nav className="flex flex-col gap-2 text-black/65">
             <Link href="/" className="transition hover:text-[color:var(--berry)]">
               Home
             </Link>
@@ -59,13 +59,13 @@ export function SiteFooter() {
           </nav>
         </div>
         <div className="space-y-3 text-sm">
-          <p className="font-semibold uppercase tracking-[0.14em] text-black/80">Location</p>
-          <p className="leading-6 text-black/82">{FULL_ADDRESS}</p>
-          <p className="text-black/78">Open daily · Custom orders available</p>
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Location</p>
+          <p className="leading-6 text-black/60">{FULL_ADDRESS}</p>
+          <p className="text-black/55">Open daily · Custom orders available</p>
         </div>
         <div className="space-y-3 text-sm">
-          <p className="font-semibold uppercase tracking-[0.14em] text-black/80">Social</p>
-          <p className="text-black/82">
+          <p className="font-semibold uppercase tracking-[0.14em] text-black/55">Social</p>
+          <p className="text-black/60">
             <a
               href={INSTAGRAM_URL}
               target="_blank"
@@ -75,12 +75,12 @@ export function SiteFooter() {
               Instagram
             </a>
           </p>
-          <p className="leading-6 text-black/78">
+          <p className="leading-6 text-black/55">
             Follow our latest cakes, chocolates, custom orders, and seasonal creations.
           </p>
         </div>
       </div>
-      <div className="border-t border-[color:var(--line)] py-4 text-center text-xs text-black/72">
+      <div className="border-t border-[color:var(--line)] py-4 text-center text-xs text-black/50">
         © 2026 {BRAND_NAME}. All rights reserved.
       </div>
     </footer>

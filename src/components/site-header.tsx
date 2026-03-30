@@ -15,10 +15,10 @@ const navLinks = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[color:var(--line)] bg-white">
+    <header className="sticky top-0 z-40 w-full border-b border-[color:var(--line)] bg-white/92 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
-          <div className="relative h-11 w-11 overflow-hidden border border-[color:var(--line)] bg-white shadow-[0_8px_18px_rgba(18,13,10,0.14)]">
+          <div className="relative h-11 w-11 overflow-hidden rounded-full border border-[color:var(--line)] bg-white shadow-[0_8px_18px_rgba(32,22,16,0.12)]">
             <Image
               src="/images/brand/ks-choco-house-logo.jpg"
               alt="K S Choco House logo"
@@ -35,7 +35,7 @@ export function SiteHeader() {
             </p>
           </div>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-semibold text-black/85 md:flex">
+        <nav className="hidden items-center gap-6 text-sm font-semibold text-black/70 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -49,13 +49,13 @@ export function SiteHeader() {
         <div className="flex items-center gap-3">
           <Link
             href="/cart"
-            className="inline-flex items-center justify-center border border-[color:var(--berry-dark)] bg-[color:var(--berry)] px-4 py-2 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(18,13,10,0.18)]"
+            className="inline-flex items-center justify-center rounded-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-4 py-2 text-xs font-semibold text-white shadow-[0_12px_24px_rgba(32,22,16,0.24)]"
           >
             Cart / Checkout
           </Link>
         </div>
       </div>
-      <div className="border-t border-[color:var(--line)] bg-[color:var(--berry-dark)]">
+      <div className="border-t border-[color:var(--line)] bg-gradient-to-r from-[color:var(--berry)] via-[color:var(--berry-dark)] to-[color:var(--berry)]">
         <div className="announcement-marquee">
           <div className="announcement-track px-6 py-2 text-xs font-semibold text-white/95">
             <span>WhatsApp Number: {PHONE_NUMBER_DISPLAY}</span>
