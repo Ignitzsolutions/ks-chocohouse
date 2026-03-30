@@ -141,46 +141,6 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(122, 59, 42, 0.1);
 }
 
-:where([class^="rounded-"], [class*=" rounded-"]) {
-  border-radius: 0 !important;
-}
-
-:where([class^="bg-red-50"], [class*=" bg-red-50"]) {
-  background: #ead3cb !important;
-}
-
-:where([class^="border-red-200"], [class*=" border-red-200"]) {
-  border-color: #9e4936 !important;
-}
-
-:where([class^="text-red-700"], [class*=" text-red-700"]) {
-  color: #6f2415 !important;
-}
-
-:where([class^="bg-amber-50"], [class*=" bg-amber-50"]) {
-  background: #ead8bf !important;
-}
-
-:where([class^="border-amber-200"], [class*=" border-amber-200"]) {
-  border-color: #9a6c2e !important;
-}
-
-:where([class^="text-amber-800"], [class*=" text-amber-800"]) {
-  color: #5b3b09 !important;
-}
-
-:where([class^="bg-emerald-50"], [class*=" bg-emerald-50"]) {
-  background: #d5e2d5 !important;
-}
-
-:where([class^="border-emerald-200"], [class*=" border-emerald-200"]) {
-  border-color: #4f7554 !important;
-}
-
-:where([class^="text-emerald-700"], [class*=" text-emerald-700"]) {
-  color: #1f4a25 !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .floating-sidebar {
     animation: none;
