@@ -10,7 +10,7 @@ export const STATE = "Andhra Pradesh";
 export const PINCODE = "516360";
 export const COUNTRY_CODE = "IN";
 export const SELLER_LEGAL_NAME = "K S Choco House";
-export const SELLER_GSTIN = "37ABCDE1234F1Z5";
+export const SELLER_GSTIN = "37LVZPS9235C1ZI";
 export const SELLER_STATE_CODE = "37";
 
 export const INSTAGRAM_URL =

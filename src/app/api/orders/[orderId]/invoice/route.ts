@@ -594,7 +594,14 @@ const getLaunchOptions = async () => {
   return {
     headless: true,
     executablePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+      "--single-process",
+    ],
   } satisfies Parameters<typeof puppeteer.launch>[0];
 };
 
