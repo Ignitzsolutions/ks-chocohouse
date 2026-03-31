@@ -191,6 +191,31 @@ const readBinaryIfExists = async (relativePath: string) => {
   }
 };
 
+const getLaunchOptions = () => {
+  const configuredExecutablePath =
+    process.env.PUPPETEER_EXECUTABLE_PATH?.trim() ||
+    process.env.CHROME_EXECUTABLE_PATH?.trim() ||
+    undefined;
+
+  const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  };
+
+  if (configuredExecutablePath) {
+    launchOptions.executablePath = configuredExecutablePath;
+    return launchOptions;
+  }
+
+  try {
+    launchOptions.executablePath = puppeteer.executablePath();
+  } catch {
+    // Fall back to Puppeteer's internal resolution if the browser is not yet installed.
+  }
+
+  return launchOptions;
+};
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ orderId: string }> }
@@ -372,10 +397,7 @@ export async function GET(
       FSSAI_BLOCK: fssaiBlock,
     });
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    browser = await puppeteer.launch(getLaunchOptions());
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     await page.emulateMediaType("screen");

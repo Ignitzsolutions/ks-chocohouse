@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "node scripts/start-standalone.mjs",
     "start:next": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
