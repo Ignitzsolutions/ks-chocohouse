@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/admin-guard";
 import { SiteFooter } from "@/components/site-footer";
@@ -26,6 +27,7 @@ function getTodayAdminDate() {
 }
 
 export default function AdminInvoicesPage() {
+  const router = useRouter();
   const { products } = useProducts();
   const [customerName, setCustomerName] = useState("");
   const [phone, setPhone] = useState("");
@@ -122,6 +124,7 @@ export default function AdminInvoicesPage() {
       const response = await fetch("/api/admin/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           id: draftOrderId,
           mode,
@@ -147,6 +150,11 @@ export default function AdminInvoicesPage() {
         }),
       });
       const data = await response.json();
+      if (response.status === 401) {
+        setError("Admin session expired. Please log in again.");
+        router.replace("/admin/login");
+        return;
+      }
       if (!response.ok) {
         throw new Error(data?.error ?? "Failed to generate offline invoice");
       }
