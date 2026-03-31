@@ -19,7 +19,6 @@ import {
   PHONE_NUMBER_DISPLAY,
   SELLER_GSTIN,
   SELLER_LEGAL_NAME,
-  SELLER_STATE_CODE,
   TAGLINE,
   WHATSAPP_NUMBER,
 } from "@/lib/brand";
@@ -352,7 +351,6 @@ const buildInvoicePdfFallback = async (input: {
       `Phone: ${PHONE_NUMBER_DISPLAY}`,
       `WhatsApp: +${WHATSAPP_NUMBER}`,
       `GSTIN: ${SELLER_GSTIN}`,
-      `State Code: ${SELLER_STATE_CODE}`,
     ]
       .filter(Boolean)
       .join("\n"),
@@ -663,7 +661,6 @@ export async function GET(
       `Phone: ${PHONE_NUMBER_DISPLAY}`,
       `WhatsApp: +${WHATSAPP_NUMBER}`,
       `GSTIN: ${SELLER_GSTIN}`,
-      `State Code: ${SELLER_STATE_CODE}`,
     ]
       .filter(Boolean)
       .map((line) => escapeHtml(line))
