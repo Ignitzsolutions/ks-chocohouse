@@ -1,6 +1,13 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import {
+  Browser,
+  detectBrowserPlatform,
+  install,
+  computeExecutablePath,
+} from "@puppeteer/browsers";
 import puppeteer from "puppeteer";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
@@ -80,6 +87,12 @@ type BuyerGstRow = {
 };
 
 const INVOICE_TEMPLATE_PATH = path.join(process.cwd(), "src/templates/invoice.html");
+const PUPPETEER_CACHE_DIR = path.join(process.cwd(), ".cache", "puppeteer");
+const PUPPETEER_CHROME_BUILD_ID = (
+  puppeteer as typeof puppeteer & {
+    PUPPETEER_REVISIONS?: { chrome?: string };
+  }
+).PUPPETEER_REVISIONS?.chrome;
 
 const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
@@ -191,29 +204,67 @@ const readBinaryIfExists = async (relativePath: string) => {
   }
 };
 
-const getLaunchOptions = () => {
+const ensureChromeExecutablePath = async () => {
   const configuredExecutablePath =
     process.env.PUPPETEER_EXECUTABLE_PATH?.trim() ||
     process.env.CHROME_EXECUTABLE_PATH?.trim() ||
     undefined;
 
-  const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  };
-
   if (configuredExecutablePath) {
-    launchOptions.executablePath = configuredExecutablePath;
-    return launchOptions;
+    if (existsSync(configuredExecutablePath)) {
+      return configuredExecutablePath;
+    }
+    throw new Error(
+      `Browser was not found at the configured executablePath (${configuredExecutablePath})`
+    );
   }
 
   try {
-    launchOptions.executablePath = puppeteer.executablePath();
+    const bundledExecutablePath = puppeteer.executablePath();
+    if (bundledExecutablePath && existsSync(bundledExecutablePath)) {
+      return bundledExecutablePath;
+    }
   } catch {
-    // Fall back to Puppeteer's internal resolution if the browser is not yet installed.
+    // Fall through to on-demand installation when Puppeteer has no usable local browser.
   }
 
-  return launchOptions;
+  const platform = detectBrowserPlatform();
+  if (!platform) {
+    throw new Error("Unable to detect a supported platform for Chrome installation");
+  }
+
+  const buildId = PUPPETEER_CHROME_BUILD_ID ?? "stable";
+  const executablePath = computeExecutablePath({
+    cacheDir: PUPPETEER_CACHE_DIR,
+    browser: Browser.CHROME,
+    buildId,
+    platform,
+  });
+
+  if (!existsSync(executablePath)) {
+    await install({
+      cacheDir: PUPPETEER_CACHE_DIR,
+      browser: Browser.CHROME,
+      buildId,
+      platform,
+      unpack: true,
+    });
+  }
+
+  if (!existsSync(executablePath)) {
+    throw new Error(`Browser install completed but executable was still not found at ${executablePath}`);
+  }
+
+  return executablePath;
+};
+
+const getLaunchOptions = async () => {
+  const executablePath = await ensureChromeExecutablePath();
+  return {
+    headless: true,
+    executablePath,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  } satisfies Parameters<typeof puppeteer.launch>[0];
 };
 
 export async function GET(
@@ -397,7 +448,7 @@ export async function GET(
       FSSAI_BLOCK: fssaiBlock,
     });
 
-    browser = await puppeteer.launch(getLaunchOptions());
+    browser = await puppeteer.launch(await getLaunchOptions());
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     await page.emulateMediaType("screen");
