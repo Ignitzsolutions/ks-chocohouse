@@ -209,20 +209,22 @@ const ensureChromeExecutablePath = async () => {
     process.env.PUPPETEER_EXECUTABLE_PATH?.trim() ||
     process.env.CHROME_EXECUTABLE_PATH?.trim() ||
     undefined;
+  const attemptedPaths: string[] = [];
 
   if (configuredExecutablePath) {
     if (existsSync(configuredExecutablePath)) {
       return configuredExecutablePath;
     }
-    throw new Error(
-      `Browser was not found at the configured executablePath (${configuredExecutablePath})`
-    );
+    attemptedPaths.push(configuredExecutablePath);
   }
 
   try {
     const bundledExecutablePath = puppeteer.executablePath();
     if (bundledExecutablePath && existsSync(bundledExecutablePath)) {
       return bundledExecutablePath;
+    }
+    if (bundledExecutablePath) {
+      attemptedPaths.push(bundledExecutablePath);
     }
   } catch {
     // Fall through to on-demand installation when Puppeteer has no usable local browser.
@@ -242,6 +244,7 @@ const ensureChromeExecutablePath = async () => {
   });
 
   if (!existsSync(executablePath)) {
+    attemptedPaths.push(executablePath);
     await install({
       cacheDir: PUPPETEER_CACHE_DIR,
       browser: Browser.CHROME,
@@ -252,7 +255,9 @@ const ensureChromeExecutablePath = async () => {
   }
 
   if (!existsSync(executablePath)) {
-    throw new Error(`Browser install completed but executable was still not found at ${executablePath}`);
+    throw new Error(
+      `Browser install completed but executable was still not found. Checked: ${attemptedPaths.join(" -> ")}`
+    );
   }
 
   return executablePath;
