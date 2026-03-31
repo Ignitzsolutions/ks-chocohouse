@@ -3,6 +3,7 @@ import { requireAdminApi } from "@/lib/admin-auth";
 import { recordOrderEvent } from "@/lib/admin-sales";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { getDb, initDb } from "@/lib/db";
+import { buildInvoiceNumber } from "@/lib/invoice-number";
 import { generateOrderId } from "@/lib/order-id";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
 
@@ -59,9 +60,6 @@ type OrderMutationRow = {
   status: string;
   created_at: string;
 };
-
-const buildInvoiceNumber = (orderId: string) => `INV-${orderId}`;
-const buildReturnInvoiceNumber = (orderId: string) => `RTN-${orderId}`;
 
 function normalizeDate(value: string | null) {
   if (!value) return null;
@@ -248,7 +246,7 @@ export async function PATCH(request: Request) {
           id,
           now,
           actor,
-          invoice_number: buildInvoiceNumber(id),
+          invoice_number: buildInvoiceNumber(id, existing.source, existing.order_kind),
         });
 
         if ((existing.payment_status ?? "Verification Pending") !== "Verified") {
@@ -265,7 +263,14 @@ export async function PATCH(request: Request) {
           writeOrderEvent(id, "status_changed", now, actor, existing.status, "Awaiting Approval");
         }
         if (!existing.invoice_number && Number(existing.invoice_ready ?? 0) !== 1) {
-          writeOrderEvent(id, "invoice_generated", now, actor, null, buildInvoiceNumber(id));
+          writeOrderEvent(
+            id,
+            "invoice_generated",
+            now,
+            actor,
+            null,
+            buildInvoiceNumber(id, existing.source, existing.order_kind)
+          );
         }
       })();
       return NextResponse.json({ ok: true });
@@ -323,12 +328,19 @@ export async function PATCH(request: Request) {
            WHERE id = @id`
         ).run({
           id,
-          invoice_number: buildInvoiceNumber(id),
+          invoice_number: buildInvoiceNumber(id, existing.source, existing.order_kind),
           now,
         });
 
         writeOrderEvent(id, "status_changed", now, actor, existing.status, "Delivered");
-        writeOrderEvent(id, "invoice_generated", now, actor, null, buildInvoiceNumber(id));
+        writeOrderEvent(
+          id,
+          "invoice_generated",
+          now,
+          actor,
+          null,
+          buildInvoiceNumber(id, existing.source, existing.order_kind)
+        );
       })();
 
       if (existing.coupon_code) {
@@ -444,7 +456,7 @@ export async function PATCH(request: Request) {
           payment_verified_at: now,
           payment_verified_by: actor,
           txn_id: `RETURN-${existing.id}`,
-          invoice_number: buildReturnInvoiceNumber(returnOrderId),
+          invoice_number: buildInvoiceNumber(returnOrderId, "offline", "return"),
           invoice_ready: 1,
           paid_at: now,
           subtotal_amount: subtotalAmount,
@@ -568,7 +580,7 @@ export async function POST(request: Request) {
     }
 
     const orderId = existingDraft?.id ?? generateOrderId("OFF");
-    const invoiceNumber = mode === "finalize" ? buildInvoiceNumber(orderId) : null;
+    const invoiceNumber = mode === "finalize" ? buildInvoiceNumber(orderId, "offline", "sale") : null;
     const lifecycleState = mode === "draft" ? "draft" : "finalized";
     const status = mode === "draft" ? "Awaiting Approval" : "Delivered";
     const invoiceReady = mode === "finalize" ? 1 : 0;
@@ -707,7 +719,7 @@ export async function POST(request: Request) {
       { source: "offline", lifecycleState }
     );
     if (mode === "finalize") {
-      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, buildInvoiceNumber(orderId), {
+      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, buildInvoiceNumber(orderId, "offline", "sale"), {
         source: "offline",
       });
     }

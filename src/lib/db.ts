@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import productsJson from "../../data/products.json";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
+import { buildInvoiceNumber } from "@/lib/invoice-number";
 
 function resolveDbPath() {
   const configuredPath = process.env.DATABASE_PATH?.trim();
@@ -301,6 +302,42 @@ export function initDb() {
            payment_updated_at = COALESCE(payment_updated_at, payment_verified_at, created_at)`
     )
     .run();
+
+  const invoiceRows = instance
+    .prepare("SELECT id, source, order_kind, invoice_number, invoice_ready FROM orders")
+    .all() as Array<{
+    id: string;
+    source: string | null;
+    order_kind: string | null;
+    invoice_number: string | null;
+    invoice_ready: number | null;
+  }>;
+
+  const updateInvoiceNumber = instance.prepare(
+    "UPDATE orders SET invoice_number = @invoice_number WHERE id = @id"
+  );
+  const updateInvoiceEvents = instance.prepare(
+    `UPDATE order_events
+     SET to_value = @to_value
+     WHERE order_id = @order_id
+       AND event_type = 'invoice_generated'
+       AND COALESCE(to_value, '') <> @to_value`
+  );
+
+  for (const row of invoiceRows) {
+    if (!row.invoice_number && Number(row.invoice_ready ?? 0) !== 1) continue;
+    const nextInvoiceNumber = buildInvoiceNumber(row.id, row.source, row.order_kind);
+    if (row.invoice_number !== nextInvoiceNumber) {
+      updateInvoiceNumber.run({
+        id: row.id,
+        invoice_number: nextInvoiceNumber,
+      });
+    }
+    updateInvoiceEvents.run({
+      order_id: row.id,
+      to_value: nextInvoiceNumber,
+    });
+  }
 
   instance
     .prepare(

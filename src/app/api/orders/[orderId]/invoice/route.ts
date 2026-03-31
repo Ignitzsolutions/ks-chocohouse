@@ -27,6 +27,7 @@ import {
   getOrderById,
   OrderDocumentError,
 } from "@/lib/order-documents";
+import { buildInvoiceFilename, buildInvoiceNumber } from "@/lib/invoice-number";
 
 type RawOrderItem = {
   name?: string;
@@ -327,7 +328,11 @@ const buildInvoicePdfFallback = async (input: {
     size: 10,
     color: muted,
   });
-  page.drawText(`Invoice ${input.order.invoice_number || `INV-${input.order.id}`}`, {
+  const invoiceNumber =
+    input.order.invoice_number ||
+    buildInvoiceNumber(input.order.id, input.order.source, input.order.order_kind);
+
+  page.drawText(`Invoice ${invoiceNumber}`, {
     x: pageWidth - margin - 180,
     y: cursorY,
     font: bold,
@@ -618,6 +623,9 @@ export async function GET(
 
     const order = getOrderById(orderId) as OrderRow | undefined;
     assertInvoiceAvailable(order);
+    const invoiceNumber =
+      order.invoice_number || buildInvoiceNumber(order.id, order.source, order.order_kind);
+    const invoiceFilename = buildInvoiceFilename(invoiceNumber);
 
     const items = normalizeItems(order);
     const subtotalFromItems = items.reduce((sum, item) => sum + safeNumber(item.lineTotal), 0);
@@ -753,7 +761,7 @@ export async function GET(
       BRAND_NAME: escapeHtml(BRAND_NAME),
       BRAND_SUBTITLE: escapeHtml(TAGLINE),
       BADGES: badges,
-      INVOICE_NUMBER: escapeHtml(order.invoice_number || `INV-${order.id}`),
+      INVOICE_NUMBER: escapeHtml(invoiceNumber),
       ORDER_ID: escapeHtml(order.id),
       CREATED_DATE: escapeHtml(
         formatDate(
@@ -816,7 +824,7 @@ export async function GET(
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=\"invoice-${order.id}.pdf\"`,
+        "Content-Disposition": `attachment; filename=\"${invoiceFilename}\"`,
         "Cache-Control": "no-store",
       },
     });
