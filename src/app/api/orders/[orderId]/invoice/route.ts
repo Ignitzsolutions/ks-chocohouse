@@ -4,9 +4,11 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import {
   Browser,
+  BrowserTag,
   detectBrowserPlatform,
   install,
   computeExecutablePath,
+  resolveBuildId,
 } from "@puppeteer/browsers";
 import puppeteer from "puppeteer";
 import { generateOrderBarcodePng } from "@/lib/barcode";
@@ -235,7 +237,9 @@ const ensureChromeExecutablePath = async () => {
     throw new Error("Unable to detect a supported platform for Chrome installation");
   }
 
-  const buildId = PUPPETEER_CHROME_BUILD_ID ?? "stable";
+  const buildId =
+    PUPPETEER_CHROME_BUILD_ID ??
+    (await resolveBuildId(Browser.CHROME, platform, BrowserTag.STABLE));
   const executablePath = computeExecutablePath({
     cacheDir: PUPPETEER_CACHE_DIR,
     browser: Browser.CHROME,
