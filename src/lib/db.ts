@@ -303,6 +303,21 @@ export function initDb() {
     )
     .run();
 
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS order_events (
+        id TEXT PRIMARY KEY,
+        order_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        from_value TEXT,
+        to_value TEXT,
+        actor TEXT,
+        meta_json TEXT,
+        created_at TEXT NOT NULL
+      )`
+    )
+    .run();
+
   const invoiceRows = instance
     .prepare(
       "SELECT id, source, order_kind, sale_date, paid_at, created_at, invoice_number, invoice_ready FROM orders"
@@ -348,21 +363,6 @@ export function initDb() {
       to_value: nextInvoiceNumber,
     });
   }
-
-  instance
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS order_events (
-        id TEXT PRIMARY KEY,
-        order_id TEXT NOT NULL,
-        event_type TEXT NOT NULL,
-        from_value TEXT,
-        to_value TEXT,
-        actor TEXT,
-        meta_json TEXT,
-        created_at TEXT NOT NULL
-      )`
-    )
-    .run();
 
   instance
     .prepare(
