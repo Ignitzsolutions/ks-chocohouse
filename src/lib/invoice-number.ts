@@ -2,14 +2,31 @@ function pad(value: number, size = 2) {
   return String(value).padStart(size, "0");
 }
 
-function parseInvoiceSuffix(orderId: string) {
-  const [, datePart = "", serialPart = ""] = orderId.split("-");
-  const year = /^\d{8}$/.test(datePart)
-    ? datePart.slice(2, 4)
-    : pad(new Date().getFullYear() % 100);
+function parseOrderSerial(orderId: string) {
+  const serialPart = orderId.split("-").at(-1) ?? "";
   const serial = Number.parseInt(serialPart, 10);
-  const sequence = Number.isFinite(serial) && serial > 0 ? String(serial).padStart(2, "0") : "01";
-  return `${year}${sequence}`;
+  return Number.isFinite(serial) && serial > 0 ? String(serial).padStart(3, "0") : "001";
+}
+
+function parseOrderIdDate(orderId: string) {
+  const datePart = orderId.split("-")[1] ?? "";
+  if (!/^\d{8}$/.test(datePart)) return null;
+  return `${datePart.slice(2, 4)}${datePart.slice(4, 6)}${datePart.slice(6, 8)}`;
+}
+
+function parseReferenceDate(referenceDate?: string | null, fallbackOrderId?: string) {
+  const raw = String(referenceDate ?? "").trim();
+  const datePart = raw.includes("T") ? raw.slice(0, 10) : raw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [year, month, day] = datePart.split("-");
+    return `${year.slice(2, 4)}${month}${day}`;
+  }
+
+  const fallback = fallbackOrderId ? parseOrderIdDate(fallbackOrderId) : null;
+  if (fallback) return fallback;
+
+  const now = new Date();
+  return `${pad(now.getFullYear() % 100)}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
 }
 
 function resolveInvoiceType(orderId: string, source?: string | null, orderKind?: string | null) {
@@ -21,9 +38,12 @@ function resolveInvoiceType(orderId: string, source?: string | null, orderKind?:
 export function buildInvoiceNumber(
   orderId: string,
   source?: string | null,
-  orderKind?: string | null
+  orderKind?: string | null,
+  referenceDate?: string | null
 ) {
-  return `KSCH-${resolveInvoiceType(orderId, source, orderKind)}-${parseInvoiceSuffix(orderId)}`;
+  const dateCode = parseReferenceDate(referenceDate, orderId);
+  const serial = parseOrderSerial(orderId);
+  return `KS-${resolveInvoiceType(orderId, source, orderKind)}-${dateCode}-${serial}`;
 }
 
 export function buildInvoiceFilename(invoiceNumber: string) {

@@ -304,11 +304,16 @@ export function initDb() {
     .run();
 
   const invoiceRows = instance
-    .prepare("SELECT id, source, order_kind, invoice_number, invoice_ready FROM orders")
+    .prepare(
+      "SELECT id, source, order_kind, sale_date, paid_at, created_at, invoice_number, invoice_ready FROM orders"
+    )
     .all() as Array<{
     id: string;
     source: string | null;
     order_kind: string | null;
+    sale_date: string | null;
+    paid_at: string | null;
+    created_at: string | null;
     invoice_number: string | null;
     invoice_ready: number | null;
   }>;
@@ -326,7 +331,12 @@ export function initDb() {
 
   for (const row of invoiceRows) {
     if (!row.invoice_number && Number(row.invoice_ready ?? 0) !== 1) continue;
-    const nextInvoiceNumber = buildInvoiceNumber(row.id, row.source, row.order_kind);
+    const nextInvoiceNumber = buildInvoiceNumber(
+      row.id,
+      row.source,
+      row.order_kind,
+      row.source === "offline" ? row.sale_date : row.paid_at || row.created_at
+    );
     if (row.invoice_number !== nextInvoiceNumber) {
       updateInvoiceNumber.run({
         id: row.id,

@@ -58,8 +58,13 @@ const DEFAULT_FILTERS: SalesOrderFilters = {
   sortDir: "desc",
 };
 
+const ORDER_DATE_ONLY_EXPR =
+  "CASE WHEN source = 'offline' AND COALESCE(NULLIF(sale_date, ''), '') <> '' THEN sale_date ELSE date(datetime(created_at), '+330 minutes') END";
+const ORDER_DATE_SORT_EXPR =
+  "CASE WHEN source = 'offline' AND COALESCE(NULLIF(sale_date, ''), '') <> '' THEN sale_date || ' 00:00:00' ELSE datetime(created_at, '+330 minutes') END";
+
 const SORT_COLUMN_MAP: Record<SalesOrderFilters["sortBy"], string> = {
-  created_at: "created_at",
+  created_at: ORDER_DATE_SORT_EXPR,
   delivery_date: "delivery_date",
   total_amount: "total_amount",
   status: "status",
@@ -239,7 +244,7 @@ function appliedFilters(filters: SalesOrderFilters): Record<string, string | num
 
 function selectOrderColumns() {
   return `id, cake_name, quantity, customer_name, phone, email, address, pincode,
-    delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
+    sale_date, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
     payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
     txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
     discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
@@ -306,7 +311,7 @@ export function getSalesSummary(filters: SalesOrderFilters): SalesSummaryRespons
           .prepare(
             `SELECT COUNT(*) AS count
              FROM orders
-             WHERE date(datetime(created_at), '+330 minutes') = ?`
+             WHERE ${ORDER_DATE_ONLY_EXPR} = ?`
           )
           .get(todayIst) as { count: number }
       )?.count ?? 0,
@@ -317,7 +322,7 @@ export function getSalesSummary(filters: SalesOrderFilters): SalesSummaryRespons
             .prepare(
               `SELECT COALESCE(SUM(total_amount), 0) AS amount
                FROM orders
-               WHERE date(datetime(created_at), '+330 minutes') = ?
+               WHERE ${ORDER_DATE_ONLY_EXPR} = ?
                  AND COALESCE(payment_status, 'Verification Pending') = 'Verified'
                  AND COALESCE(lifecycle_state, 'finalized') <> 'void'`
             )
@@ -572,7 +577,7 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
     ...rows.map((row) =>
       [
         row.id,
-        row.created_at,
+        row.source === "offline" && row.sale_date ? row.sale_date : row.created_at,
         row.customer_name ?? "",
         row.phone ?? "",
         parseOrderItemsSummary(row.order_items_json) || row.cake_name,

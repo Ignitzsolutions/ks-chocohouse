@@ -34,6 +34,13 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
+function formatOrderDate(row: SalesOrderRow) {
+  if (row.source === "offline" && row.sale_date) {
+    return row.sale_date;
+  }
+  return formatDateTime(row.created_at);
+}
+
 function parseItemSummary(orderItemsJson?: string | null) {
   if (!orderItemsJson) return "";
   try {
@@ -153,7 +160,7 @@ export function SalesOrdersTable({
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold text-[color:var(--ink)]">{row.id}</p>
-                      <p className="text-xs text-black/50">{formatDateTime(row.created_at)}</p>
+                      <p className="text-xs text-black/50">{formatOrderDate(row)}</p>
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-semibold">{row.customer_name || "Customer"}</p>

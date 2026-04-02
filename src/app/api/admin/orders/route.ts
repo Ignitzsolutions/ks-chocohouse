@@ -246,7 +246,12 @@ export async function PATCH(request: Request) {
           id,
           now,
           actor,
-          invoice_number: buildInvoiceNumber(id, existing.source, existing.order_kind),
+          invoice_number: buildInvoiceNumber(
+            id,
+            existing.source,
+            existing.order_kind,
+            existing.source === "offline" ? existing.sale_date : now
+          ),
         });
 
         if ((existing.payment_status ?? "Verification Pending") !== "Verified") {
@@ -269,7 +274,12 @@ export async function PATCH(request: Request) {
             now,
             actor,
             null,
-            buildInvoiceNumber(id, existing.source, existing.order_kind)
+            buildInvoiceNumber(
+              id,
+              existing.source,
+              existing.order_kind,
+              existing.source === "offline" ? existing.sale_date : now
+            )
           );
         }
       })();
@@ -328,7 +338,12 @@ export async function PATCH(request: Request) {
            WHERE id = @id`
         ).run({
           id,
-          invoice_number: buildInvoiceNumber(id, existing.source, existing.order_kind),
+          invoice_number: buildInvoiceNumber(
+            id,
+            existing.source,
+            existing.order_kind,
+            existing.sale_date ?? now
+          ),
           now,
         });
 
@@ -339,7 +354,7 @@ export async function PATCH(request: Request) {
           now,
           actor,
           null,
-          buildInvoiceNumber(id, existing.source, existing.order_kind)
+          buildInvoiceNumber(id, existing.source, existing.order_kind, existing.sale_date ?? now)
         );
       })();
 
@@ -456,7 +471,12 @@ export async function PATCH(request: Request) {
           payment_verified_at: now,
           payment_verified_by: actor,
           txn_id: `RETURN-${existing.id}`,
-          invoice_number: buildInvoiceNumber(returnOrderId, "offline", "return"),
+          invoice_number: buildInvoiceNumber(
+            returnOrderId,
+            "offline",
+            "return",
+            existing.sale_date ?? now
+          ),
           invoice_ready: 1,
           paid_at: now,
           subtotal_amount: subtotalAmount,
@@ -580,7 +600,8 @@ export async function POST(request: Request) {
     }
 
     const orderId = existingDraft?.id ?? generateOrderId("OFF");
-    const invoiceNumber = mode === "finalize" ? buildInvoiceNumber(orderId, "offline", "sale") : null;
+    const invoiceNumber =
+      mode === "finalize" ? buildInvoiceNumber(orderId, "offline", "sale", saleDate) : null;
     const lifecycleState = mode === "draft" ? "draft" : "finalized";
     const status = mode === "draft" ? "Awaiting Approval" : "Delivered";
     const invoiceReady = mode === "finalize" ? 1 : 0;
@@ -719,7 +740,7 @@ export async function POST(request: Request) {
       { source: "offline", lifecycleState }
     );
     if (mode === "finalize") {
-      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, buildInvoiceNumber(orderId, "offline", "sale"), {
+      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, buildInvoiceNumber(orderId, "offline", "sale", saleDate), {
         source: "offline",
       });
     }

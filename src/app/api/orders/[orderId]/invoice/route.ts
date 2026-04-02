@@ -330,7 +330,14 @@ const buildInvoicePdfFallback = async (input: {
   });
   const invoiceNumber =
     input.order.invoice_number ||
-    buildInvoiceNumber(input.order.id, input.order.source, input.order.order_kind);
+    buildInvoiceNumber(
+      input.order.id,
+      input.order.source,
+      input.order.order_kind,
+      input.order.source === "offline"
+        ? input.order.sale_date
+        : input.order.paid_at || input.order.created_at
+    );
 
   page.drawText(`Invoice ${invoiceNumber}`, {
     x: pageWidth - margin - 180,
@@ -624,7 +631,13 @@ export async function GET(
     const order = getOrderById(orderId) as OrderRow | undefined;
     assertInvoiceAvailable(order);
     const invoiceNumber =
-      order.invoice_number || buildInvoiceNumber(order.id, order.source, order.order_kind);
+      order.invoice_number ||
+      buildInvoiceNumber(
+        order.id,
+        order.source,
+        order.order_kind,
+        order.source === "offline" ? order.sale_date : order.paid_at || order.created_at
+      );
     const invoiceFilename = buildInvoiceFilename(invoiceNumber);
 
     const items = normalizeItems(order);

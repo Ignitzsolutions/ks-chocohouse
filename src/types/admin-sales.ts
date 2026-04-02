@@ -25,6 +25,7 @@ export type SalesOrderRow = {
   email: string | null;
   address: string | null;
   pincode: string | null;
+  sale_date?: string | null;
   delivery_date: string | null;
   delivery_slot: string | null;
   cake_message: string | null;
