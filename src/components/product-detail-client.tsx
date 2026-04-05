@@ -13,8 +13,9 @@ import {
 } from "@/lib/cart";
 import {
   formatInr,
+  getDisplayFlavorOptions,
+  getProductOptionLabel,
   getDisplaySizeOptions,
-  getProductHref,
   type Product,
 } from "@/lib/products";
 import { PHONE_NUMBER_DISPLAY, whatsappLink } from "@/lib/brand";
@@ -23,29 +24,91 @@ type Props = {
   product: Product;
 };
 
+function buildGalleryFrames(product: Product) {
+  const fallbackFrames = [
+    {
+      id: `${product.id}-detail-top`,
+      src: product.imageSrc,
+      alt: `${product.name} detail`,
+      label: "Top",
+      objectPosition: "center 18%",
+    },
+    {
+      id: `${product.id}-detail-center`,
+      src: product.imageSrc,
+      alt: `${product.name} texture`,
+      label: "Detail",
+      objectPosition: "center 50%",
+    },
+    {
+      id: `${product.id}-detail-base`,
+      src: product.imageSrc,
+      alt: `${product.name} base`,
+      label: "Finish",
+      objectPosition: "center 82%",
+    },
+  ];
+
+  return [
+    {
+      id: `${product.id}-hero`,
+      src: product.imageSrc,
+      alt: product.name,
+      label: "Front",
+      objectPosition: "center center",
+    },
+    ...fallbackFrames,
+  ].slice(0, 4);
+}
+
+function isLimitedDeliveryCategory(product: Product) {
+  const haystack = `${product.category} ${product.name}`.toLowerCase();
+  return /cake|cheesecake/.test(haystack);
+}
+
+function composeCustomizationNote(
+  note: string,
+  selectedFlavor: string
+) {
+  const trimmedNote = note.trim();
+  const flavorLine = selectedFlavor ? `Flavour: ${selectedFlavor}` : "";
+  return [flavorLine, trimmedNote].filter(Boolean).join(" | ");
+}
+
 export function ProductDetailClient({ product }: Props) {
+  const galleryFrames = useMemo(() => buildGalleryFrames(product), [product]);
   const sizeOptions = useMemo(() => getDisplaySizeOptions(product), [product]);
+  const optionLabel = useMemo(() => getProductOptionLabel(product), [product]);
+  const flavorOptions = useMemo(() => getDisplayFlavorOptions(product), [product]);
+  const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState(sizeOptions[0] ?? "");
+  const [selectedFlavor, setSelectedFlavor] = useState(flavorOptions[0] ?? "");
   const [messageNote, setMessageNote] = useState("");
   const [lineQty, setLineQty] = useState(1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
 
-  const cartQty = getCart().find(
-    (item) =>
-      getCartItemKey(item.productId, item.sizeLabel) ===
-      getCartItemKey(product.id, selectedSize || undefined)
-  )?.qty ?? 0;
+  const activeFrame = galleryFrames[activeFrameIndex] ?? galleryFrames[0];
+
+  const cartQty =
+    getCart().find(
+      (item) =>
+        getCartItemKey(item.productId, item.sizeLabel) ===
+        getCartItemKey(product.id, selectedSize || undefined)
+    )?.qty ?? 0;
 
   const whatsappHref = whatsappLink(
-    `Hi, I want to customize ${product.name}${selectedSize ? ` (${selectedSize})` : ""}.`
+    `Hi, I want to customize ${product.name}${selectedSize ? ` (${selectedSize})` : ""}${
+      selectedFlavor ? ` with ${selectedFlavor} flavour` : ""
+    }.`
   );
 
   const persistLine = (qty: number) => {
     const safeQty = Math.max(1, qty);
     addItem(product.id, safeQty, selectedSize || undefined);
-    if (messageNote.trim()) {
-      setItemCustomizationNote(product.id, messageNote, selectedSize || undefined);
+    const composedNote = composeCustomizationNote(messageNote, selectedFlavor);
+    if (composedNote) {
+      setItemCustomizationNote(product.id, composedNote, selectedSize || undefined);
     }
     setAddedFeedback(
       `${safeQty} item${safeQty > 1 ? "s" : ""} added to cart${selectedSize ? ` · ${selectedSize}` : ""}.`
@@ -57,122 +120,118 @@ export function ProductDetailClient({ product }: Props) {
     window.location.assign("/cart");
   };
 
-  const metaPairs = [
-    { label: "Category", value: product.category },
-    { label: "Collection", value: product.subCategory || "Signature selection" },
-    { label: "Eggless", value: product.eggless ? "Yes" : "No" },
-    { label: "Availability", value: product.available ? "Made to order" : "Unavailable" },
-  ];
+  const limitedDelivery = isLimitedDeliveryCategory(product);
 
   return (
     <>
-      <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-        <div className="space-y-5">
-          <div className="border border-black/10 bg-white">
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(true)}
-              className="block aspect-[4/4.2] w-full overflow-hidden bg-[color:var(--cream)]"
-              aria-label={`Open full image of ${product.name}`}
-            >
+      <section className="mx-auto grid max-w-[1280px] gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(360px,0.88fr)] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_92px] lg:items-start">
+          <div className="relative overflow-hidden border border-[#d8cdc7] bg-[#f6f1ec]">
+            <div className="relative aspect-square">
               <img
-                src={product.imageSrc}
-                alt={product.name}
+                src={activeFrame.src}
+                alt={activeFrame.alt}
                 className="h-full w-full object-cover"
+                style={{ objectPosition: activeFrame.objectPosition }}
+                loading="eager"
+                decoding="async"
               />
-            </button>
-          </div>
 
-          <div className="grid gap-px border border-black/10 bg-black/10 sm:grid-cols-3">
-            <div className="bg-white px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
-                Format
-              </p>
-              <p className="mt-2 text-sm font-semibold text-black/82">
-                Custom product page
-              </p>
-            </div>
-            <div className="bg-white px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
-                Delivery
-              </p>
-              <p className="mt-2 text-sm font-semibold text-black/82">
-                Proddatur and nearby areas
-              </p>
-            </div>
-            <div className="bg-white px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
-                Support
-              </p>
-              <p className="mt-2 text-sm font-semibold text-black/82">{PHONE_NUMBER_DISPLAY}</p>
-            </div>
-          </div>
+              {galleryFrames.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveFrameIndex((current) =>
+                        current === 0 ? galleryFrames.length - 1 : current - 1
+                      )
+                    }
+                    className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center border border-black/10 bg-white/95 text-[#3b2b2b] shadow-sm"
+                    aria-label="Previous product image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveFrameIndex((current) => (current + 1) % galleryFrames.length)
+                    }
+                    className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center border border-black/10 bg-white/95 text-[#3b2b2b] shadow-sm"
+                    aria-label="Next product image"
+                  >
+                    ›
+                  </button>
+                </>
+              ) : null}
 
-          <div className="border border-black/10 bg-white">
-            <div className="border-b border-black/10 px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/45">
-                Product Details
-              </p>
-            </div>
-            <div className="grid gap-px bg-black/10 sm:grid-cols-2">
-              {metaPairs.map((item) => (
-                <div key={item.label} className="bg-white px-5 py-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/42">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-black/82">{item.value}</p>
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center border border-black/10 bg-white/95 text-[#3b2b2b] shadow-sm"
+                aria-label={`Zoom image for ${product.name}`}
+              >
+                ⤢
+              </button>
             </div>
           </div>
 
-          <div className="border border-black/10 bg-white">
-            <div className="border-b border-black/10 px-5 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/45">
-                Description
-              </p>
-            </div>
-            <div className="space-y-4 px-5 py-5">
-              <p className="text-base font-medium leading-8 text-black/78">
-                {product.description}
-              </p>
-              <p className="text-sm leading-7 text-black/60">
-                Each product page now carries its own dedicated detail view, clearer ordering
-                controls, and a cleaner mobile-first layout so customers can review size, notes,
-                and quantity without hunting through the menu.
-              </p>
-            </div>
+          <div className="grid grid-cols-4 gap-3 lg:grid-cols-1">
+            {galleryFrames.map((frame, index) => {
+              const selected = index === activeFrameIndex;
+              return (
+                <button
+                  key={frame.id}
+                  type="button"
+                  onClick={() => setActiveFrameIndex(index)}
+                  className={`overflow-hidden border bg-[#f6f1ec] text-left transition ${
+                    selected ? "border-[#5a2a2a]" : "border-[#ddd2cb] hover:border-[#b79f93]"
+                  }`}
+                >
+                  <div className="aspect-square">
+                    <img
+                      src={frame.src}
+                      alt={frame.alt}
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: frame.objectPosition }}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <aside className="space-y-5 lg:sticky lg:top-28">
-          <div className="border border-black/10 bg-white">
-            <div className="border-b border-black/10 px-5 py-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/45">
-                {product.category}
-              </p>
-              <h1 className="hero-display mt-2 text-4xl leading-none sm:text-5xl">
-                {product.name}
-              </h1>
-              <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--berry)]">
-                {formatInr(product.priceInr)}
-              </p>
-            </div>
+        <aside className="space-y-7">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8c7770]">
+              {product.category}
+            </p>
+            <h1 className="mt-2 text-[30px] font-semibold leading-tight text-[#3b2b2b] sm:text-[34px]">
+              {product.name}
+            </h1>
+            <div className="mt-5 h-px w-20 bg-[#4a1f1f]" />
+            <p className="mt-6 text-[22px] font-medium text-[#4b403d]">
+              {formatInr(product.priceInr)}
+            </p>
+          </div>
 
-            <div className="space-y-5 px-5 py-5">
-              {sizeOptions.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                  <label
-                    htmlFor="product-size"
-                    className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45"
-                  >
-                    Sizes
-                  </label>
+          <div className="space-y-4">
+            {sizeOptions.length > 0 ? (
+              <div className="grid gap-2 md:grid-cols-[120px_minmax(0,300px)] md:items-center">
+                <label
+                  htmlFor="product-size"
+                  className="text-sm font-medium text-[#5d4c46]"
+                >
+                  {optionLabel}
+                </label>
+                <div className="relative">
                   <select
                     id="product-size"
                     value={selectedSize}
                     onChange={(event) => setSelectedSize(event.target.value)}
-                    className="w-full border border-black/20 bg-[color:var(--cream)] px-4 py-3 text-sm font-semibold text-black/78 outline-none"
+                    className="h-12 w-full appearance-none border border-[#d8cdc7] bg-[#f5f5f5] px-4 pr-10 text-sm text-[#3b2b2b] outline-none focus:border-[#6b4c3f]"
                   >
                     {sizeOptions.map((size) => (
                       <option key={`${product.id}-${size}`} value={size}>
@@ -180,121 +239,164 @@ export function ProductDetailClient({ product }: Props) {
                       </option>
                     ))}
                   </select>
-                </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <label
-                  htmlFor="message-note"
-                  className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45"
-                >
-                  Message Note
-                </label>
-                <textarea
-                  id="message-note"
-                  rows={4}
-                  maxLength={240}
-                  value={messageNote}
-                  onChange={(event) => setMessageNote(event.target.value)}
-                  placeholder="Example: Happy Birthday Siya, pastel finish, gold topper, less sweet."
-                  className="w-full border border-black/20 bg-white px-4 py-4 text-sm leading-7 text-black/78 outline-none"
-                />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
-                  Quantity
-                </p>
-                <div className="flex items-center justify-between border border-black/20 bg-[color:var(--cream)] px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => setLineQty((current) => Math.max(1, current - 1))}
-                    className="h-9 w-9 border border-black/15 bg-white text-lg font-semibold text-black/78"
-                    aria-label={`Decrease quantity for ${product.name}`}
-                  >
-                    -
-                  </button>
-                  <span className="min-w-10 text-center text-base font-semibold text-black/82">
-                    {lineQty}
+                  <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#7f6c65]">
+                    ▾
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setLineQty((current) => current + 1)}
-                    className="h-9 w-9 border border-black/15 bg-white text-lg font-semibold text-black/78"
-                    aria-label={`Increase quantity for ${product.name}`}
+                </div>
+              </div>
+            ) : null}
+
+            {flavorOptions.length > 0 ? (
+              <div className="grid gap-2 md:grid-cols-[120px_minmax(0,300px)] md:items-center">
+                <label
+                  htmlFor="product-flavor"
+                  className="text-sm font-medium text-[#5d4c46]"
+                >
+                  Flavour
+                </label>
+                <div className="relative">
+                  <select
+                    id="product-flavor"
+                    value={selectedFlavor}
+                    onChange={(event) => setSelectedFlavor(event.target.value)}
+                    className="h-12 w-full appearance-none border border-dotted border-[#6b4c3f] bg-[#f5f5f5] px-4 pr-10 text-sm text-[#3b2b2b] outline-none focus:border-[#4a1f1f]"
                   >
-                    +
-                  </button>
+                    {flavorOptions.map((flavor) => (
+                      <option key={`${product.id}-${flavor}`} value={flavor}>
+                        {flavor}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-[#7f6c65]">
+                    ▾
+                  </span>
                 </div>
               </div>
+            ) : null}
+          </div>
 
-              {cartQty > 0 ? (
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--berry)]">
-                  In cart: {cartQty}
-                </p>
-              ) : null}
+          <div>
+            <label
+              htmlFor="message-note"
+              className="text-sm font-medium text-[#5d4c46]"
+            >
+              Message Or Special Notes (Max: 50 Characters)
+            </label>
+            <input
+              id="message-note"
+              type="text"
+              maxLength={50}
+              value={messageNote}
+              onChange={(event) => setMessageNote(event.target.value)}
+              placeholder="E.g. Happy Birthday!!!"
+              className="mt-3 h-12 w-full border border-[#d8cdc7] bg-white px-4 text-sm text-[#3b2b2b] outline-none placeholder:text-[#9e8e87] focus:border-[#6b4c3f]"
+            />
+          </div>
 
-              {addedFeedback ? (
-                <div className="border border-[color:var(--berry)]/25 bg-[color:var(--berry)]/6 px-4 py-3 text-sm font-medium text-[color:var(--berry-dark)]">
-                  {addedFeedback}
-                </div>
-              ) : null}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    persistLine(lineQty);
-                  }}
-                  className="border border-black bg-[color:var(--berry)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white"
-                >
-                  Add to Cart
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBuyNow}
-                  className="border border-black/20 bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-black/82"
-                >
-                  Buy Now
-                </button>
-              </div>
-
-              <div className="grid gap-px border border-black/10 bg-black/10 text-sm">
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-white px-4 py-3 font-semibold text-[color:var(--berry)]"
-                >
-                  Chat on WhatsApp for custom changes
-                </a>
-                <Link
-                  href={getProductHref(product)}
-                  className="bg-white px-4 py-3 font-semibold text-black/70"
-                >
-                  Copyable product page path: {getProductHref(product)}
-                </Link>
-              </div>
+          <div className="grid gap-2 md:grid-cols-[120px_minmax(0,180px)] md:items-center">
+            <p className="text-sm font-medium text-[#5d4c46]">Quantity</p>
+            <div className="flex w-fit items-center border border-[#d8cdc7] bg-white">
+              <button
+                type="button"
+                onClick={() => setLineQty((current) => Math.max(1, current - 1))}
+                className="flex h-11 w-11 items-center justify-center border-r border-[#d8cdc7] text-lg text-[#3b2b2b]"
+                aria-label={`Decrease quantity for ${product.name}`}
+              >
+                -
+              </button>
+              <span className="flex h-11 min-w-14 items-center justify-center text-sm font-medium text-[#3b2b2b]">
+                {lineQty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setLineQty((current) => current + 1)}
+                className="flex h-11 w-11 items-center justify-center border-l border-[#d8cdc7] text-lg text-[#3b2b2b]"
+                aria-label={`Increase quantity for ${product.name}`}
+              >
+                +
+              </button>
             </div>
           </div>
 
-          <div className="border border-black/10 bg-white px-5 py-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/45">
-              Ordering Notes
+          {cartQty > 0 ? (
+            <p className="text-sm font-medium text-[#7b4a3c]">
+              Already in cart: {cartQty}
             </p>
-            <ul className="mt-4 space-y-3 text-sm leading-7 text-black/65">
-              <li>Each product now has its own detail page for clear browsing and ordering.</li>
-              <li>Size selection carries forward into the cart, checkout, and invoice.</li>
-              <li>Image tap opens fullscreen, but ordering controls stay separate.</li>
-            </ul>
+          ) : null}
+
+          {addedFeedback ? (
+            <div className="border border-[#d9c1b6] bg-[#fbf4f0] px-4 py-3 text-sm text-[#5d3c35]">
+              {addedFeedback}
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+            <button
+              type="button"
+              onClick={() => persistLine(lineQty)}
+              className="h-12 bg-[#4a1f1f] px-6 text-sm font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#3c1717]"
+            >
+              Add to Cart
+            </button>
+            <button
+              type="button"
+              onClick={handleBuyNow}
+              className="h-12 border border-[#d8cdc7] bg-white px-6 text-sm font-semibold uppercase tracking-[0.08em] text-[#3b2b2b] transition hover:border-[#a78b80] hover:text-[#4a1f1f]"
+            >
+              Buy Now
+            </button>
           </div>
+
+          <div className="space-y-3 border-t border-[#e8ddd7] pt-5 text-[13px] leading-6 text-[#72645f]">
+            <p>
+              {limitedDelivery
+                ? "Standard deliveries for cakes and cheesecakes are limited to Proddatur city limits only. Contact us for more information."
+                : "Fresh bakes are prepared to order. Contact us if you need delivery support beyond the standard coverage area."}
+            </p>
+            <p className="font-medium text-[#4b403d]">
+              Call / WhatsApp:{" "}
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#4a1f1f] underline underline-offset-4"
+              >
+                {PHONE_NUMBER_DISPLAY}
+              </a>
+            </p>
+          </div>
+
+          <details className="border-t border-[#e8ddd7] pt-5 text-sm text-[#5f544f]">
+            <summary className="cursor-pointer list-none font-medium text-[#6a5a55]">
+              <span className="inline-flex items-center gap-2">
+                <span>ⓘ</span>
+                <span>More Info</span>
+              </span>
+            </summary>
+            <div className="mt-4 space-y-4 leading-7 text-[#5b4f4a]">
+              <p>{product.description}</p>
+              <p>
+                Category: <strong>{product.category}</strong>
+                {product.subCategory ? ` · ${product.subCategory}` : ""}
+              </p>
+              <p>
+                Eggless: <strong>{product.eggless ? "Yes" : "No"}</strong>
+              </p>
+              <Link
+                href="/menu"
+                className="inline-flex text-sm font-medium text-[#4a1f1f] underline underline-offset-4"
+              >
+                Back to full menu
+              </Link>
+            </div>
+          </details>
         </aside>
       </section>
 
       <ImageLightbox
         open={lightboxOpen}
-        src={product.imageSrc}
-        alt={product.name}
+        src={activeFrame.src}
+        alt={activeFrame.alt}
         title={product.name}
         description={product.description}
         onClose={() => setLightboxOpen(false)}

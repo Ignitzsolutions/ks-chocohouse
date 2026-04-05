@@ -16,7 +16,7 @@ export function MobileCtaBar() {
           href={wa}
           target="_blank"
           rel="noreferrer"
-          className="flex-1 rounded-full bg-[color:var(--berry)] px-4 py-3 text-center text-sm font-semibold text-white"
+          className="flex-1 rounded-full bg-[#25D366] px-4 py-3 text-center text-sm font-semibold text-white"
         >
           WhatsApp
         </a>

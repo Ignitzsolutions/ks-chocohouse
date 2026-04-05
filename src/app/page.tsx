@@ -195,20 +195,37 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-14 space-y-6">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/45">
+        <section className="mt-14 overflow-hidden rounded-[30px] border border-black/10 bg-white shadow-[0_18px_36px_rgba(32,22,16,0.06)]">
+          <div className="grid gap-5 border-b border-black/10 px-6 py-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:px-8 md:py-9">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5f4a42]">
                 Categories
               </p>
-              <h2 className="hero-display mt-2 text-4xl">Pick Your Style</h2>
+              <h2 className="hero-display mt-2 text-4xl leading-tight text-[#2f2422]">
+                Shop by Category
+              </h2>
+              <p className="mt-3 max-w-xl text-sm font-medium leading-6 text-[#5d4e49] md:text-base">
+                Start with the collection that matches the occasion, then explore sizes, flavors,
+                and custom details inside the menu.
+              </p>
             </div>
-            <p className="hidden text-sm text-black/55 md:block">
-              Explore all eggless creations category-wise.
-            </p>
+            <div className="flex flex-col items-start gap-3 md:items-end">
+              <p className="text-sm font-medium leading-6 text-[#5d4e49] md:max-w-sm md:text-right">
+                Browse every eggless collection in a cleaner layout and jump straight into the
+                category you want to order from.
+              </p>
+              <Link
+                href="/menu"
+                className="inline-flex items-center justify-center border border-black/15 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#2f2422] transition hover:border-black/30 hover:bg-[#f8f3ee]"
+              >
+                View Full Menu
+              </Link>
+            </div>
           </div>
 
-          <HomeCategoriesGrid />
+          <div className="px-6 py-6 md:px-8 md:py-8">
+            <HomeCategoriesGrid />
+          </div>
         </section>
 
         <section className="mt-16 grid gap-6 md:grid-cols-[1.2fr_0.8fr]">

@@ -572,4 +572,24 @@ export function initDb() {
     });
     insertCategories();
   }
+
+  const syncCategoryCard = instance.prepare(
+    `UPDATE categories
+     SET image_src = @image_src,
+         sort_order = @sort_order,
+         updated_at = @updated_at
+     WHERE name = @name`
+  );
+  const syncCategoryCards = instance.transaction(() => {
+    const now = new Date().toISOString();
+    DEFAULT_CATEGORY_CARDS.forEach((category) => {
+      syncCategoryCard.run({
+        name: category.category,
+        image_src: category.imageSrc,
+        sort_order: category.sortOrder,
+        updated_at: now,
+      });
+    });
+  });
+  syncCategoryCards();
 }

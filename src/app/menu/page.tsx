@@ -3,8 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { ImageLightbox } from "@/components/image-lightbox";
+import { useRouter } from "next/navigation";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -12,6 +11,7 @@ import { addItem, getCart, getCartItemKey, type CartItem, updateQty } from "@/li
 import {
   formatInr,
   getCategories,
+  getProductOptionLabel,
   getDisplaySizeOptions,
   getProductHref,
   type Product,
@@ -36,10 +36,51 @@ function toCategoryIconMap(
 ) {
   const map = new Map<ProductCategory, string>();
   categories.forEach((category) => {
-    const match = allProducts.find((item) => item.category === category)?.imageSrc;
-    map.set(category, match ?? "/images/categories/cakes.svg");
+    map.set(category, "/images/categories/cakes.svg");
+  });
+  allProducts.forEach((item) => {
+    if (map.get(item.category) === "/images/categories/cakes.svg") {
+      map.set(item.category, item.imageSrc);
+    }
   });
   return map;
+}
+
+function buildCategoryViews(categories: ProductCategory[], products: Product[]) {
+  const categorySet = new Set(categories);
+  const productsByCategory = new Map<ProductCategory, Product[]>();
+  const subCategoriesByCategory = new Map<ProductCategory, string[]>();
+  const seenSubCategories = new Map<ProductCategory, Set<string>>();
+
+  categories.forEach((category) => {
+    productsByCategory.set(category, []);
+    subCategoriesByCategory.set(category, []);
+    seenSubCategories.set(category, new Set());
+  });
+
+  products.forEach((item) => {
+    if (!categorySet.has(item.category)) return;
+
+    productsByCategory.get(item.category)?.push(item);
+
+    const subCategory = item.subCategory.trim();
+    if (!subCategory) return;
+
+    const seen = seenSubCategories.get(item.category);
+    if (!seen || seen.has(subCategory)) return;
+
+    seen.add(subCategory);
+    subCategoriesByCategory.get(item.category)?.push(subCategory);
+  });
+
+  return { productsByCategory, subCategoriesByCategory };
+}
+
+function getProductInteractionLabel(product: Product) {
+  if (/cupcake/i.test(product.category) || /chocolate/i.test(product.category)) {
+    return "Count";
+  }
+  return getProductOptionLabel(product);
 }
 
 function buildMenuUrl(category: string, subCategory?: string) {
@@ -62,6 +103,7 @@ function shouldReduceMotion() {
 }
 
 export default function MenuPage() {
+  const router = useRouter();
   const fallbackCategories = getCategories();
   const { products: allProducts } = useProducts();
   const [categories, setCategories] = useState<ProductCategory[]>(fallbackCategories);
@@ -78,12 +120,6 @@ export default function MenuPage() {
     {}
   );
   const [visibleCards, setVisibleCards] = useState<Record<string, boolean>>({});
-  const [lightbox, setLightbox] = useState<{
-    src: string;
-    alt: string;
-    title: string;
-    description: string;
-  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -186,32 +222,10 @@ export default function MenuPage() {
     return () => observer.disconnect();
   }, [categories, allProducts.length]);
 
-  const productsByCategory = useMemo(() => {
-    const map = new Map<ProductCategory, typeof allProducts>();
-    categories.forEach((category) => {
-      map.set(
-        category,
-        allProducts.filter((item) => item.category === category)
-      );
-    });
-    return map;
-  }, [allProducts, categories]);
-
-  const subCategoriesByCategory = useMemo(() => {
-    const map = new Map<ProductCategory, string[]>();
-    categories.forEach((category) => {
-      const values = Array.from(
-        new Set(
-          allProducts
-            .filter((item) => item.category === category)
-            .map((item) => item.subCategory)
-            .filter(Boolean)
-        )
-      );
-      map.set(category, values);
-    });
-    return map;
-  }, [allProducts, categories]);
+  const { productsByCategory, subCategoriesByCategory } = useMemo(
+    () => buildCategoryViews(categories, allProducts),
+    [allProducts, categories]
+  );
 
   const categoryIconMap = useMemo(
     () => toCategoryIconMap(categories, allProducts),
@@ -331,13 +345,8 @@ export default function MenuPage() {
     window.location.assign("/cart");
   };
 
-  const openProductPreview = (item: Product) => {
-    setLightbox({
-      src: item.imageSrc,
-      alt: item.name,
-      title: item.name,
-      description: item.description,
-    });
+  const openProductPage = (item: Product) => {
+    router.push(getProductHref(item));
   };
 
   const swallowPointerEvent = (
@@ -365,6 +374,7 @@ export default function MenuPage() {
     extraLabel?: string
   ) => {
     const sizeOptions = getDisplaySizeOptions(item);
+    const optionLabel = getProductInteractionLabel(item);
     const selectedSize =
       (sizeOptions.length > 0
         ? selectedSizeByProduct[item.id] ?? sizeOptions[0]
@@ -376,37 +386,52 @@ export default function MenuPage() {
         key={item.id}
         data-reveal-id={item.id}
         data-reveal-type="card"
-        className={`premium-panel flex h-full flex-col rounded-sm p-4 transition-all duration-700 motion-reduce:transition-none ${
+        role="link"
+        tabIndex={0}
+        aria-label={`Open product page for ${item.name}`}
+        onClick={() => openProductPage(item)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openProductPage(item);
+          }
+        }}
+        className={`flex h-full cursor-pointer flex-col overflow-hidden border border-[#e3d8d2] bg-white transition-all duration-700 motion-reduce:transition-none ${
           visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
         }`}
         style={{
           transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
+          contentVisibility: "auto",
+          containIntrinsicSize: "1px 480px",
         }}
       >
-        <div className="aspect-[4/3] overflow-hidden border border-[color:var(--line)] bg-[color:var(--cream)]">
-          <button
-            type="button"
-            onClick={() => openProductPreview(item)}
-            className="h-full w-full"
-            aria-label={`Expand image for ${item.name}`}
-          >
-            <img src={item.imageSrc} alt={item.name} className="h-full w-full object-cover" />
-          </button>
+        <div className="group relative aspect-[4/3] overflow-hidden bg-[color:var(--cream)]">
+          <img
+            src={item.imageSrc}
+            alt={item.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
         </div>
 
-        <div className="mt-3 flex flex-1 flex-col space-y-3 text-left">
-          <div className="flex items-center justify-between gap-3">
-            <Link href={getProductHref(item)} className="min-w-0">
-              <h3 className="text-lg font-semibold leading-snug hover:text-[color:var(--berry)]">
+        <div className="flex flex-1 flex-col space-y-3 p-4 text-left sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="break-words text-[22px] font-semibold leading-snug text-[#2f2321]">
                 {item.name}
               </h3>
-            </Link>
-            <span className="bg-[color:var(--caramel)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
+              <span className="mt-2 block h-px w-16 bg-[#4a1f1f]/60" />
+            </div>
+            <span className="shrink-0 border border-[#e3d8d2] bg-[#fff7ef] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#5f4a42]">
               Eggless
             </span>
           </div>
 
-          <p className="text-sm leading-6 text-black/62 sm:min-h-12">{item.description}</p>
+          <p className="break-words text-sm leading-6 text-[#5d4e49] sm:min-h-12">
+            {item.description}
+          </p>
 
           {extraLabel ? (
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45">
@@ -415,9 +440,9 @@ export default function MenuPage() {
           ) : null}
 
           {sizeOptions.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 border border-black/8 bg-white px-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)] sm:items-center sm:gap-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black/45">
-                Sizes
+            <div className="grid grid-cols-1 gap-2 border-t border-[#eee2db] pt-3 sm:grid-cols-[84px_minmax(0,1fr)] sm:items-center sm:gap-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#66544f]">
+                {optionLabel}
               </p>
               <div
                 className="relative"
@@ -436,8 +461,8 @@ export default function MenuPage() {
                   onClick={stopEventPropagation}
                   onPointerDown={stopEventPropagation}
                   onTouchStart={stopEventPropagation}
-                  className="w-full appearance-none border border-dashed border-black/25 bg-[color:var(--cream)] px-4 py-3 pr-10 text-sm font-medium text-black/72 outline-none transition focus:border-[color:var(--berry)] focus:bg-white"
-                  aria-label={`Select weight for ${item.name}`}
+                  className="w-full appearance-none border border-dashed border-[#7a4b42] bg-[#faf7f4] px-4 py-3 pr-10 text-sm font-semibold text-[#2f2523] outline-none transition focus:border-[#4a1f1f] focus:bg-white"
+                  aria-label={`Select ${optionLabel.toLowerCase()} for ${item.name}`}
                 >
                   {sizeOptions.map((size) => (
                     <option key={`${item.id}-${size}`} value={size}>
@@ -445,7 +470,7 @@ export default function MenuPage() {
                     </option>
                   ))}
                 </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-black/35">
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#7d6d68]">
                   <svg
                     width="14"
                     height="14"
@@ -468,29 +493,14 @@ export default function MenuPage() {
           ) : null}
 
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-[color:var(--berry)]">
+            <p className="text-base font-semibold text-[#4a1f1f]">
               {formatInr(item.priceInr)}
             </p>
-            <div className="flex flex-wrap gap-3 text-xs font-semibold tracking-[0.04em]">
-              <button
-                type="button"
-                onClick={() => openProductPreview(item)}
-                className="text-left text-[color:var(--berry)] underline-offset-4 hover:underline"
-              >
-                View image
-              </button>
-              <Link
-                href={getProductHref(item)}
-                className="text-left text-black/68 underline-offset-4 hover:text-[color:var(--berry)] hover:underline"
-              >
-                Open product page
-              </Link>
-            </div>
           </div>
 
           <div className="mt-auto flex flex-col gap-2 sm:flex-row">
             <div
-              className="flex items-center justify-between border border-black/10 bg-[color:var(--cream)] px-2 py-1 sm:flex-1"
+              className="flex items-center justify-between border-t border-[#eee2db] bg-white px-2 py-1 sm:flex-1"
               onClick={swallowPointerEvent}
               onPointerDown={swallowPointerEvent}
               onTouchStart={swallowPointerEvent}
@@ -503,12 +513,12 @@ export default function MenuPage() {
                 onPointerDown={swallowPointerEvent}
                 onTouchStart={swallowPointerEvent}
                 disabled={(cartQtyById[cartKey] ?? 0) === 0}
-                className="h-7 w-7 border border-[color:var(--line)] bg-white text-xs font-semibold disabled:opacity-40"
+                className="h-7 w-7 border border-[#d8cdc7] bg-white text-xs font-semibold text-[#2f2523] disabled:opacity-40"
                 aria-label={`Decrease ${item.name}`}
               >
                 -
               </button>
-              <span className="min-w-7 text-center text-xs font-semibold">
+              <span className="min-w-7 text-center text-xs font-semibold text-[#2f2523]">
                 {cartQtyById[cartKey] ?? 0}
               </span>
               <button
@@ -518,7 +528,7 @@ export default function MenuPage() {
                 }}
                 onPointerDown={swallowPointerEvent}
                 onTouchStart={swallowPointerEvent}
-                className="h-7 w-7 border border-[color:var(--line)] bg-white text-xs font-semibold"
+                className="h-7 w-7 border border-[#d8cdc7] bg-white text-xs font-semibold text-[#2f2523]"
                 aria-label={`Increase ${item.name}`}
               >
                 +
@@ -529,7 +539,7 @@ export default function MenuPage() {
               onClick={(event) => handleBuyNow(item.id, selectedSize || undefined, event)}
               onPointerDown={swallowPointerEvent}
               onTouchStart={swallowPointerEvent}
-              className="w-full bg-gradient-to-b from-[color:var(--berry)] to-[color:var(--berry-dark)] px-3 py-2 text-center text-xs font-semibold text-white sm:flex-1"
+              className="w-full bg-[#4a1f1f] px-3 py-2 text-center text-xs font-semibold text-white sm:flex-1"
             >
               Buy Now
             </button>
@@ -542,81 +552,92 @@ export default function MenuPage() {
   return (
     <div>
       <SiteHeader />
-      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
-        <div className="premium-panel rounded-3xl p-6 md:p-7">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-black/45">Menu</p>
-          <h1 className="hero-display mt-2 text-5xl">All Eggless Products</h1>
-          <p className="mt-2 text-black/60">
-            Select a category from the sidebar and explore available items.
-          </p>
-        </div>
+      <main className="mx-auto max-w-[1520px] px-4 py-10 sm:px-6 lg:px-8">
+        <section className="pb-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#5f4a42]">
+                Menu
+              </p>
+              <h1 className="hero-display mt-2 text-5xl leading-[0.94] text-[#2f2321] sm:text-6xl">
+                All Eggless Products
+              </h1>
+              <p className="mt-3 text-base font-medium leading-7 text-[#5d4e49]">
+                Browse the full catalog by category, then open any product for size, flavour,
+                and ordering details.
+              </p>
+            </div>
+
+            <div className="w-full max-w-[620px] lg:ml-auto">
+              <label className="block text-xs font-bold uppercase tracking-[0.18em] text-[#5a3a35]">
+                Search Products
+              </label>
+              <div className="mt-3 flex items-center gap-3 border-2 border-[#4a1f1f] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(74,31,31,0.08)]">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="text-[#4a1f1f]"
+                  aria-hidden="true"
+                >
+                  <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2.2" />
+                  <path
+                    d="M20 20L16.65 16.65"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search cakes, chocolates, flavours, or categories"
+                  className="w-full bg-transparent text-sm font-semibold text-[#2f2523] outline-none placeholder:font-semibold placeholder:text-[#8b746d]"
+                  aria-label="Search products"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="border border-[#d8cdc7] bg-[#faf4f1] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#5a3a35]"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-3 text-xs font-semibold leading-6 text-[#6d5953]">
+                Search by product name, category, description, or flavour.
+              </p>
+            </div>
+          </div>
+        </section>
 
         <div className="mt-6 flex gap-3 overflow-x-auto pb-2 md:hidden">
           {categories.map((category) => (
             <button
               key={category}
               onClick={() => jumpToCategory(category)}
-              className={`flex min-w-[84px] flex-col items-center gap-2 rounded-2xl border px-2 py-3 text-[11px] font-semibold ${
+              className={`flex min-w-[84px] flex-col items-center gap-2 border px-2 py-3 text-[11px] font-semibold ${
                 activeCategory === category
-                  ? "border-[color:var(--berry)] bg-[color:var(--berry)]/10 text-[color:var(--berry)]"
-                  : "border-[color:var(--line)] bg-white text-black/60"
+                  ? "border-[#4a1f1f] bg-[#fff5f2] text-[#4a1f1f]"
+                  : "border-[#e1d5cf] bg-white text-[#584643]"
               }`}
             >
               <img
                 src={categoryIconMap.get(category)}
                 alt={category}
-                className="h-10 w-10 rounded-full border border-[color:var(--line)] object-cover"
+                className="h-10 w-10 object-cover"
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
               />
               <span className="line-clamp-2 text-center leading-tight">{category}</span>
             </button>
           ))}
-        </div>
-
-        <div className="premium-panel mt-6 rounded-3xl p-4 md:p-5">
-          <label className="text-xs font-bold uppercase tracking-[0.18em] text-black/55">
-            Search Products
-          </label>
-          <div className="mt-2 flex items-center gap-2 rounded-2xl border border-[color:var(--line)] bg-white px-3 py-2">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="text-black/45"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-              <path d="M20 20L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by product name, flavor, or category"
-              className="w-full bg-transparent text-sm font-semibold text-black/85 outline-none placeholder:font-medium placeholder:text-black/45"
-              aria-label="Search products"
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="rounded-full border border-[color:var(--line)] px-2 py-1 text-[11px] font-semibold text-black/55"
-              >
-                Clear
-              </button>
-            ) : null}
-          </div>
-          {hasSearchQuery ? (
-            <p className="mt-2 text-xs font-semibold text-black/60">
-              {totalSearchMatches > 0
-                ? `${totalSearchMatches} match${totalSearchMatches > 1 ? "es" : ""} found for "${deferredSearchQuery}".`
-                : `No matches found for "${deferredSearchQuery}".`}
-            </p>
-          ) : (
-            <p className="mt-2 text-xs font-semibold text-black/55">
-              Tip: use search to quickly find specific cakes, chocolates, or flavors.
-            </p>
-          )}
         </div>
 
         <MenuDesktopShell
@@ -631,13 +652,13 @@ export default function MenuPage() {
             setActiveSubCategory(nextSubCategory);
             window.history.replaceState(null, "", buildMenuUrl(category, nextSubCategory));
           }}
-          className="md:h-[75vh] md:grid-cols-[280px_minmax(0,1fr)] md:overflow-hidden"
+          className="md:h-[75vh] md:grid-cols-[260px_minmax(0,1fr)] md:overflow-hidden"
           railColumnClassName="min-h-0"
           railViewportClassName="min-h-0"
-          catalogViewportClassName="menu-catalog-viewport min-h-0 pb-2"
+          catalogViewportClassName="menu-catalog-viewport min-h-0 pb-2 lg:pr-1"
           rail={(api) => (
-            <div className="premium-panel flex h-full flex-col rounded-3xl p-4">
-              <p className="px-3 pb-2 text-xs uppercase tracking-[0.2em] text-black/50">
+            <div className="flex h-full flex-col bg-white p-4">
+              <p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#5f4a42]">
                 Categories
               </p>
               <div className="min-h-0 space-y-1 overflow-y-auto pr-1">
@@ -649,22 +670,23 @@ export default function MenuPage() {
                     return (
                   <div
                     key={category}
-                    className={`rounded-2xl ${
-                      isFocusedCategory ? "bg-[color:var(--berry)]/10" : ""
-                    }`}
+                    className={isFocusedCategory ? "bg-[#fff5f2]" : ""}
                   >
                     <button
                       onClick={() => api.selectCategory(category)}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left ${
+                      className={`flex w-full items-center gap-3 px-3 py-3 text-left ${
                         isFocusedCategory
-                          ? "text-[color:var(--berry)]"
-                          : "text-black/70 hover:bg-[color:var(--cream)]"
+                          ? "text-[#4a1f1f]"
+                          : "text-[#453633] hover:bg-[#faf5f1]"
                       }`}
                     >
                       <img
                         src={categoryIconMap.get(category)}
                         alt={category}
-                        className="h-7 w-7 rounded-full border border-[color:var(--line)] object-cover"
+                        className="h-8 w-8 object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        fetchPriority="low"
                       />
                       <span className="flex min-w-0 flex-col">
                         <span className="text-sm font-semibold">{category}</span>
@@ -678,7 +700,7 @@ export default function MenuPage() {
 
                     {isSelectedCategory ? (
                       <div className="px-3 pb-3">
-                        <div className="ml-10 flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-white/80 p-2">
+                        <div className="ml-11 flex flex-col gap-1 border-l border-[#e6ddd7] pl-3">
                           <button
                             type="button"
                             onClick={() => {
@@ -690,10 +712,10 @@ export default function MenuPage() {
                                 shouldReduceMotion() ? "auto" : "smooth"
                               );
                             }}
-                            className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${
+                            className={`px-3 py-2 text-left text-xs font-semibold ${
                               !activeSubCategory
-                                ? "bg-[color:var(--berry)] text-white"
-                                : "text-black/65 hover:bg-[color:var(--cream)]"
+                                ? "bg-[#4a1f1f] text-white"
+                                : "text-[#685650] hover:bg-[#faf5f1]"
                             }`}
                           >
                             All
@@ -715,10 +737,10 @@ export default function MenuPage() {
                                   shouldReduceMotion() ? "auto" : "smooth"
                                 );
                               }}
-                              className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${
+                              className={`px-3 py-2 text-left text-xs font-semibold ${
                                 activeSubCategory === subCategory
-                                  ? "bg-[color:var(--berry)] text-white"
-                                  : "text-black/65 hover:bg-[color:var(--cream)]"
+                                  ? "bg-[#4a1f1f] text-white"
+                                  : "text-[#685650] hover:bg-[#faf5f1]"
                               }`}
                             >
                               {subCategory}
@@ -741,22 +763,24 @@ export default function MenuPage() {
                   key="search-results"
                   data-reveal-id="section-search-results"
                   data-reveal-type="section"
-                  className="space-y-4 rounded-3xl border border-[color:var(--line)] bg-white/70 p-4 transition-all duration-700 motion-reduce:transition-none md:p-5"
+                  className="space-y-4 border-t border-black/10 pt-6 transition-all duration-700 motion-reduce:transition-none"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <h2 className="hero-display text-4xl leading-none">Search Results</h2>
-                      <p className="mt-2 text-sm text-black/58">
+                      <h2 className="hero-display text-4xl leading-none text-[#2f2321]">
+                        Search Results
+                      </h2>
+                      <p className="mt-2 text-sm font-medium text-[#5d4e49]">
                         Showing matches for &quot;{deferredSearchQuery}&quot; across all categories.
                       </p>
                     </div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-black/50">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5f4a42]">
                       {totalSearchMatches} item{totalSearchMatches === 1 ? "" : "s"}
                     </p>
                   </div>
 
                   {allSearchMatches.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/80 px-4 py-5 text-sm text-black/55">
+                    <div className="bg-[#fbf6f2] px-4 py-5 text-sm font-medium text-[#66544f]">
                       No products match this search yet. Try a different flavor, category, or cake name.
                     </div>
                   ) : (
@@ -791,15 +815,15 @@ export default function MenuPage() {
                     id={categoryId(category)}
                     data-reveal-id={sectionRevealId}
                     data-reveal-type="section"
-                    className={`space-y-4 rounded-3xl border border-[color:var(--line)] bg-white/70 p-4 transition-all duration-700 motion-reduce:transition-none md:p-5 ${
+                    className={`space-y-4 border-t border-black/10 pt-6 transition-all duration-700 motion-reduce:transition-none ${
                       visibleSections[sectionRevealId]
                         ? "translate-y-0 opacity-100"
                         : "translate-y-5 opacity-0"
                     }`}
                   >
                     <div className="flex items-end justify-between gap-3">
-                      <h2 className="hero-display text-4xl leading-none">{category}</h2>
-                      <p className="text-xs uppercase tracking-[0.2em] text-black/50">
+                      <h2 className="hero-display text-4xl leading-none text-[#2f2321]">{category}</h2>
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5f4a42]">
                         {sectionItemCount} item{sectionItemCount === 1 ? "" : "s"}
                       </p>
                     </div>
@@ -812,8 +836,8 @@ export default function MenuPage() {
                             onClick={() => jumpToCategory(category, "")}
                             className={`rounded-full px-4 py-2 text-xs font-semibold ${
                               !activeSubCategory
-                                ? "bg-[color:var(--berry)] text-white"
-                                : "border border-black/10 bg-white text-black/65"
+                                ? "bg-[#4a1f1f] text-white"
+                                : "border border-[#d9ccc5] bg-white text-[#685650]"
                             }`}
                           >
                             All
@@ -825,8 +849,8 @@ export default function MenuPage() {
                               onClick={() => jumpToCategory(category, subCategory)}
                               className={`rounded-full px-4 py-2 text-xs font-semibold ${
                                 activeSubCategory === subCategory
-                                  ? "bg-[color:var(--berry)] text-white"
-                                  : "border border-black/10 bg-white text-black/65"
+                                  ? "bg-[#4a1f1f] text-white"
+                                  : "border border-[#d9ccc5] bg-white text-[#685650]"
                               }`}
                             >
                               {subCategory}
@@ -835,7 +859,7 @@ export default function MenuPage() {
                         </div>
                       ) : null}
                       {filteredItems.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/80 px-4 py-5 text-sm text-black/55 sm:col-span-2 xl:col-span-3">
+                        <div className="bg-[#fbf6f2] px-4 py-5 text-sm font-medium text-[#66544f] sm:col-span-2 xl:col-span-3">
                           No products match this filter.
                         </div>
                       ) : null}
@@ -849,14 +873,6 @@ export default function MenuPage() {
         />
       </main>
       <SiteFooter />
-      <ImageLightbox
-        open={Boolean(lightbox)}
-        src={lightbox?.src ?? ""}
-        alt={lightbox?.alt ?? ""}
-        title={lightbox?.title ?? ""}
-        description={lightbox?.description ?? ""}
-        onClose={() => setLightbox(null)}
-      />
     </div>
   );
 }

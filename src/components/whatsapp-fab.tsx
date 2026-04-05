@@ -8,7 +8,7 @@ export function WhatsappFab() {
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="fixed bottom-24 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-[color:var(--berry)] px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-95 md:bottom-6"
+      className="fixed bottom-24 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(37,211,102,0.28)] transition hover:bg-[#20bd5c] md:bottom-6"
       aria-label="Chat on WhatsApp"
       title="Chat on WhatsApp"
     >

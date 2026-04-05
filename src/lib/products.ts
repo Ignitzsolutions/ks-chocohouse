@@ -84,9 +84,55 @@ const DEFAULT_CAKE_SIZE_OPTIONS = [
   "Extra Large (3000gm)",
 ];
 
+const DEFAULT_CUPCAKE_COUNT_OPTIONS = [
+  "2 cupcakes",
+  "4 cupcakes",
+  "6 cupcakes",
+  "12 cupcakes",
+];
+
+const DEFAULT_CHOCOLATE_COUNT_OPTIONS = [
+  "6 pieces",
+  "12 pieces",
+  "24 pieces",
+];
+
+const FLAVOR_PATTERNS = [
+  { label: "Dark Chocolate", test: /dark chocolate/i },
+  { label: "Milk Chocolate", test: /milk chocolate/i },
+  { label: "Chocolate", test: /\bchoco(?:late)?\b/i },
+  { label: "Truffle", test: /truffle/i },
+  { label: "Vanilla", test: /vanilla/i },
+  { label: "Strawberry", test: /strawberry/i },
+  { label: "Blueberry", test: /blueberry/i },
+  { label: "Pineapple", test: /pineapple/i },
+  { label: "Red Velvet", test: /red velvet/i },
+  { label: "Mango", test: /mango/i },
+  { label: "Lotus Biscoff", test: /biscoff|lotus/i },
+  { label: "Butter", test: /butter/i },
+  { label: "Almond", test: /almond/i },
+  { label: "Walnut", test: /walnut/i },
+  { label: "Cherry", test: /cherry/i },
+  { label: "Fudge", test: /fudge/i },
+  { label: "Cream", test: /cream/i },
+];
+
+function inferFlavorLabels(product: Product) {
+  const haystack = `${product.name} ${product.description}`.toLowerCase();
+  return FLAVOR_PATTERNS.filter((entry) => entry.test.test(haystack)).map((entry) => entry.label);
+}
+
 export function getDisplaySizeOptions(product: Product): string[] {
   if (product.sizeOptions?.length) {
     return product.sizeOptions.map((value) => value.trim()).filter(Boolean);
+  }
+
+  if (/cupcake/i.test(product.category)) {
+    return DEFAULT_CUPCAKE_COUNT_OPTIONS;
+  }
+
+  if (/chocolate/i.test(product.category)) {
+    return DEFAULT_CHOCOLATE_COUNT_OPTIONS;
   }
 
   if (/(^| )cakes?$/i.test(product.category) || /cake/i.test(product.category)) {
@@ -94,4 +140,24 @@ export function getDisplaySizeOptions(product: Product): string[] {
   }
 
   return [];
+}
+
+export function getProductOptionLabel(product: Product) {
+  if (/cupcake/i.test(product.category)) return "Count";
+  if (/chocolate/i.test(product.category)) return "Count";
+  return "Sizes";
+}
+
+export function getDisplayFlavorOptions(
+  product: Product,
+  availableProducts: Product[] = products
+): string[] {
+  const sameCategory = availableProducts.filter((item) => item.category === product.category);
+  const preferred = inferFlavorLabels(product);
+  const categoryFlavors = sameCategory.flatMap((item) => inferFlavorLabels(item));
+  const fallback = [product.subCategory, product.category]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...preferred, ...categoryFlavors, ...fallback])).slice(0, 8);
 }

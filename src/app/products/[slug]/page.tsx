@@ -115,8 +115,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div>
       <JsonLd data={schema} />
       <SiteHeader />
-      <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div className="mb-6 border border-black/10 bg-white px-4 py-4 sm:px-5">
+      <main className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <div className="mb-5 border border-black/10 bg-white px-4 py-4 sm:px-5">
           <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-black/48">
             <Link href="/" className="hover:text-[color:var(--berry)]">
               Home
@@ -137,7 +137,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </nav>
         </div>
 
-        <ProductDetailClient product={product} />
+        <ProductDetailClient key={product.id} product={product} />
       </main>
       <SiteFooter />
     </div>

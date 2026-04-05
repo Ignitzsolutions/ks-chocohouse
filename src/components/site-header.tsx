@@ -1,19 +1,27 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BRAND_NAME, PHONE_NUMBER_DISPLAY, TAGLINE } from "@/lib/brand";
+import { isGiftCollectionEnabled } from "@/lib/features";
 
-const navLinks = [
+const coreNavLinks = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
-  {
-    href: "/menu?category=Chocolates&subCategory=Gift%20Collection",
-    label: "Gift Collection",
-  },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
 
 export function SiteHeader() {
+  const navLinks = isGiftCollectionEnabled()
+    ? [
+        ...coreNavLinks.slice(0, 2),
+        {
+          href: "/menu?category=Chocolates&subCategory=Gift%20Collection",
+          label: "Gift Collection",
+        },
+        ...coreNavLinks.slice(2),
+      ]
+    : coreNavLinks;
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[color:var(--line)] bg-white/92 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
