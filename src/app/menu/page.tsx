@@ -2,15 +2,15 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MenuDesktopShell } from "@/components/menu-desktop-shell";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { addItem, getCart, getCartItemKey, type CartItem, updateQty } from "@/lib/cart";
 import {
-  formatInr,
   getCategories,
+  getPriceDisplayMeta,
   getProductOptionLabel,
   getDisplaySizeOptions,
   getProductHref,
@@ -90,18 +90,6 @@ function buildMenuUrl(category: string, subCategory?: string) {
   return `/menu?${params.toString()}`;
 }
 
-function shouldUseDesktopCatalogScroll() {
-  return typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
-}
-
-function shouldReduceMotion() {
-  if (typeof window === "undefined") return false;
-  return (
-    document.documentElement.dataset.motion === "reduced" ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
-
 export default function MenuPage() {
   const router = useRouter();
   const fallbackCategories = getCategories();
@@ -114,12 +102,7 @@ export default function MenuPage() {
   const [activeSubCategory, setActiveSubCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSizeByProduct, setSelectedSizeByProduct] = useState<Record<string, string>>({});
-  const activeCategoryRef = useRef(activeCategory);
   const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
-  const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>(
-    {}
-  );
-  const [visibleCards, setVisibleCards] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let active = true;
@@ -146,10 +129,6 @@ export default function MenuPage() {
   }, []);
 
   useEffect(() => {
-    activeCategoryRef.current = activeCategory;
-  }, [activeCategory]);
-
-  useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const fromQuery = new URLSearchParams(window.location.search).get(
         "category"
@@ -173,7 +152,7 @@ export default function MenuPage() {
         );
       } else if (
         categories.length > 0 &&
-        !categories.includes(activeCategoryRef.current)
+        !categories.includes(activeCategory)
       ) {
         setActiveCategory(categories[0]);
         setActiveSubCategory("");
@@ -182,45 +161,7 @@ export default function MenuPage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [allProducts, categories]);
-
-  useEffect(() => {
-    const desktopCatalogRoot = shouldUseDesktopCatalogScroll()
-      ? document.querySelector<HTMLElement>(".menu-catalog-viewport")
-      : null;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const target = entry.target as HTMLElement;
-          const revealId = target.dataset.revealId;
-          const revealType = target.dataset.revealType;
-          if (!revealId || !revealType) return;
-
-          if (revealType === "section") {
-            setVisibleSections((prev) => {
-              if (prev[revealId]) return prev;
-              return { ...prev, [revealId]: true };
-            });
-          } else if (revealType === "card") {
-            setVisibleCards((prev) => {
-              if (prev[revealId]) return prev;
-              return { ...prev, [revealId]: true };
-            });
-          }
-
-          observer.unobserve(target);
-        });
-      },
-      { threshold: 0.14, root: desktopCatalogRoot, rootMargin: "0px 0px -8% 0px" }
-    );
-
-    const targets = document.querySelectorAll<HTMLElement>("[data-reveal-id]");
-    targets.forEach((target) => observer.observe(target));
-
-    return () => observer.disconnect();
-  }, [categories, allProducts.length]);
+  }, [activeCategory, allProducts, categories]);
 
   const { productsByCategory, subCategoriesByCategory } = useMemo(
     () => buildCategoryViews(categories, allProducts),
@@ -286,9 +227,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     if (!hasSearchQuery) return;
-    const desktopCatalogRoot = shouldUseDesktopCatalogScroll()
-      ? document.querySelector<HTMLElement>(".menu-catalog-viewport")
-      : null;
+    const desktopCatalogRoot = document.querySelector<HTMLElement>(".menu-catalog-viewport");
     if (desktopCatalogRoot) {
       desktopCatalogRoot.scrollTo({ top: 0, behavior: "auto" });
     }
@@ -304,10 +243,8 @@ export default function MenuPage() {
     const node = document.getElementById(categoryId(category));
     if (!node) return;
 
-    const behavior = shouldReduceMotion() ? "auto" : "smooth";
-    const desktopCatalogRoot = shouldUseDesktopCatalogScroll()
-      ? document.querySelector<HTMLElement>(".menu-catalog-viewport")
-      : null;
+    const behavior: ScrollBehavior = "auto";
+    const desktopCatalogRoot = document.querySelector<HTMLElement>(".menu-catalog-viewport");
 
     if (desktopCatalogRoot) {
       const top =
@@ -370,7 +307,7 @@ export default function MenuPage() {
 
   const renderProductCard = (
     item: Product,
-    index: number,
+    _index: number,
     extraLabel?: string
   ) => {
     const sizeOptions = getDisplaySizeOptions(item);
@@ -380,12 +317,11 @@ export default function MenuPage() {
         ? selectedSizeByProduct[item.id] ?? sizeOptions[0]
         : "") || "";
     const cartKey = getCartItemKey(item.id, selectedSize);
+    const priceMeta = getPriceDisplayMeta(item, selectedSize || undefined);
 
     return (
       <article
         key={item.id}
-        data-reveal-id={item.id}
-        data-reveal-type="card"
         role="link"
         tabIndex={0}
         aria-label={`Open product page for ${item.name}`}
@@ -396,23 +332,15 @@ export default function MenuPage() {
             openProductPage(item);
           }
         }}
-        className={`flex h-full cursor-pointer flex-col overflow-hidden border border-[#e3d8d2] bg-white transition-all duration-700 motion-reduce:transition-none ${
-          visibleCards[item.id] ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
-        }`}
-        style={{
-          transitionDelay: visibleCards[item.id] ? `${(index % 3) * 70}ms` : "0ms",
-          contentVisibility: "auto",
-          containIntrinsicSize: "1px 480px",
-        }}
+        className="flex h-full cursor-pointer flex-col overflow-hidden border border-[#e3d8d2] bg-white"
       >
         <div className="group relative aspect-[4/3] overflow-hidden bg-[color:var(--cream)]">
           <img
             src={item.imageSrc}
             alt={item.name}
             className="h-full w-full object-cover"
-            loading="lazy"
+            loading="eager"
             decoding="async"
-            fetchPriority="low"
           />
         </div>
 
@@ -494,8 +422,11 @@ export default function MenuPage() {
 
           <div className="space-y-1">
             <p className="text-base font-semibold text-[#4a1f1f]">
-              {formatInr(item.priceInr)}
+              {priceMeta.finalPriceLabel}
             </p>
+            {priceMeta.pricePerKgLabel ? (
+              <p className="text-xs font-medium text-[#6d5952]">{priceMeta.pricePerKgLabel}</p>
+            ) : null}
           </div>
 
           <div className="mt-auto flex flex-col gap-2 sm:flex-row">
@@ -631,9 +562,7 @@ export default function MenuPage() {
                 src={categoryIconMap.get(category)}
                 alt={category}
                 className="h-10 w-10 object-cover"
-                loading="lazy"
                 decoding="async"
-                fetchPriority="low"
               />
               <span className="line-clamp-2 text-center leading-tight">{category}</span>
             </button>
@@ -684,9 +613,7 @@ export default function MenuPage() {
                         src={categoryIconMap.get(category)}
                         alt={category}
                         className="h-8 w-8 object-cover"
-                        loading="lazy"
                         decoding="async"
-                        fetchPriority="low"
                       />
                       <span className="flex min-w-0 flex-col">
                         <span className="text-sm font-semibold">{category}</span>
@@ -704,13 +631,10 @@ export default function MenuPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setActiveCategory(category);
-                              setActiveSubCategory("");
-                              window.history.replaceState(null, "", buildMenuUrl(category));
-                              api.scrollToCategory(
-                                category,
-                                shouldReduceMotion() ? "auto" : "smooth"
-                              );
+                                setActiveCategory(category);
+                                setActiveSubCategory("");
+                                window.history.replaceState(null, "", buildMenuUrl(category));
+                              api.scrollToCategory(category, "auto");
                             }}
                             className={`px-3 py-2 text-left text-xs font-semibold ${
                               !activeSubCategory
@@ -732,10 +656,7 @@ export default function MenuPage() {
                                   "",
                                   buildMenuUrl(category, subCategory)
                                 );
-                                api.scrollToCategory(
-                                  category,
-                                  shouldReduceMotion() ? "auto" : "smooth"
-                                );
+                                api.scrollToCategory(category, "auto");
                               }}
                               className={`px-3 py-2 text-left text-xs font-semibold ${
                                 activeSubCategory === subCategory
@@ -761,9 +682,7 @@ export default function MenuPage() {
               {hasSearchQuery ? (
                 <section
                   key="search-results"
-                  data-reveal-id="section-search-results"
-                  data-reveal-type="section"
-                  className="space-y-4 border-t border-black/10 pt-6 transition-all duration-700 motion-reduce:transition-none"
+                  className="space-y-4 border-t border-black/10 pt-6"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -804,7 +723,6 @@ export default function MenuPage() {
                     ? searchedItems.filter((item) => item.subCategory === activeSubCategory)
                     : searchedItems;
                 const showSection = !hasSearchQuery || searchedItems.length > 0;
-                const sectionRevealId = `section-${categoryId(category)}`;
                 const sectionItemCount = hasSearchQuery ? filteredItems.length : items.length;
                 if (!showSection) return null;
 
@@ -813,13 +731,7 @@ export default function MenuPage() {
                     key={category}
                     ref={api.setSectionRef(category)}
                     id={categoryId(category)}
-                    data-reveal-id={sectionRevealId}
-                    data-reveal-type="section"
-                    className={`space-y-4 border-t border-black/10 pt-6 transition-all duration-700 motion-reduce:transition-none ${
-                      visibleSections[sectionRevealId]
-                        ? "translate-y-0 opacity-100"
-                        : "translate-y-5 opacity-0"
-                    }`}
+                    className="space-y-4 border-t border-black/10 pt-6"
                   >
                     <div className="flex items-end justify-between gap-3">
                       <h2 className="hero-display text-4xl leading-none text-[#2f2321]">{category}</h2>

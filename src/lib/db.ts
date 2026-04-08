@@ -5,6 +5,14 @@ import productsJson from "../../data/products.json";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
 import { buildInvoiceNumber } from "@/lib/invoice-number";
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function resolveDbPath() {
   const configuredPath = process.env.DATABASE_PATH?.trim();
   if (configuredPath) {
@@ -381,8 +389,13 @@ export function initDb() {
         description TEXT NOT NULL,
         category TEXT NOT NULL,
         sub_category TEXT NOT NULL,
+        sub_category_id TEXT,
+        pricing_mode TEXT NOT NULL DEFAULT 'kg',
         price_inr INTEGER NOT NULL,
+        base_price_per_kg_inr INTEGER,
+        piece_label TEXT,
         image_src TEXT NOT NULL,
+        image_gallery_json TEXT NOT NULL DEFAULT '[]',
         size_options_json TEXT NOT NULL DEFAULT '[]',
         eggless INTEGER NOT NULL DEFAULT 1,
         available INTEGER NOT NULL DEFAULT 1,
@@ -401,6 +414,21 @@ export function initDb() {
         sort_order INTEGER NOT NULL DEFAULT 999,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      )`
+    )
+    .run();
+
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS product_subcategories (
+        id TEXT PRIMARY KEY,
+        category_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 999,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(category_name, name)
       )`
     )
     .run();
@@ -486,9 +514,43 @@ export function initDb() {
   } catch {
     // column already exists
   }
+  try {
+    instance.prepare("ALTER TABLE products ADD COLUMN sub_category_id TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE products ADD COLUMN pricing_mode TEXT NOT NULL DEFAULT 'kg'")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE products ADD COLUMN base_price_per_kg_inr INTEGER").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE products ADD COLUMN piece_label TEXT").run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE products ADD COLUMN image_gallery_json TEXT NOT NULL DEFAULT '[]'")
+      .run();
+  } catch {
+    // column already exists
+  }
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order, name)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_product_subcategories_category_sort ON product_subcategories(category_name, sort_order, name)`
     )
     .run();
 
@@ -499,8 +561,8 @@ export function initDb() {
   if (productsCount.count === 0) {
     const insertProduct = instance.prepare(
       `INSERT INTO products
-        (id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at)
-        VALUES (@id, @name, @description, @category, @sub_category, @price_inr, @image_src, @size_options_json, @eggless, @available, @created_at, @updated_at)`
+        (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at)
+        VALUES (@id, @name, @description, @category, @sub_category, @sub_category_id, @pricing_mode, @price_inr, @base_price_per_kg_inr, @piece_label, @image_src, @image_gallery_json, @size_options_json, @eggless, @available, @created_at, @updated_at)`
     );
 
     const now = new Date().toISOString();
@@ -510,8 +572,13 @@ export function initDb() {
       description: string;
       category: string;
       subCategory: string;
+      subCategoryId?: string;
+      pricingMode?: string;
       priceInr: number;
+      basePricePerKgInr?: number | null;
+      pieceLabel?: string;
       imageSrc: string;
+      imageGallery?: string[];
       sizeOptions?: string[];
       eggless: boolean;
       available: boolean;
@@ -525,8 +592,20 @@ export function initDb() {
           description: product.description,
           category: product.category,
           sub_category: product.subCategory,
+          sub_category_id: product.subCategoryId ?? null,
+          pricing_mode: String(product.pricingMode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg",
           price_inr: product.priceInr,
+          base_price_per_kg_inr:
+            String(product.pricingMode ?? "").trim().toLowerCase() === "pcs"
+              ? null
+              : Number(product.basePricePerKgInr ?? product.priceInr),
+          piece_label: product.pieceLabel ?? null,
           image_src: product.imageSrc,
+          image_gallery_json: JSON.stringify(
+            Array.isArray(product.imageGallery)
+              ? Array.from(new Set([product.imageSrc, ...product.imageGallery].filter(Boolean)))
+              : [product.imageSrc]
+          ),
           size_options_json: JSON.stringify(product.sizeOptions ?? []),
           eggless: product.eggless ? 1 : 0,
           available: product.available ? 1 : 0,
@@ -592,4 +671,98 @@ export function initDb() {
     });
   });
   syncCategoryCards();
+
+  const ensureSubcategory = instance.prepare(
+    `INSERT OR IGNORE INTO product_subcategories
+      (id, category_name, name, sort_order, active, created_at, updated_at)
+      VALUES (@id, @category_name, @name, @sort_order, 1, @created_at, @updated_at)`
+  );
+  const selectSubcategory = instance.prepare(
+    `SELECT id FROM product_subcategories WHERE category_name = ? AND name = ? LIMIT 1`
+  );
+  const productRows = instance
+    .prepare(
+      `SELECT id, category, sub_category, price_inr, pricing_mode, base_price_per_kg_inr, piece_label, image_src, image_gallery_json
+       FROM products`
+    )
+    .all() as Array<{
+    id: string;
+    category: string;
+    sub_category: string;
+    price_inr: number;
+    pricing_mode: string | null;
+    base_price_per_kg_inr: number | null;
+    piece_label: string | null;
+    image_src: string;
+    image_gallery_json: string | null;
+  }>;
+
+  const productSubcategoryCounts = new Map<string, number>();
+  const now = new Date().toISOString();
+  const updateProductMetadata = instance.prepare(
+    `UPDATE products
+     SET sub_category_id = @sub_category_id,
+         pricing_mode = @pricing_mode,
+         base_price_per_kg_inr = @base_price_per_kg_inr,
+         piece_label = @piece_label,
+         image_gallery_json = @image_gallery_json,
+         updated_at = @updated_at
+     WHERE id = @id`
+  );
+
+  for (const row of productRows) {
+    const categoryName = String(row.category ?? "").trim() || "General";
+    const subCategoryName = String(row.sub_category ?? "").trim() || "General";
+    const subcategoryKey = `${categoryName}::${subCategoryName}`;
+    const sortOrder = (productSubcategoryCounts.get(categoryName) ?? 0) + 1;
+    if (!productSubcategoryCounts.has(subcategoryKey)) {
+      ensureSubcategory.run({
+        id: `${slugify(categoryName)}-${slugify(subCategoryName) || "general"}`,
+        category_name: categoryName,
+        name: subCategoryName,
+        sort_order: sortOrder,
+        created_at: now,
+        updated_at: now,
+      });
+      productSubcategoryCounts.set(categoryName, sortOrder);
+      productSubcategoryCounts.set(subcategoryKey, sortOrder);
+    }
+    const subcategoryRow = selectSubcategory.get(categoryName, subCategoryName) as
+      | { id: string }
+      | undefined;
+    const pricingMode =
+      String(row.pricing_mode ?? "").trim().toLowerCase() === "pcs" ||
+      /cupcake|chocolate|cookies?|brownie|dessert|jar|cup/i.test(categoryName)
+        ? "pcs"
+        : "kg";
+    const pieceLabel =
+      pricingMode === "pcs"
+        ? row.piece_label ||
+          (/cupcake/i.test(categoryName)
+            ? "cupcakes"
+            : /cookie/i.test(categoryName)
+              ? "cookies"
+              : /brownie/i.test(categoryName)
+                ? "brownies"
+                : "pieces")
+        : null;
+    let imageGalleryJson = row.image_gallery_json;
+    try {
+      const parsed = JSON.parse(row.image_gallery_json ?? "[]") as string[];
+      const next = Array.from(new Set([row.image_src, ...parsed].filter(Boolean)));
+      imageGalleryJson = JSON.stringify(next);
+    } catch {
+      imageGalleryJson = JSON.stringify([row.image_src].filter(Boolean));
+    }
+
+    updateProductMetadata.run({
+      id: row.id,
+      sub_category_id: subcategoryRow?.id ?? null,
+      pricing_mode: pricingMode,
+      base_price_per_kg_inr: pricingMode === "kg" ? Number(row.base_price_per_kg_inr ?? row.price_inr) : null,
+      piece_label: pieceLabel,
+      image_gallery_json: imageGalleryJson,
+      updated_at: now,
+    });
+  }
 }

@@ -1,12 +1,19 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AdminGuard } from "@/components/admin-guard";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Badge } from "@/components/ui/badge";
-import { formatInr, type ProductCategory } from "@/lib/products";
+import {
+  formatInr,
+  getPriceDisplayMeta,
+  type ProductCategory,
+  type ProductPricingMode,
+} from "@/lib/products";
 
 type AdminProduct = {
   id: string;
@@ -14,8 +21,13 @@ type AdminProduct = {
   description: string;
   category: ProductCategory;
   subCategory: string;
+  subCategoryId?: string | null;
+  pricingMode: ProductPricingMode;
   priceInr: number;
+  basePricePerKgInr?: number | null;
+  pieceLabel?: string | null;
   imageSrc: string;
+  imageGallery?: string[];
   sizeOptions?: string[];
   eggless: boolean;
   available: boolean;
@@ -28,8 +40,13 @@ type ProductForm = {
   description: string;
   category: ProductCategory;
   subCategory: string;
+  subCategoryId: string;
+  pricingMode: ProductPricingMode;
   priceInr: string;
+  basePricePerKgInr: string;
+  pieceLabel: string;
   imageSrc: string;
+  imageGallery: string[];
   sizeOptions: string;
   eggless: boolean;
   available: boolean;
@@ -42,14 +59,27 @@ type AdminCategory = {
   sortOrder: number;
 };
 
+type AdminSubCategory = {
+  id: string;
+  categoryName: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+};
+
 function buildEmptyForm(defaultCategory: string): ProductForm {
   return {
     name: "",
     description: "",
     category: defaultCategory,
     subCategory: "",
+    subCategoryId: "",
+    pricingMode: "kg",
     priceInr: "",
+    basePricePerKgInr: "",
+    pieceLabel: "",
     imageSrc: "",
+    imageGallery: [],
     sizeOptions: "",
     eggless: true,
     available: true,
@@ -61,6 +91,11 @@ const EMPTY_CATEGORY_FORM = {
   imageSrc: "",
 };
 
+const EMPTY_SUBCATEGORY_FORM = {
+  categoryName: "",
+  name: "",
+};
+
 function normalizeImageSrc(value: string) {
   const cleaned = value.trim().replaceAll("\\", "/");
   if (!cleaned) return "";
@@ -70,14 +105,18 @@ function normalizeImageSrc(value: string) {
 
 export default function AdminProductsPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+  const [subCategories, setSubCategories] = useState<AdminSubCategory[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [form, setForm] = useState<ProductForm>(buildEmptyForm("Chocolates"));
   const [categoryForm, setCategoryForm] = useState(EMPTY_CATEGORY_FORM);
+  const [subcategoryForm, setSubcategoryForm] = useState(EMPTY_SUBCATEGORY_FORM);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [categorySaving, setCategorySaving] = useState(false);
+  const [subcategorySaving, setSubcategorySaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -89,6 +128,10 @@ export default function AdminProductsPage() {
   const categoryHeading = useMemo(
     () => (editingCategoryId ? "Edit Category" : "Add Category"),
     [editingCategoryId]
+  );
+  const subcategoryHeading = useMemo(
+    () => (editingSubcategoryId ? "Edit Subcategory" : "Add Subcategory"),
+    [editingSubcategoryId]
   );
 
   const loadProducts = async () => {
@@ -124,9 +167,20 @@ export default function AdminProductsPage() {
     });
   };
 
+  const loadSubCategories = async () => {
+    const response = await fetch("/api/admin/subcategories", { cache: "no-store" });
+    const data = (await response.json()) as {
+      subcategories?: AdminSubCategory[];
+      error?: string;
+    };
+    if (!response.ok) throw new Error(data.error ?? "Failed to load subcategories");
+    setSubCategories(data.subcategories ?? []);
+  };
+
   useEffect(() => {
     void (async () => {
       await loadCategories();
+      await loadSubCategories();
       await loadProducts();
     })();
   }, []);
@@ -142,31 +196,118 @@ export default function AdminProductsPage() {
     });
   }, [categories]);
 
+  useEffect(() => {
+    setSubcategoryForm((prev) =>
+      prev.categoryName ? prev : { ...prev, categoryName: form.category || categories[0]?.name || "" }
+    );
+  }, [categories, form.category]);
+
+  const subCategoriesForSelectedCategory = useMemo(
+    () =>
+      subCategories.filter(
+        (subcategory) => subcategory.categoryName === form.category && subcategory.active
+      ),
+    [form.category, subCategories]
+  );
+
+  const parsedSizeOptions = useMemo(
+    () =>
+      form.sizeOptions
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [form.sizeOptions]
+  );
+
+  const pricingPreview = useMemo(
+    () =>
+      getPriceDisplayMeta(
+        {
+          id: "preview",
+          name: form.name || "Preview",
+          description: form.description || "Preview",
+          category: form.category,
+          subCategory: form.subCategory,
+          subCategoryId: form.subCategoryId || undefined,
+          pricingMode: form.pricingMode,
+          priceInr: Number(form.priceInr || 0),
+          basePricePerKgInr:
+            form.pricingMode === "kg" ? Number(form.basePricePerKgInr || form.priceInr || 0) : null,
+          pieceLabel: form.pieceLabel || undefined,
+          imageSrc: form.imageSrc || "/images/categories/cakes.svg",
+          imageGallery: form.imageGallery,
+          sizeOptions: parsedSizeOptions,
+          eggless: form.eggless,
+          available: form.available,
+        },
+        parsedSizeOptions[0]
+      ),
+    [form, parsedSizeOptions]
+  );
+
+  useEffect(() => {
+    if (subCategoriesForSelectedCategory.length === 0) {
+      setForm((prev) => ({ ...prev, subCategoryId: "", subCategory: "" }));
+      return;
+    }
+
+    setForm((prev) => {
+      const current = subCategoriesForSelectedCategory.find((item) => item.id === prev.subCategoryId);
+      if (current) {
+        return { ...prev, subCategory: current.name };
+      }
+      const first = subCategoriesForSelectedCategory[0];
+      return {
+        ...prev,
+        subCategoryId: first.id,
+        subCategory: first.name,
+      };
+    });
+  }, [subCategoriesForSelectedCategory]);
+
   const resetForm = () => {
     setForm(buildEmptyForm(categories[0]?.name ?? "Chocolates"));
     setEditingId(null);
   };
 
-  const handleUpload = async (file: File) => {
+  const resetSubcategoryForm = () => {
+    setEditingSubcategoryId(null);
+    setSubcategoryForm({
+      ...EMPTY_SUBCATEGORY_FORM,
+      categoryName: form.category,
+    });
+  };
+
+  const handleUpload = async (files: FileList | File[]) => {
     setUploading(true);
     setError("");
     setMessage("");
     try {
       const payload = new FormData();
-      payload.append("file", file);
+      Array.from(files).forEach((file) => payload.append("files", file));
       const response = await fetch("/api/admin/products/upload", {
         method: "POST",
         body: payload,
       });
-      const data = (await response.json()) as { imageSrc?: string; error?: string };
+      const data = (await response.json()) as {
+        imageSrc?: string;
+        images?: string[];
+        error?: string;
+      };
       if (!response.ok || !data.imageSrc) {
         throw new Error(data.error ?? "Upload failed");
       }
+      const uploadedImages = (data.images ?? [data.imageSrc]).map((value) =>
+        normalizeImageSrc(value)
+      );
       setForm((prev) => ({
         ...prev,
         imageSrc: normalizeImageSrc(data.imageSrc ?? prev.imageSrc),
+        imageGallery: Array.from(new Set([...prev.imageGallery, ...uploadedImages])),
       }));
-      setMessage("Image uploaded.");
+      setMessage(
+        uploadedImages.length > 1 ? `${uploadedImages.length} images uploaded.` : "Image uploaded."
+      );
     } catch (err) {
       setError(String(err));
     } finally {
@@ -183,7 +324,9 @@ export default function AdminProductsPage() {
       const payload = {
         ...form,
         imageSrc: normalizeImageSrc(form.imageSrc),
+        imageGallery: form.imageGallery.map(normalizeImageSrc),
         priceInr: Number(form.priceInr),
+        basePricePerKgInr: Number(form.basePricePerKgInr || 0),
         sizeOptions: form.sizeOptions,
       };
 
@@ -212,8 +355,13 @@ export default function AdminProductsPage() {
       description: product.description,
       category: product.category,
       subCategory: product.subCategory,
+      subCategoryId: product.subCategoryId ?? "",
+      pricingMode: product.pricingMode,
       priceInr: String(product.priceInr),
+      basePricePerKgInr: String(product.basePricePerKgInr ?? ""),
+      pieceLabel: product.pieceLabel ?? "",
       imageSrc: product.imageSrc,
+      imageGallery: product.imageGallery ?? [product.imageSrc],
       sizeOptions: (product.sizeOptions ?? []).join(", "),
       eggless: product.eggless,
       available: product.available,
@@ -330,6 +478,86 @@ export default function AdminProductsPage() {
     }
   };
 
+  const handleCreateSubcategory = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubcategorySaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/subcategories", {
+        method: editingSubcategoryId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          editingSubcategoryId
+            ? {
+                id: editingSubcategoryId,
+                categoryName: subcategoryForm.categoryName,
+                name: subcategoryForm.name,
+              }
+            : {
+                categoryName: subcategoryForm.categoryName,
+                name: subcategoryForm.name,
+              }
+        ),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            (editingSubcategoryId
+              ? "Failed to update subcategory"
+              : "Failed to create subcategory")
+        );
+      }
+
+      resetSubcategoryForm();
+      setMessage(editingSubcategoryId ? "Subcategory updated." : "Subcategory created.");
+      await loadSubCategories();
+      await loadProducts();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSubcategorySaving(false);
+    }
+  };
+
+  const handleEditSubcategory = (subcategory: AdminSubCategory) => {
+    setEditingSubcategoryId(subcategory.id);
+    setSubcategoryForm({
+      categoryName: subcategory.categoryName,
+      name: subcategory.name,
+    });
+    setError("");
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDeleteSubcategory = async (id: string) => {
+    const ok = window.confirm(
+      "Delete this subcategory? It can only be deleted if no products use it."
+    );
+    if (!ok) return;
+
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/subcategories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Failed to delete subcategory");
+
+      if (editingSubcategoryId === id) resetSubcategoryForm();
+      setMessage("Subcategory deleted.");
+      await loadSubCategories();
+      await loadProducts();
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
   return (
     <AdminGuard>
       <div>
@@ -398,6 +626,33 @@ export default function AdminProductsPage() {
                 ))}
               </select>
             </label>
+            <label className="text-sm font-semibold text-black/70">
+              Subcategory
+              <select
+                value={form.subCategoryId}
+                onChange={(event) => {
+                  const selected = subCategoriesForSelectedCategory.find(
+                    (item) => item.id === event.target.value
+                  );
+                  setForm((prev) => ({
+                    ...prev,
+                    subCategoryId: event.target.value,
+                    subCategory: selected?.name ?? "",
+                  }));
+                }}
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              >
+                <option value="">General</option>
+                {subCategoriesForSelectedCategory.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.id}>
+                    {subcategory.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs font-normal text-black/55">
+                Admin-managed subcategories appear here for the selected category.
+              </p>
+            </label>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
               Description
               <textarea
@@ -411,17 +666,29 @@ export default function AdminProductsPage() {
               />
             </label>
             <label className="text-sm font-semibold text-black/70">
-              Sub Category
-              <input
-                value={form.subCategory}
+              Pricing Mode
+              <select
+                value={form.pricingMode}
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, subCategory: event.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    pricingMode: event.target.value as ProductPricingMode,
+                    pieceLabel:
+                      event.target.value === "pcs" ? prev.pieceLabel || "pieces" : "",
+                    basePricePerKgInr:
+                      event.target.value === "kg"
+                        ? prev.basePricePerKgInr || prev.priceInr
+                        : "",
+                  }))
                 }
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
-              />
+              >
+                <option value="kg">By weight (kg)</option>
+                <option value="pcs">By pieces / pack</option>
+              </select>
             </label>
             <label className="text-sm font-semibold text-black/70">
-              Price (INR)
+              {form.pricingMode === "kg" ? "Default Selling Price (INR)" : "Unit Price (INR)"}
               <input
                 type="number"
                 value={form.priceInr}
@@ -432,21 +699,70 @@ export default function AdminProductsPage() {
                 min={0}
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
               />
+              <p className="mt-1 text-xs font-normal text-black/55">
+                {form.pricingMode === "kg"
+                  ? "Fallback price used when a size does not contain a weight."
+                  : "Per pack / piece-group selling price."}
+              </p>
             </label>
             <label className="text-sm font-semibold text-black/70">
-              Quantity / Weight Options
+              {form.pricingMode === "kg" ? "Base Price per Kg (INR)" : "Piece Label"}
+              {form.pricingMode === "kg" ? (
+                <input
+                  type="number"
+                  value={form.basePricePerKgInr}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, basePricePerKgInr: event.target.value }))
+                  }
+                  min={0}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                />
+              ) : (
+                <input
+                  value={form.pieceLabel}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, pieceLabel: event.target.value }))
+                  }
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="pieces / cupcakes / brownies"
+                />
+              )}
+              <p className="mt-1 text-xs font-normal text-black/55">
+                {form.pricingMode === "kg"
+                  ? "Used to auto-calculate the displayed selling price from the selected weight."
+                  : "Used as the option label across menu, product page, cart, and invoices."}
+              </p>
+            </label>
+            <label className="text-sm font-semibold text-black/70 md:col-span-2">
+              {form.pricingMode === "kg" ? "Weight Options" : "Piece / Pack Options"}
               <input
                 value={form.sizeOptions}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, sizeOptions: event.target.value }))
                 }
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
-                placeholder="500g, 1kg, 1.5kg, 2kg"
+                placeholder={
+                  form.pricingMode === "kg"
+                    ? "500gm, 1000gm, 1500gm, 2000gm"
+                    : "6 pieces, 12 pieces, 24 pieces"
+                }
               />
               <p className="mt-1 text-xs font-normal text-black/55">
-                Enter comma-separated size options for this product.
+                Enter comma-separated options. The first option is used for price preview.
               </p>
             </label>
+            <div className="rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-4 text-sm md:col-span-2">
+              <p className="font-semibold text-black/75">Pricing Preview</p>
+              <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-black/65">
+                <span>Display Price: <strong className="text-black">{pricingPreview.finalPriceLabel}</strong></span>
+                {pricingPreview.pricePerKgLabel ? (
+                  <span>Price / kg: <strong className="text-black">{pricingPreview.pricePerKgLabel}</strong></span>
+                ) : null}
+                {parsedSizeOptions[0] ? (
+                  <span>Preview Option: <strong className="text-black">{parsedSizeOptions[0]}</strong></span>
+                ) : null}
+              </div>
+            </div>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
               Image URL
               <input
@@ -467,18 +783,77 @@ export default function AdminProductsPage() {
               </p>
             </label>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
-              Upload Image
+              Upload Images
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+                multiple
                 className="mt-2 block w-full text-sm"
                 onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void handleUpload(file);
+                  const files = event.target.files;
+                  if (files && files.length > 0) void handleUpload(files);
                 }}
               />
               {uploading && <p className="mt-2 text-xs text-black/60">Uploading...</p>}
             </label>
+            {form.imageGallery.length > 0 ? (
+              <div className="md:col-span-2 space-y-3">
+                <p className="text-sm font-semibold text-black/70">Gallery Images</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {form.imageGallery.map((image) => {
+                    const isPrimary = image === form.imageSrc;
+                    return (
+                      <article
+                        key={image}
+                        className="rounded-2xl border border-black/10 bg-[color:var(--cream)] p-3"
+                      >
+                        <img
+                          src={image}
+                          alt="Product gallery preview"
+                          className="h-32 w-full rounded-xl border border-black/10 object-cover"
+                        />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                imageSrc: image,
+                              }))
+                            }
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              isPrimary
+                                ? "bg-[color:var(--berry)] text-white"
+                                : "border border-black/10 bg-white"
+                            }`}
+                          >
+                            {isPrimary ? "Primary" : "Set Primary"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => {
+                                const nextGallery = prev.imageGallery.filter((value) => value !== image);
+                                const nextPrimary =
+                                  prev.imageSrc === image ? nextGallery[0] ?? "" : prev.imageSrc;
+                                return {
+                                  ...prev,
+                                  imageSrc: nextPrimary,
+                                  imageGallery: nextGallery,
+                                };
+                              })
+                            }
+                            className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             <label className="inline-flex items-center gap-2 text-sm font-semibold text-black/70">
               <input
                 type="checkbox"
@@ -589,6 +964,69 @@ export default function AdminProductsPage() {
             )}
           </form>
 
+          <form
+            onSubmit={handleCreateSubcategory}
+            className="mt-6 grid gap-4 rounded-3xl border border-black/5 bg-white p-6 md:grid-cols-[1fr_1fr_auto]"
+          >
+            <h2 className="md:col-span-3 text-2xl">{subcategoryHeading}</h2>
+            <label className="text-sm font-semibold text-black/70">
+              Parent Category
+              <select
+                value={subcategoryForm.categoryName}
+                onChange={(event) =>
+                  setSubcategoryForm((prev) => ({
+                    ...prev,
+                    categoryName: event.target.value,
+                  }))
+                }
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-black/70">
+              Subcategory Name
+              <input
+                value={subcategoryForm.name}
+                onChange={(event) =>
+                  setSubcategoryForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                required
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              />
+            </label>
+            <div className="self-end">
+              <button
+                type="submit"
+                disabled={subcategorySaving}
+                className="rounded-full bg-[color:var(--berry)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {subcategorySaving
+                  ? editingSubcategoryId
+                    ? "Updating..."
+                    : "Adding..."
+                  : editingSubcategoryId
+                  ? "Update Subcategory"
+                  : "Add Subcategory"}
+              </button>
+            </div>
+            {editingSubcategoryId && (
+              <div className="md:col-span-3">
+                <button
+                  type="button"
+                  onClick={resetSubcategoryForm}
+                  className="rounded-full border border-black/10 px-5 py-2 text-sm font-semibold"
+                >
+                  Cancel Subcategory Edit
+                </button>
+              </div>
+            )}
+          </form>
+
           <section className="mt-6 rounded-3xl border border-black/5 bg-white p-6">
             <h2 className="text-2xl">All Categories</h2>
             {categories.length === 0 && (
@@ -632,6 +1070,45 @@ export default function AdminProductsPage() {
             </div>
           </section>
 
+          <section className="mt-6 rounded-3xl border border-black/5 bg-white p-6">
+            <h2 className="text-2xl">All Subcategories</h2>
+            {subCategories.length === 0 && (
+              <p className="mt-3 text-sm text-black/60">No subcategories found.</p>
+            )}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {subCategories.map((subcategory) => (
+                <article
+                  key={subcategory.id}
+                  className="rounded-2xl border border-black/10 bg-[color:var(--cream)] p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-black/50">
+                      {subcategory.categoryName}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold">{subcategory.name}</p>
+                    <p className="text-xs text-black/50">Sort: {subcategory.sortOrder}</p>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditSubcategory(subcategory)}
+                      className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSubcategory(subcategory.id)}
+                      className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="mt-8 rounded-3xl border border-black/5 bg-white p-6">
             <h2 className="text-2xl">All Products</h2>
             {loading && <p className="mt-3 text-sm text-black/60">Loading products...</p>}
@@ -656,13 +1133,29 @@ export default function AdminProductsPage() {
                       <p className="text-xs text-black/60">
                         {product.category} · {product.subCategory || "General"}
                       </p>
+                      <p className="mt-1 text-xs text-black/55">
+                        {product.pricingMode === "kg"
+                          ? `Weight pricing${product.basePricePerKgInr ? ` · ${formatInr(product.basePricePerKgInr)} / kg` : ""}`
+                          : `${product.pieceLabel || "pieces"} pricing`}
+                      </p>
                       {(product.sizeOptions ?? []).length > 0 ? (
                         <p className="mt-1 text-xs text-black/55">
                           {(product.sizeOptions ?? []).join(" · ")}
                         </p>
                       ) : null}
+                      <p className="mt-1 text-xs text-black/55">
+                        Gallery images: {product.imageGallery?.length ?? 1}
+                      </p>
                       <p className="text-sm font-semibold text-[color:var(--berry)]">
-                        {formatInr(product.priceInr)}
+                        {getPriceDisplayMeta(
+                          {
+                            ...product,
+                            imageGallery: product.imageGallery ?? [product.imageSrc],
+                            pieceLabel: product.pieceLabel ?? undefined,
+                            subCategoryId: product.subCategoryId ?? undefined,
+                          },
+                          product.sizeOptions?.[0]
+                        ).finalPriceLabel}
                       </p>
                     </div>
                   </div>

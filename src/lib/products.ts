@@ -1,6 +1,7 @@
 import productsJson from "../../data/products.json";
 
 export type ProductCategory = string;
+export type ProductPricingMode = "kg" | "pcs";
 
 export type Product = {
   id: string;
@@ -8,14 +9,121 @@ export type Product = {
   description: string;
   category: ProductCategory;
   subCategory: string;
+  subCategoryId?: string;
+  pricingMode: ProductPricingMode;
   priceInr: number;
+  basePricePerKgInr?: number | null;
+  pieceLabel?: string;
   imageSrc: string;
+  imageGallery: string[];
   sizeOptions?: string[];
   eggless: boolean;
   available: boolean;
 };
 
-const products = productsJson as Product[];
+type RawProduct = {
+  id: string;
+  name: string;
+  description: string;
+  category: ProductCategory;
+  subCategory: string;
+  subCategoryId?: string;
+  pricingMode?: string;
+  priceInr: number;
+  basePricePerKgInr?: number | null;
+  pieceLabel?: string;
+  imageSrc: string;
+  imageGallery?: string[];
+  sizeOptions?: string[];
+  eggless: boolean;
+  available: boolean;
+};
+
+const DEFAULT_CAKE_SIZE_OPTIONS = [
+  "Small (500gm)",
+  "Medium (1000gm)",
+  "Medium Plus (1500gm)",
+  "Large (2000gm)",
+];
+
+const DEFAULT_CUPCAKE_COUNT_OPTIONS = ["2 cupcakes", "4 cupcakes", "6 cupcakes", "12 cupcakes"];
+const DEFAULT_CHOCOLATE_COUNT_OPTIONS = ["6 pieces", "12 pieces", "24 pieces"];
+
+const FLAVOR_PATTERNS = [
+  { label: "Dark Chocolate", test: /dark chocolate/i },
+  { label: "Milk Chocolate", test: /milk chocolate/i },
+  { label: "Chocolate", test: /\bchoco(?:late)?\b/i },
+  { label: "Truffle", test: /truffle/i },
+  { label: "Vanilla", test: /vanilla/i },
+  { label: "Strawberry", test: /strawberry/i },
+  { label: "Blueberry", test: /blueberry/i },
+  { label: "Pineapple", test: /pineapple/i },
+  { label: "Red Velvet", test: /red velvet/i },
+  { label: "Mango", test: /mango/i },
+  { label: "Lotus Biscoff", test: /biscoff|lotus/i },
+  { label: "Butter", test: /butter/i },
+  { label: "Almond", test: /almond/i },
+  { label: "Walnut", test: /walnut/i },
+  { label: "Cherry", test: /cherry/i },
+  { label: "Fudge", test: /fudge/i },
+  { label: "Cream", test: /cream/i },
+];
+
+function inferPricingMode(raw: RawProduct): ProductPricingMode {
+  const normalized = String(raw.pricingMode ?? "").trim().toLowerCase();
+  if (normalized === "kg" || normalized === "pcs") {
+    return normalized;
+  }
+
+  const haystack = `${raw.category} ${raw.name} ${raw.subCategory}`.toLowerCase();
+  if (/cupcake|chocolate|cookies?|brownie|dessert|jar|cup/.test(haystack)) {
+    return "pcs";
+  }
+  return "kg";
+}
+
+function inferPieceLabel(raw: RawProduct, pricingMode: ProductPricingMode) {
+  if (pricingMode !== "pcs") return "";
+  const explicit = String(raw.pieceLabel ?? "").trim();
+  if (explicit) return explicit;
+  if (/cupcake/i.test(raw.category)) return "cupcakes";
+  if (/cookie/i.test(raw.category)) return "cookies";
+  if (/brownie/i.test(raw.category)) return "brownies";
+  return "pieces";
+}
+
+function normalizeGallery(raw: RawProduct) {
+  const gallery = Array.isArray(raw.imageGallery)
+    ? raw.imageGallery.map((value) => String(value).trim()).filter(Boolean)
+    : [];
+  return Array.from(new Set([raw.imageSrc, ...gallery].filter(Boolean)));
+}
+
+function toProduct(raw: RawProduct): Product {
+  const pricingMode = inferPricingMode(raw);
+  return {
+    id: raw.id,
+    name: raw.name,
+    description: raw.description,
+    category: raw.category,
+    subCategory: raw.subCategory,
+    subCategoryId: raw.subCategoryId,
+    pricingMode,
+    priceInr: Number(raw.priceInr),
+    basePricePerKgInr:
+      pricingMode === "kg"
+        ? Number(raw.basePricePerKgInr ?? raw.priceInr) || Number(raw.priceInr)
+        : null,
+    pieceLabel: inferPieceLabel(raw, pricingMode),
+    imageSrc: raw.imageSrc,
+    imageGallery: normalizeGallery(raw),
+    sizeOptions: raw.sizeOptions?.map((value) => value.trim()).filter(Boolean),
+    eggless: raw.eggless,
+    available: raw.available,
+  };
+}
+
+const products = (productsJson as RawProduct[]).map(toProduct);
 
 export const PRODUCT_CATEGORIES: ProductCategory[] = [
   "Chocolates",
@@ -75,51 +183,13 @@ export function formatInr(value: number): string {
   }).format(value);
 }
 
-const DEFAULT_CAKE_SIZE_OPTIONS = [
-  "Small (500gm)",
-  "Medium (1000gm)",
-  "Medium Plus (1500gm)",
-  "Large (2000gm)",
-  "Large Plus (2500gm)",
-  "Extra Large (3000gm)",
-];
-
-const DEFAULT_CUPCAKE_COUNT_OPTIONS = [
-  "2 cupcakes",
-  "4 cupcakes",
-  "6 cupcakes",
-  "12 cupcakes",
-];
-
-const DEFAULT_CHOCOLATE_COUNT_OPTIONS = [
-  "6 pieces",
-  "12 pieces",
-  "24 pieces",
-];
-
-const FLAVOR_PATTERNS = [
-  { label: "Dark Chocolate", test: /dark chocolate/i },
-  { label: "Milk Chocolate", test: /milk chocolate/i },
-  { label: "Chocolate", test: /\bchoco(?:late)?\b/i },
-  { label: "Truffle", test: /truffle/i },
-  { label: "Vanilla", test: /vanilla/i },
-  { label: "Strawberry", test: /strawberry/i },
-  { label: "Blueberry", test: /blueberry/i },
-  { label: "Pineapple", test: /pineapple/i },
-  { label: "Red Velvet", test: /red velvet/i },
-  { label: "Mango", test: /mango/i },
-  { label: "Lotus Biscoff", test: /biscoff|lotus/i },
-  { label: "Butter", test: /butter/i },
-  { label: "Almond", test: /almond/i },
-  { label: "Walnut", test: /walnut/i },
-  { label: "Cherry", test: /cherry/i },
-  { label: "Fudge", test: /fudge/i },
-  { label: "Cream", test: /cream/i },
-];
-
-function inferFlavorLabels(product: Product) {
-  const haystack = `${product.name} ${product.description}`.toLowerCase();
-  return FLAVOR_PATTERNS.filter((entry) => entry.test.test(haystack)).map((entry) => entry.label);
+export function parseWeightKg(sizeLabel?: string) {
+  const raw = String(sizeLabel ?? "").trim().toLowerCase();
+  const gmMatch = raw.match(/(\d+(?:\.\d+)?)\s*gm\b/);
+  if (gmMatch) return Number(gmMatch[1]) / 1000;
+  const kgMatch = raw.match(/(\d+(?:\.\d+)?)\s*kg\b/);
+  if (kgMatch) return Number(kgMatch[1]);
+  return null;
 }
 
 export function getDisplaySizeOptions(product: Product): string[] {
@@ -127,25 +197,50 @@ export function getDisplaySizeOptions(product: Product): string[] {
     return product.sizeOptions.map((value) => value.trim()).filter(Boolean);
   }
 
-  if (/cupcake/i.test(product.category)) {
-    return DEFAULT_CUPCAKE_COUNT_OPTIONS;
+  if (product.pricingMode === "pcs") {
+    if (/cupcake/i.test(product.category)) return DEFAULT_CUPCAKE_COUNT_OPTIONS;
+    if (/chocolate/i.test(product.category)) return DEFAULT_CHOCOLATE_COUNT_OPTIONS;
+    return [];
   }
 
-  if (/chocolate/i.test(product.category)) {
-    return DEFAULT_CHOCOLATE_COUNT_OPTIONS;
-  }
-
-  if (/(^| )cakes?$/i.test(product.category) || /cake/i.test(product.category)) {
-    return DEFAULT_CAKE_SIZE_OPTIONS;
-  }
-
-  return [];
+  return DEFAULT_CAKE_SIZE_OPTIONS;
 }
 
 export function getProductOptionLabel(product: Product) {
-  if (/cupcake/i.test(product.category)) return "Count";
-  if (/chocolate/i.test(product.category)) return "Count";
+  if (product.pricingMode === "pcs") {
+    return product.pieceLabel || "Pieces";
+  }
   return "Sizes";
+}
+
+export function getProductPriceForOption(product: Product, optionLabel?: string) {
+  if (product.pricingMode === "kg") {
+    const weightKg = parseWeightKg(optionLabel);
+    const base = Number(product.basePricePerKgInr ?? product.priceInr ?? 0);
+    if (weightKg && base > 0) {
+      return Math.round(base * weightKg);
+    }
+    return Math.round(product.priceInr);
+  }
+
+  return Math.round(product.priceInr);
+}
+
+export function getPriceDisplayMeta(product: Product, optionLabel?: string) {
+  const finalPrice = getProductPriceForOption(product, optionLabel);
+  return {
+    finalPrice,
+    finalPriceLabel: formatInr(finalPrice),
+    pricePerKgLabel:
+      product.pricingMode === "kg" && Number(product.basePricePerKgInr ?? 0) > 0
+        ? `${formatInr(Number(product.basePricePerKgInr))} / kg`
+        : null,
+  };
+}
+
+function inferFlavorLabels(product: Product) {
+  const haystack = `${product.name} ${product.description}`.toLowerCase();
+  return FLAVOR_PATTERNS.filter((entry) => entry.test.test(haystack)).map((entry) => entry.label);
 }
 
 export function getDisplayFlavorOptions(

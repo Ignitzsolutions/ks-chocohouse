@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { CITY, PINCODE } from "@/lib/brand";
 import { addItem, clearCart, getCart, type CartItem } from "@/lib/cart";
 import { computePricing } from "@/lib/pricing";
-import { formatInr } from "@/lib/products";
+import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
 type DetailedItem = {
   productId: string;
   qty: number;
   sizeLabel?: string;
+  optionLabel?: string;
   customizationNote?: string;
   id: string;
   name: string;
@@ -126,16 +127,18 @@ export default function BillingPage() {
     for (const entry of cartItems) {
       const product = productById.get(entry.productId);
       if (!product) continue;
+      const unitPrice = getPriceDisplayMeta(product, entry.sizeLabel).finalPrice;
       rows.push({
         productId: entry.productId,
         qty: entry.qty,
         sizeLabel: entry.sizeLabel,
+        optionLabel: getProductOptionLabel(product),
         customizationNote: entry.customizationNote,
         id: product.id,
         name: product.name,
         category: product.category,
-        priceInr: product.priceInr,
-        lineTotal: entry.qty * product.priceInr,
+        priceInr: unitPrice,
+        lineTotal: entry.qty * unitPrice,
       });
     }
     return rows;
@@ -568,7 +571,7 @@ export default function BillingPage() {
                     </div>
                     {item.sizeLabel ? (
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--berry)]">
-                        Weight: {item.sizeLabel}
+                        {item.optionLabel}: {item.sizeLabel}
                       </p>
                     ) : null}
                     {item.customizationNote ? (

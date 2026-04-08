@@ -35,6 +35,13 @@ export function buildPageMetadata(input: MetadataInput): Metadata {
     description: input.description,
     keywords: input.keywords,
     metadataBase: new URL(getSiteUrl()),
+    icons: {
+      icon: [
+        { url: "/images/brand/ks-choco-house-logo.jpg", type: "image/jpeg" },
+      ],
+      shortcut: ["/images/brand/ks-choco-house-logo.jpg"],
+      apple: ["/images/brand/ks-choco-house-logo.jpg"],
+    },
     alternates: { canonical },
     openGraph: {
       type: "website",

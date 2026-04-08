@@ -8,8 +8,13 @@ type ProductRow = {
   description: string;
   category: string;
   sub_category: string;
+  sub_category_id: string | null;
+  pricing_mode: string | null;
   price_inr: number;
+  base_price_per_kg_inr: number | null;
+  piece_label: string | null;
   image_src: string;
+  image_gallery_json: string | null;
   size_options_json: string;
   eggless: number;
   available: number;
@@ -38,6 +43,18 @@ function normalizeSizeOptions(value: unknown) {
     .filter(Boolean);
 }
 
+function parseImageGallery(value: string | null | undefined, imageSrc: string) {
+  try {
+    const parsed = JSON.parse(value ?? "[]") as unknown;
+    const gallery = Array.isArray(parsed)
+      ? parsed.map((item) => String(item).trim()).filter(Boolean)
+      : [];
+    return Array.from(new Set([imageSrc, ...gallery].filter(Boolean)));
+  } catch {
+    return [imageSrc].filter(Boolean);
+  }
+}
+
 function toApiProduct(row: ProductRow) {
   return {
     id: row.id,
@@ -45,8 +62,16 @@ function toApiProduct(row: ProductRow) {
     description: row.description,
     category: row.category,
     subCategory: row.sub_category,
+    subCategoryId: row.sub_category_id,
+    pricingMode: String(row.pricing_mode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg",
     priceInr: Number(row.price_inr),
+    basePricePerKgInr:
+      row.base_price_per_kg_inr === null || row.base_price_per_kg_inr === undefined
+        ? null
+        : Number(row.base_price_per_kg_inr),
+    pieceLabel: row.piece_label,
     imageSrc: row.image_src,
+    imageGallery: parseImageGallery(row.image_gallery_json, row.image_src),
     sizeOptions: parseSizeOptions(row.size_options_json),
     eggless: row.eggless === 1,
     available: row.available === 1,
@@ -107,7 +132,7 @@ export async function GET() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at
+        `SELECT id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at
          FROM products
          ORDER BY category ASC, name ASC`
       )
@@ -134,9 +159,20 @@ export async function POST(request: Request) {
     const description = String(body?.description ?? "").trim();
     const category = ensureCategory(body?.category);
     const subCategory = String(body?.subCategory ?? "").trim() || "General";
+    const subCategoryId = String(body?.subCategoryId ?? "").trim() || null;
+    const pricingMode = String(body?.pricingMode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg";
     const imageSrc = String(body?.imageSrc ?? "").trim();
+    const imageGallery = Array.isArray(body?.imageGallery)
+      ? body.imageGallery.map((item: unknown) => String(item).trim()).filter(Boolean)
+      : [];
     const sizeOptions = normalizeSizeOptions(body?.sizeOptions);
     const priceInr = Number(body?.priceInr ?? 0);
+    const basePricePerKgInr =
+      pricingMode === "kg"
+        ? Number(body?.basePricePerKgInr ?? priceInr)
+        : null;
+    const pieceLabel =
+      pricingMode === "pcs" ? String(body?.pieceLabel ?? "").trim() || "pieces" : null;
     const eggless = body?.eggless !== false;
     const available = body?.available !== false;
 
@@ -155,8 +191,8 @@ export async function POST(request: Request) {
     getDb()
       .prepare(
         `INSERT INTO products
-          (id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -164,8 +200,15 @@ export async function POST(request: Request) {
         description,
         category,
         subCategory,
+        subCategoryId,
+        pricingMode,
         Math.round(priceInr),
+        pricingMode === "kg" && typeof basePricePerKgInr === "number" && Number.isFinite(basePricePerKgInr)
+          ? Math.round(basePricePerKgInr)
+          : null,
+        pieceLabel,
         imageSrc,
+        JSON.stringify(Array.from(new Set([imageSrc, ...imageGallery].filter(Boolean)))),
         JSON.stringify(sizeOptions),
         eggless ? 1 : 0,
         available ? 1 : 0,
@@ -195,8 +238,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Product id is required" }, { status: 400 });
     }
 
+    const existing = getDb()
+      .prepare("SELECT image_src, image_gallery_json FROM products WHERE id = ? LIMIT 1")
+      .get(id) as { image_src: string; image_gallery_json: string | null } | undefined;
+    if (!existing) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
     const fields: string[] = [];
-    const values: Array<string | number> = [];
+    const values: Array<string | number | null> = [];
 
     if (body?.name !== undefined) {
       fields.push("name = ?");
@@ -218,6 +268,14 @@ export async function PATCH(request: Request) {
       fields.push("sub_category = ?");
       values.push(String(body.subCategory).trim() || "General");
     }
+    if (body?.subCategoryId !== undefined) {
+      fields.push("sub_category_id = ?");
+      values.push(String(body.subCategoryId).trim() || null);
+    }
+    if (body?.pricingMode !== undefined) {
+      fields.push("pricing_mode = ?");
+      values.push(String(body.pricingMode).trim().toLowerCase() === "pcs" ? "pcs" : "kg");
+    }
     if (body?.priceInr !== undefined) {
       const value = Number(body.priceInr);
       if (!Number.isFinite(value) || value < 0) {
@@ -229,6 +287,32 @@ export async function PATCH(request: Request) {
     if (body?.imageSrc !== undefined) {
       fields.push("image_src = ?");
       values.push(String(body.imageSrc).trim());
+    }
+    if (body?.imageGallery !== undefined) {
+      const gallery = Array.isArray(body.imageGallery)
+        ? body.imageGallery.map((item: unknown) => String(item).trim()).filter(Boolean)
+        : [];
+      const primaryImageSrc =
+        body?.imageSrc !== undefined ? String(body.imageSrc).trim() : existing.image_src;
+      const existingGallery = parseImageGallery(existing.image_gallery_json, existing.image_src);
+      fields.push("image_gallery_json = ?");
+      values.push(
+        JSON.stringify(
+          Array.from(new Set([primaryImageSrc, ...gallery, ...existingGallery].filter(Boolean)))
+        )
+      );
+    }
+    if (body?.basePricePerKgInr !== undefined) {
+      const value = Number(body.basePricePerKgInr);
+      if (!Number.isFinite(value) || value < 0) {
+        return NextResponse.json({ error: "Invalid base price per kg" }, { status: 400 });
+      }
+      fields.push("base_price_per_kg_inr = ?");
+      values.push(Math.round(value));
+    }
+    if (body?.pieceLabel !== undefined) {
+      fields.push("piece_label = ?");
+      values.push(String(body.pieceLabel).trim() || null);
     }
     if (body?.sizeOptions !== undefined) {
       fields.push("size_options_json = ?");

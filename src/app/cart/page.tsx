@@ -16,7 +16,7 @@ import {
   subscribeCart,
   type CartItem,
 } from "@/lib/cart";
-import { formatInr } from "@/lib/products";
+import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
 export default function CartPage() {
@@ -32,11 +32,13 @@ export default function CartPage() {
       .map((item) => {
         const product = productById.get(item.productId);
         if (!product) return null;
+        const unitPrice = getPriceDisplayMeta(product, item.sizeLabel).finalPrice;
         return {
           ...item,
           product,
           sizeLabel: item.sizeLabel,
-          lineTotal: item.qty * product.priceInr,
+          unitPrice,
+          lineTotal: item.qty * unitPrice,
         };
       })
       .filter((x): x is NonNullable<typeof x> => Boolean(x));
@@ -74,7 +76,7 @@ export default function CartPage() {
               </div>
             )}
 
-            {detailed.map(({ product, qty, lineTotal, customizationNote, sizeLabel }) => (
+            {detailed.map(({ product, qty, lineTotal, customizationNote, sizeLabel, unitPrice }) => (
               <div
                 key={getCartItemKey(product.id, sizeLabel)}
                 className="premium-panel rounded-3xl p-6"
@@ -88,13 +90,15 @@ export default function CartPage() {
                     </p>
                     {sizeLabel ? (
                       <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--berry)]">
-                        Weight: {sizeLabel}
+                        {getProductOptionLabel(product)}: {sizeLabel}
                       </p>
                     ) : null}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-semibold">{formatInr(lineTotal)}</p>
-                    <p className="text-xs text-black/50">Line total</p>
+                    <p className="text-xs text-black/50">
+                      {formatInr(unitPrice)} each
+                    </p>
                   </div>
                 </div>
 

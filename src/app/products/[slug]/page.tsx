@@ -94,7 +94,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
       name: product.name,
       description: product.description,
       category: product.category,
-      image: [getAbsoluteUrl(product.imageSrc)],
+      image: Array.from(new Set([product.imageSrc, ...(product.imageGallery ?? [])])).map((image) =>
+        getAbsoluteUrl(image)
+      ),
       brand: {
         "@type": "Brand",
         name: BRAND_NAME,

@@ -12,8 +12,8 @@ import {
   setItemCustomizationNote,
 } from "@/lib/cart";
 import {
-  formatInr,
   getDisplayFlavorOptions,
+  getPriceDisplayMeta,
   getProductOptionLabel,
   getDisplaySizeOptions,
   type Product,
@@ -25,40 +25,16 @@ type Props = {
 };
 
 function buildGalleryFrames(product: Product) {
-  const fallbackFrames = [
-    {
-      id: `${product.id}-detail-top`,
-      src: product.imageSrc,
-      alt: `${product.name} detail`,
-      label: "Top",
-      objectPosition: "center 18%",
-    },
-    {
-      id: `${product.id}-detail-center`,
-      src: product.imageSrc,
-      alt: `${product.name} texture`,
-      label: "Detail",
-      objectPosition: "center 50%",
-    },
-    {
-      id: `${product.id}-detail-base`,
-      src: product.imageSrc,
-      alt: `${product.name} base`,
-      label: "Finish",
-      objectPosition: "center 82%",
-    },
-  ];
-
-  return [
-    {
-      id: `${product.id}-hero`,
-      src: product.imageSrc,
-      alt: product.name,
-      label: "Front",
-      objectPosition: "center center",
-    },
-    ...fallbackFrames,
-  ].slice(0, 4);
+  const gallery = Array.from(
+    new Set([product.imageSrc, ...(product.imageGallery ?? [])].filter(Boolean))
+  );
+  return gallery.map((src, index) => ({
+    id: `${product.id}-gallery-${index}`,
+    src,
+    alt: index === 0 ? product.name : `${product.name} view ${index + 1}`,
+    label: index === 0 ? "Front" : `View ${index + 1}`,
+    objectPosition: "center center",
+  }));
 }
 
 function isLimitedDeliveryCategory(product: Product) {
@@ -89,6 +65,10 @@ export function ProductDetailClient({ product }: Props) {
   const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
 
   const activeFrame = galleryFrames[activeFrameIndex] ?? galleryFrames[0];
+  const priceMeta = useMemo(
+    () => getPriceDisplayMeta(product, selectedSize || undefined),
+    [product, selectedSize]
+  );
 
   const cartQty =
     getCart().find(
@@ -193,7 +173,7 @@ export function ProductDetailClient({ product }: Props) {
                       alt={frame.alt}
                       className="h-full w-full object-cover"
                       style={{ objectPosition: frame.objectPosition }}
-                      loading="lazy"
+                      loading="eager"
                       decoding="async"
                     />
                   </div>
@@ -213,8 +193,11 @@ export function ProductDetailClient({ product }: Props) {
             </h1>
             <div className="mt-5 h-px w-20 bg-[#4a1f1f]" />
             <p className="mt-6 text-[22px] font-medium text-[#4b403d]">
-              {formatInr(product.priceInr)}
+              {priceMeta.finalPriceLabel}
             </p>
+            {priceMeta.pricePerKgLabel ? (
+              <p className="mt-2 text-sm font-medium text-[#6e5e58]">{priceMeta.pricePerKgLabel}</p>
+            ) : null}
           </div>
 
           <div className="space-y-4">

@@ -80,7 +80,7 @@ export function MenuDesktopShell<TCategory extends string>({
     return Math.max(absoluteTop - sectionTopOffset, 0);
   }
 
-  function scrollToCategory(category: TCategory, behavior: ScrollBehavior = "smooth") {
+  function scrollToCategory(category: TCategory, behavior: ScrollBehavior = "auto") {
     const container = catalogContainerRef.current;
     if (!container) return;
 
@@ -93,7 +93,7 @@ export function MenuDesktopShell<TCategory extends string>({
   function selectCategory(category: TCategory) {
     notifyActiveCategory(category);
     onCategorySelect?.(category);
-    scrollToCategory(category, "smooth");
+    scrollToCategory(category, "auto");
   }
 
   function setSectionRef(category: TCategory) {

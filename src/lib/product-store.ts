@@ -12,8 +12,13 @@ type ProductRow = {
   description: string;
   category: string;
   sub_category: string;
+  sub_category_id?: string | null;
+  pricing_mode?: string | null;
   price_inr: number;
+  base_price_per_kg_inr?: number | null;
+  piece_label?: string | null;
   image_src: string;
+  image_gallery_json?: string | null;
   size_options_json: string;
   eggless: number;
   available: number;
@@ -29,6 +34,18 @@ function parseSizeOptions(value: string | null | undefined) {
   }
 }
 
+function parseImageGallery(value: string | null | undefined, imageSrc: string) {
+  try {
+    const parsed = JSON.parse(value ?? "[]") as unknown;
+    const gallery = Array.isArray(parsed)
+      ? parsed.map((item) => String(item).trim()).filter(Boolean)
+      : [];
+    return Array.from(new Set([imageSrc, ...gallery].filter(Boolean)));
+  } catch {
+    return [imageSrc].filter(Boolean);
+  }
+}
+
 function toProduct(row: ProductRow): Product {
   return {
     id: row.id,
@@ -36,8 +53,16 @@ function toProduct(row: ProductRow): Product {
     description: row.description,
     category: row.category,
     subCategory: row.sub_category,
+    subCategoryId: row.sub_category_id ?? undefined,
+    pricingMode: String(row.pricing_mode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg",
     priceInr: Number(row.price_inr),
+    basePricePerKgInr:
+      row.base_price_per_kg_inr === null || row.base_price_per_kg_inr === undefined
+        ? null
+        : Number(row.base_price_per_kg_inr),
+    pieceLabel: row.piece_label ?? undefined,
     imageSrc: row.image_src,
+    imageGallery: parseImageGallery(row.image_gallery_json, row.image_src),
     sizeOptions: parseSizeOptions(row.size_options_json),
     eggless: row.eggless === 1,
     available: row.available === 1,
@@ -49,7 +74,7 @@ function queryAvailableProductById(id: string) {
     initDb();
     const row = getDb()
       .prepare(
-        `SELECT id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available
+        `SELECT id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available
          FROM products
          WHERE id = ? AND available = 1
          LIMIT 1`
@@ -76,7 +101,7 @@ export function getAllAvailableProducts() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT id, name, description, category, sub_category, price_inr, image_src, size_options_json, eggless, available
+        `SELECT id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available
          FROM products
          WHERE available = 1
          ORDER BY category ASC, name ASC`

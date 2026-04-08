@@ -32,7 +32,7 @@ function parseReferenceDate(referenceDate?: string | null, fallbackOrderId?: str
 function resolveInvoiceType(orderId: string, source?: string | null, orderKind?: string | null) {
   if (orderKind === "return" || orderId.startsWith("RTN-")) return "RTN";
   if (source === "offline" || orderId.startsWith("OFF-")) return "OFF";
-  return "ONL";
+  return "WEB";
 }
 
 export function buildInvoiceNumber(
