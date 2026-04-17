@@ -28,11 +28,13 @@ function timingSafeEquals(a: string, b: string) {
 
 function getAdminConfig() {
   const config = getRuntimeConfig();
+  const secureCookies = config.siteUrl.startsWith("https://");
   return {
     username: config.adminUsername,
     password: config.adminPassword,
     secret: config.adminAuthSecret,
     ttlSeconds: config.adminSessionTtlSeconds,
+    secureCookies,
   };
 }
 
@@ -78,7 +80,7 @@ export async function createAdminSession(username: string) {
   const store = await cookies();
   store.set(ADMIN_SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: config.secureCookies,
     sameSite: "lax",
     path: "/",
     maxAge: config.ttlSeconds,
@@ -86,10 +88,11 @@ export async function createAdminSession(username: string) {
 }
 
 export async function clearAdminSession() {
+  const config = getAdminConfig();
   const store = await cookies();
   store.set(ADMIN_SESSION_COOKIE, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: config.secureCookies,
     sameSite: "lax",
     path: "/",
     expires: new Date(0),
