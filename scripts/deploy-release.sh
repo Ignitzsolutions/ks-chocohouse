@@ -77,7 +77,9 @@ chown -R "$APP_USER:$APP_GROUP" "$RELEASE_DIR"
 chown -R "$APP_USER:$APP_GROUP" "$DATABASE_DIR" "$UPLOADS_RUNTIME_DIR"
 
 if command -v sudo >/dev/null 2>&1; then
-  sudo -u "$APP_USER" env PATH="$PATH" NODE_ENV=production $(command -v node) scripts/validate-runtime.mjs
+  sudo --preserve-env=PATH,NODE_ENV,SITE_URL,NEXT_PUBLIC_SITE_URL,TRUST_PROXY,DATABASE_PATH,UPLOADS_DIR,PUBLIC_UPLOADS_BASE_URL,ADMIN_USERNAME,ADMIN_PASSWORD,ADMIN_AUTH_SECRET,ADMIN_SESSION_TTL_SECONDS,CHROME_EXECUTABLE_PATH,NEXT_PUBLIC_UPI_QR_IMAGE,NEXT_PUBLIC_UPI_LABEL \
+    -u "$APP_USER" \
+    env PATH="$PATH" NODE_ENV=production $(command -v node) scripts/validate-runtime.mjs
 else
   node scripts/validate-runtime.mjs
 fi
