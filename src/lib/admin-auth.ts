@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { enforceAllowedOrigin } from "@/lib/request-guard";
+import { getRuntimeConfig } from "@/lib/runtime-config";
 
 export const ADMIN_SESSION_COOKIE = "ks_admin_session";
 
@@ -25,16 +27,12 @@ function timingSafeEquals(a: string, b: string) {
 }
 
 function getAdminConfig() {
-  const env = (key: string) => {
-    const value = process.env[key];
-    return typeof value === "string" ? value : "";
-  };
-
+  const config = getRuntimeConfig();
   return {
-    username: env("ADMIN_USERNAME") || "admin",
-    password: env("ADMIN_PASSWORD") || "admin123",
-    secret: env("ADMIN_AUTH_SECRET") || "change-this-admin-secret",
-    ttlSeconds: Math.max(60, Number(env("ADMIN_SESSION_TTL_SECONDS") || 60 * 60 * 12)),
+    username: config.adminUsername,
+    password: config.adminPassword,
+    secret: config.adminAuthSecret,
+    ttlSeconds: config.adminSessionTtlSeconds,
   };
 }
 
@@ -108,6 +106,15 @@ export async function getAdminSession() {
 }
 
 export async function requireAdminApi() {
+  return requireAdminApiWithRequest();
+}
+
+export async function requireAdminApiWithRequest(request?: Request) {
+  if (request) {
+    const invalidOrigin = enforceAllowedOrigin(request);
+    if (invalidOrigin) return invalidOrigin;
+  }
+
   const session = await getAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

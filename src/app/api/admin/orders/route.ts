@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
 import { recordOrderEvent } from "@/lib/admin-sales";
+import { jsonError } from "@/lib/api-response";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { getDb, initDb } from "@/lib/db";
 import { buildInvoiceNumber } from "@/lib/invoice-number";
@@ -187,16 +188,13 @@ export async function GET(request: Request) {
     query += " ORDER BY datetime(created_at) DESC";
     return NextResponse.json({ orders: getDb().prepare(query).all(params) });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load orders", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load orders", 500, error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -527,16 +525,13 @@ export async function PATCH(request: Request) {
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to update order", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to update order", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -753,9 +748,6 @@ export async function POST(request: Request) {
         mode === "finalize" ? `/api/orders/${encodeURIComponent(orderId)}/invoice` : null,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to create offline invoice", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to create offline invoice", 500, error);
   }
 }

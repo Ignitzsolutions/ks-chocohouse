@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
+import { jsonError } from "@/lib/api-response";
 
 type CategoryRow = {
   id: string;
@@ -35,9 +36,6 @@ export async function GET() {
 
     return NextResponse.json({ categories: DEFAULT_CATEGORY_CARDS });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load categories", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load categories", 500, error);
   }
 }

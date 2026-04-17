@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-script: "Segoe Script", "Brush Script MT", cursive;
   --vanilla: #ffffff;
   --cream: #f8f7f5;
   --ink: #1f1612;

@@ -23,18 +23,18 @@ Open `http://localhost:3006`.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and update if needed:
+Copy `.env.example` to `.env.local` and update it for local or production use.
 
-```bash
-NEXT_PUBLIC_SITE_URL=http://localhost:3006
-NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/ks-choco-house-upi-qr.png
-NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR
-DATABASE_PATH=/tmp/bakery.sqlite
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-this-password
-ADMIN_AUTH_SECRET=change-this-long-random-secret
-ADMIN_SESSION_TTL_SECONDS=43200
-```
+Important production variables:
+- `SITE_URL`
+- `NEXT_PUBLIC_SITE_URL`
+- `DATABASE_PATH`
+- `UPLOADS_DIR`
+- `PUBLIC_UPLOADS_BASE_URL`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `ADMIN_AUTH_SECRET`
+- `CHROME_EXECUTABLE_PATH`
 
 ## Product Data
 
@@ -59,24 +59,25 @@ ADMIN_SESSION_TTL_SECONDS=43200
 
 Admin credentials now come from env variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 
-## Vercel Deployment (Now)
+## Ubuntu 24.04 VPS Deployment
 
-1. Push this repo to GitHub.
-2. Import project in Vercel.
-3. Framework: `Next.js` (auto-detected).
-4. Set environment variables in Vercel project settings:
-   - `NEXT_PUBLIC_SITE_URL=https://your-domain.com`
-   - `NEXT_PUBLIC_UPI_QR_IMAGE=/images/payments/ks-choco-house-upi-qr.png`
-   - `NEXT_PUBLIC_UPI_LABEL=Pay via UPI QR`
-   - `DATABASE_PATH=/tmp/bakery.sqlite`
-   - `ADMIN_USERNAME=...`
-   - `ADMIN_PASSWORD=...`
-   - `ADMIN_AUTH_SECRET=...` (long random string)
-   - `ADMIN_SESSION_TTL_SECONDS=43200`
-5. Deploy.
+This repo is now prepared for a single-VPS deployment model:
+- `Nginx` for reverse proxy
+- `systemd` for process supervision
+- local `SQLite` at `/var/lib/bakery_ecom/bakery.sqlite`
+- local uploads at `/var/lib/bakery_ecom/uploads`
+- release-based deploys under `/var/www/bakery_ecom/releases`
 
-Important: `DATABASE_PATH=/tmp/bakery.sqlite` is ephemeral on Vercel (demo-safe, not durable).  
-For production persistence, move orders/products to managed DB (Postgres/Supabase/Neon/Turso).
+Deployment artifacts live in [`deploy/README.md`](/Users/srujanreddy/Projects/bakery_ecom/deploy/README.md), [`deploy/systemd/bakery_ecom.service`](/Users/srujanreddy/Projects/bakery_ecom/deploy/systemd/bakery_ecom.service), and [`deploy/nginx/bakery_ecom.conf`](/Users/srujanreddy/Projects/bakery_ecom/deploy/nginx/bakery_ecom.conf).
+
+The GitHub Actions workflow now targets a Hostinger-style VPS over SSH and uses:
+- build + lint in CI
+- release artifact upload
+- remote activation through `scripts/deploy-release.sh`
+- `/api/health` and static asset verification
+- rollback support through `scripts/rollback-release.sh`
+
+Current production on the VPS is IP-only at `http://187.127.153.47`. Let’s Encrypt is intentionally deferred because a normal certificate cannot be issued for a bare server IP.
 
 ## Build Check
 

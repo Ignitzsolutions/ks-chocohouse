@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { BRAND_NAME, DESCRIPTION, LOCATION, TAGLINE } from "@/lib/brand";
-
-const DEFAULT_DEV_URL = "http://localhost:3006";
+import { getSiteUrl as getConfiguredSiteUrl } from "@/lib/runtime-config";
 
 export function getSiteUrl() {
-  const raw =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.SITE_URL ||
-    (process.env.NODE_ENV === "production" ? "" : DEFAULT_DEV_URL);
-  if (!raw) return DEFAULT_DEV_URL;
-  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  return getConfiguredSiteUrl();
 }
 
 export function getAbsoluteUrl(path = "/") {

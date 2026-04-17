@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 
 type ProductRow = {
   id: string;
@@ -140,16 +141,13 @@ export async function GET() {
 
     return NextResponse.json({ products: rows.map(toApiProduct) });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load products", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load products", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -218,16 +216,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to create product", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to create product", 500, error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -341,16 +336,13 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to update product", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to update product", 500, error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -364,9 +356,6 @@ export async function DELETE(request: Request) {
     getDb().prepare("DELETE FROM products WHERE id = ?").run(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete product", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete product", 500, error);
   }
 }

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 import { getDb, initDb } from "@/lib/db";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     const { orderId: rawOrderId } = await context.params;
@@ -32,9 +33,6 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, orderId });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete order", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete order", 500, error);
   }
 }

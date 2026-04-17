@@ -1,0 +1,23 @@
+[Unit]
+Description=Bakery E-commerce Next.js service
+After=network.target
+
+[Service]
+Type=simple
+User=bakery
+Group=bakery
+WorkingDirectory=/var/www/bakery_ecom/current
+EnvironmentFile=/etc/bakery_ecom/bakery_ecom.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+ExecStartPre=/usr/bin/node /var/www/bakery_ecom/current/scripts/validate-runtime.mjs
+ExecStart=/usr/bin/node /var/www/bakery_ecom/current/server.js
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

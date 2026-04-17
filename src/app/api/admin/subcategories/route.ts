@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 
 function slugify(value: string) {
   return value
@@ -44,16 +45,13 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load subcategories", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load subcategories", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -92,16 +90,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to create subcategory", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to create subcategory", 500, error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
     initDb();
 
@@ -151,16 +146,13 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to update subcategory", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to update subcategory", 500, error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
     initDb();
 
@@ -183,9 +175,6 @@ export async function DELETE(request: Request) {
     getDb().prepare("DELETE FROM product_subcategories WHERE id = ?").run(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete subcategory", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete subcategory", 500, error);
   }
 }

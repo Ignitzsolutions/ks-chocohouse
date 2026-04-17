@@ -71,12 +71,13 @@ export async function generateMetadata({
   };
 }
 
-export default function CakeDetailPage({
+export default async function CakeDetailPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const cake = cakes.find((item) => item.slug === params.slug);
+  const { slug } = await params;
+  const cake = cakes.find((item) => item.slug === slug);
 
   if (!cake) {
     notFound();

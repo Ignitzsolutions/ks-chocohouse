@@ -1,4 +1,4 @@
-name: Deploy KS Choco House to Azure App Service
+name: CI and Deploy to Hostinger VPS
 
 on:
   push:
@@ -7,21 +7,28 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 env:
-  AZURE_WEBAPP_NAME: ks-choco-house
-  AZURE_RESOURCE_GROUP: projecte_group
-  AZURE_CLIENT_ID: b9ff4385-d20e-41e3-a188-533d81eccf97
-  AZURE_TENANT_ID: 71d5cfc6-c4a6-4ae1-9e25-c8b74ab9d923
-  AZURE_SUBSCRIPTION_ID: e63a31c1-d798-485d-b9ab-c0251ab9f380
   NODE_VERSION: "20"
-  SITE_URL: https://ks-choco-house.azurewebsites.net
-  NEXT_PUBLIC_SITE_URL: https://ks-choco-house.azurewebsites.net
+  VPS_HOST: "187.127.153.47"
+  SITE_URL: "http://187.127.153.47"
+  NODE_ENV: "production"
+  APP_PORT: "3000"
+  PORT: "3000"
+  NEXT_PUBLIC_SITE_URL: "http://187.127.153.47"
+  TRUST_PROXY: "true"
+  DATABASE_PATH: "/var/lib/bakery_ecom/bakery.sqlite"
+  UPLOADS_DIR: "/var/lib/bakery_ecom/uploads"
+  PUBLIC_UPLOADS_BASE_URL: "/images/uploads"
+  ADMIN_USERNAME: "ksadmin"
+  ADMIN_SESSION_TTL_SECONDS: "43200"
+  CHROME_EXECUTABLE_PATH: "/snap/bin/chromium"
+  NEXT_PUBLIC_UPI_QR_IMAGE: "/images/payments/ks-choco-house-upi-qr.png"
+  NEXT_PUBLIC_UPI_LABEL: "Pay via UPI QR"
 
 jobs:
-  build-and-deploy:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,35 +44,138 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build app
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SITE_URL: http://localhost:3006
+          SITE_URL: http://localhost:3006
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD: admin123
+          ADMIN_AUTH_SECRET: change-this-long-random-secret-for-dev-only
+          DATABASE_PATH: ./data/bakery.sqlite
+          UPLOADS_DIR: ./public/images/uploads
         run: npm run build
 
-      - name: Prepare standalone package
+      - name: Prepare release artifact
         run: |
-          rm -rf .output
-          mkdir -p .output
-          cp -R .next/standalone/. .output/
-          mkdir -p .output/.next
-          cp -R .next/static .output/.next/static
-          cp -R public .output/public
-          cp scripts/azure-startup.sh .output/startup.sh
+          rm -rf release
+          mkdir -p release/.next release/src
+          cp -R .next/standalone/. release/
+          cp -R .next/static release/.next/static
+          mkdir -p release/public
+          cp -R public/. release/public/
+          cp -R src/templates release/src/templates
+          cp -R scripts release/scripts
+          cp package.json package-lock.json release/
+          node scripts/validate-release.mjs release
+          tar -czf bakery_ecom-release.tar.gz -C release .
 
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
         with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
-          tenant-id: ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          name: bakery_ecom-release
+          path: bakery_ecom-release.tar.gz
 
-      - name: Configure Azure startup command
+      - name: Render production env artifact
+        env:
+          NODE_ENV: ${{ env.NODE_ENV }}
+          APP_PORT: ${{ env.APP_PORT }}
+          PORT: ${{ env.PORT }}
+          SITE_URL: ${{ env.SITE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.NEXT_PUBLIC_SITE_URL }}
+          TRUST_PROXY: ${{ env.TRUST_PROXY }}
+          DATABASE_PATH: ${{ env.DATABASE_PATH }}
+          UPLOADS_DIR: ${{ env.UPLOADS_DIR }}
+          PUBLIC_UPLOADS_BASE_URL: ${{ env.PUBLIC_UPLOADS_BASE_URL }}
+          ADMIN_USERNAME: ${{ env.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_AUTH_SECRET: ${{ secrets.ADMIN_AUTH_SECRET }}
+          ADMIN_SESSION_TTL_SECONDS: ${{ env.ADMIN_SESSION_TTL_SECONDS }}
+          CHROME_EXECUTABLE_PATH: ${{ env.CHROME_EXECUTABLE_PATH }}
+          NEXT_PUBLIC_UPI_QR_IMAGE: ${{ env.NEXT_PUBLIC_UPI_QR_IMAGE }}
+          NEXT_PUBLIC_UPI_LABEL: ${{ env.NEXT_PUBLIC_UPI_LABEL }}
+        run: node scripts/render-production-env.mjs production.env
+
+      - name: Upload production env artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bakery_ecom-production-env
+          path: production.env
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bakery_ecom-release
+
+      - name: Download production env artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: bakery_ecom-production-env
+
+      - name: Install SSH key
+        env:
+          DEPLOY_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
         run: |
-          az webapp config set \
-            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ env.AZURE_WEBAPP_NAME }}" \
-            --startup-file "bash startup.sh"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          if [ -n "${{ secrets.VPS_KNOWN_HOSTS }}" ]; then
+            printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          fi
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: .output
+      - name: Upload artifact to VPS
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          RELEASE_ID="${GITHUB_SHA::12}"
+          scp bakery_ecom-release.tar.gz "${VPS_USER}@${VPS_HOST}:/tmp/bakery_ecom-${RELEASE_ID}.tar.gz"
+          scp production.env "${VPS_USER}@${VPS_HOST}:/tmp/bakery_ecom-${RELEASE_ID}.env"
+          scp scripts/deploy-release.sh "${VPS_USER}@${VPS_HOST}:/tmp/deploy-release.sh"
+          scp scripts/rollback-release.sh "${VPS_USER}@${VPS_HOST}:/tmp/rollback-release.sh"
+          scp scripts/prune-releases.sh "${VPS_USER}@${VPS_HOST}:/tmp/prune-releases.sh"
+          echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_ENV"
+
+      - name: Activate release on VPS
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          PREVIOUS_RELEASE=$(ssh "${VPS_USER}@${VPS_HOST}" "readlink -f /var/www/bakery_ecom/current || true")
+          echo "PREVIOUS_RELEASE=$PREVIOUS_RELEASE" >> "$GITHUB_ENV"
+          ssh "${VPS_USER}@${VPS_HOST}" \
+            "bash /tmp/deploy-release.sh /tmp/bakery_ecom-${RELEASE_ID}.tar.gz ${RELEASE_ID} /tmp/bakery_ecom-${RELEASE_ID}.env"
+
+      - name: Verify health
+        env:
+          SITE_URL: ${{ env.SITE_URL }}
+        run: |
+          node scripts/healthcheck.mjs \
+            "${SITE_URL}/api/health" \
+            "${SITE_URL}/images/brand/ks-choco-house-logo.jpg" \
+            "${SITE_URL}/images/brand/fssai-logo.svg"
+
+      - name: Prune old releases
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: ssh "${VPS_USER}@${VPS_HOST}" "bash /tmp/prune-releases.sh"
+
+      - name: Roll back on health failure
+        if: failure() && env.PREVIOUS_RELEASE != ''
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: ssh "${VPS_USER}@${VPS_HOST}" "bash /tmp/rollback-release.sh ${PREVIOUS_RELEASE}"

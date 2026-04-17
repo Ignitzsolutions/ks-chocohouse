@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-auth";
 import { getCategoryAnalytics, parseSalesFilters } from "@/lib/admin-sales";
+import { jsonError } from "@/lib/api-response";
 
 export async function GET(request: Request) {
   try {
@@ -11,9 +12,6 @@ export async function GET(request: Request) {
     const filters = parseSalesFilters(searchParams);
     return NextResponse.json(getCategoryAnalytics(filters));
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load category analytics", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load category analytics", 500, error);
   }
 }

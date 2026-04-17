@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
-import path from "path";
+import path from "node:path";
 import crypto from "node:crypto";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
+import { enforceRateLimit } from "@/lib/request-guard";
+import {
+  buildUploadedAssetUrl,
+  ensureUploadsDir,
+  resolveUploadedAssetPath,
+} from "@/lib/uploads";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_COUNT = 6;
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/jpg": ".jpg",
@@ -16,12 +24,18 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const rateLimited = enforceRateLimit(request, {
+      key: "admin-upload",
+      limit: 20,
+      windowMs: 60 * 1000,
+    });
+    if (rateLimited) return rateLimited;
+
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     const form = await request.formData();
-    const uploadDir = path.join(process.cwd(), "public", "images", "uploads");
-    await fs.mkdir(uploadDir, { recursive: true });
+    await ensureUploadsDir();
     const files = form
       .getAll("files")
       .concat(form.get("file") ?? [])
@@ -29,6 +43,12 @@ export async function POST(request: Request) {
 
     if (files.length === 0) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
+    }
+    if (files.length > MAX_FILE_COUNT) {
+      return NextResponse.json(
+        { error: `A maximum of ${MAX_FILE_COUNT} files can be uploaded at once` },
+        { status: 400 }
+      );
     }
 
     const uploadedImages: string[] = [];
@@ -57,10 +77,10 @@ export async function POST(request: Request) {
       }
 
       const fileName = `product-${Date.now()}-${crypto.randomUUID().slice(0, 8)}${ext}`;
-      const outputPath = path.join(uploadDir, fileName);
+      const outputPath = resolveUploadedAssetPath(fileName);
       const bytes = await file.arrayBuffer();
       await fs.writeFile(outputPath, Buffer.from(bytes));
-      uploadedImages.push(`/images/uploads/${fileName}`);
+      uploadedImages.push(buildUploadedAssetUrl(fileName));
     }
 
     return NextResponse.json({
@@ -69,9 +89,6 @@ export async function POST(request: Request) {
       images: uploadedImages,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Upload failed", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Upload failed", 500, error);
   }
 }

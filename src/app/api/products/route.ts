@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
+import { jsonError } from "@/lib/api-response";
 
 type ProductRow = {
   id: string;
@@ -92,9 +93,6 @@ export async function GET(request: Request) {
       products: rows.map(toApiProduct),
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load products", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load products", 500, error);
   }
 }

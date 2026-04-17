@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 
 export async function GET() {
   try {
@@ -13,16 +14,13 @@ export async function GET() {
       .all();
     return NextResponse.json({ blackouts: rows });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load blackout dates", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load blackout dates", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -42,16 +40,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to save blackout date", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to save blackout date", 500, error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -69,9 +64,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete blackout date", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete blackout date", 500, error);
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
+import { jsonError } from "@/lib/api-response";
 
 export async function GET() {
   try {
@@ -9,9 +10,6 @@ export async function GET() {
       .all();
     return NextResponse.json({ blackouts: rows });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load blackout dates", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load blackout dates", 500, error);
   }
 }

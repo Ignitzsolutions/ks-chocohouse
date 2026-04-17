@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 
 type CategoryRow = {
   id: string;
@@ -46,16 +47,13 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load categories", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load categories", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -92,16 +90,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, id });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to create category", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to create category", 500, error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -155,16 +150,13 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to update category", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to update category", 500, error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
 
     initDb();
@@ -198,9 +190,6 @@ export async function DELETE(request: Request) {
     getDb().prepare("DELETE FROM categories WHERE id = ?").run(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete category", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete category", 500, error);
   }
 }

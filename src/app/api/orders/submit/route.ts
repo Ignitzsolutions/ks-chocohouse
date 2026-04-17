@@ -5,6 +5,8 @@ import { recordOrderEvent } from "@/lib/admin-sales";
 import { CITY, PINCODE } from "@/lib/brand";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
+import { jsonError } from "@/lib/api-response";
+import { enforceAllowedOrigin, enforceRateLimit } from "@/lib/request-guard";
 
 type NormalizedOrderItem = {
   id: string;
@@ -47,6 +49,16 @@ function isServiceableLocation(address: string, pincode: string) {
 
 export async function POST(request: Request) {
   try {
+    const invalidOrigin = enforceAllowedOrigin(request);
+    if (invalidOrigin) return invalidOrigin;
+
+    const rateLimited = enforceRateLimit(request, {
+      key: "order-submit",
+      limit: 25,
+      windowMs: 5 * 60 * 1000,
+    });
+    if (rateLimited) return rateLimited;
+
     const { paymentReference, paymentMethod, orderDetails, couponCode, buyerGst } =
       await request.json();
 
@@ -219,9 +231,6 @@ export async function POST(request: Request) {
       message: "Payment reference submitted for verification",
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to place order", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to place order", 500, error);
   }
 }

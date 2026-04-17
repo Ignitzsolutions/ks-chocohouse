@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api-response";
 import {
   generateOrderBarcodePng,
   normalizeOrderBarcodeOptions,
@@ -81,9 +82,6 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to generate barcode", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to generate barcode", 500, error);
   }
 }

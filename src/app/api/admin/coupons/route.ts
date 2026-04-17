@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/admin-auth";
+import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 import { getDb, initDb } from "@/lib/db";
 import { normalizeCouponCode } from "@/lib/pricing";
 
@@ -35,16 +36,13 @@ export async function GET() {
       .all();
     return NextResponse.json({ coupons });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load coupons", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load coupons", 500, error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
     initDb();
     const body = await request.json();
@@ -85,16 +83,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to create coupon", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to create coupon", 500, error);
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
     initDb();
     const body = await request.json();
@@ -157,16 +152,13 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to update coupon", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to update coupon", 500, error);
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const unauthorized = await requireAdminApi();
+    const unauthorized = await requireAdminApiWithRequest(request);
     if (unauthorized) return unauthorized;
     initDb();
     const body = await request.json();
@@ -178,9 +170,6 @@ export async function DELETE(request: Request) {
     getDb().prepare("DELETE FROM coupons WHERE code = ?").run(code);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete coupon", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to delete coupon", 500, error);
   }
 }

@@ -4,6 +4,17 @@ import fs from "fs";
 import productsJson from "../../data/products.json";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
 import { buildInvoiceNumber } from "@/lib/invoice-number";
+import { getRuntimeConfig } from "@/lib/runtime-config";
+
+const REQUIRED_HEALTH_TABLES = [
+  "orders",
+  "order_events",
+  "products",
+  "categories",
+  "product_subcategories",
+  "coupons",
+  "blackout_dates",
+] as const;
 
 function slugify(value: string) {
   return value
@@ -14,24 +25,7 @@ function slugify(value: string) {
 }
 
 function resolveDbPath() {
-  const configuredPath = process.env.DATABASE_PATH?.trim();
-  if (configuredPath) {
-    return path.isAbsolute(configuredPath)
-      ? configuredPath
-      : path.join(process.cwd(), configuredPath);
-  }
-
-  // Azure App Service should store the SQLite file in persistent /home storage.
-  if (process.env.WEBSITE_SITE_NAME || process.env.WEBSITE_INSTANCE_ID) {
-    return "/home/data/bakery.sqlite";
-  }
-
-  // Vercel filesystem is read-only except /tmp.
-  if (process.env.VERCEL) {
-    return "/tmp/bakery.sqlite";
-  }
-
-  return path.join(process.cwd(), "data", "bakery.sqlite");
+  return getRuntimeConfig().databasePath;
 }
 
 const dbPath = resolveDbPath();
@@ -48,6 +42,39 @@ export function getDb() {
     db.pragma("journal_mode = WAL");
   }
   return db;
+}
+
+export function validatePersistedDatabase() {
+  if (!fs.existsSync(dbPath)) {
+    throw new Error(`Database file does not exist at ${dbPath}`);
+  }
+
+  const readonlyDb = new Database(dbPath, {
+    readonly: true,
+    fileMustExist: true,
+  });
+
+  try {
+    const discoveredTables = new Set(
+      (
+        readonlyDb
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all() as Array<{ name: string }>
+      ).map((row) => row.name)
+    );
+
+    for (const requiredTable of REQUIRED_HEALTH_TABLES) {
+      if (!discoveredTables.has(requiredTable)) {
+        throw new Error(`Database is missing required table ${requiredTable}`);
+      }
+    }
+
+    readonlyDb.prepare("SELECT COUNT(1) AS count FROM categories").get();
+    readonlyDb.prepare("SELECT COUNT(1) AS count FROM products").get();
+    readonlyDb.prepare("SELECT COUNT(1) AS count FROM orders").get();
+  } finally {
+    readonlyDb.close();
+  }
 }
 
 export function initDb() {

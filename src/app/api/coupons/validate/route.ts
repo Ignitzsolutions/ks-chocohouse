@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb, initDb } from "@/lib/db";
 import { validateCouponCode } from "@/lib/coupons";
 import { computePricing } from "@/lib/pricing";
+import { jsonError } from "@/lib/api-response";
 
 export async function POST(request: Request) {
   try {
@@ -35,9 +36,6 @@ export async function POST(request: Request) {
       pricing,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to validate coupon", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to validate coupon", 500, error);
   }
 }

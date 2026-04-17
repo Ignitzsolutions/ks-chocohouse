@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin-auth";
+import { jsonError } from "@/lib/api-response";
 import { getSalesOrderDetail } from "@/lib/admin-sales";
 
 export async function GET(
@@ -17,10 +18,6 @@ export async function GET(
     }
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to load order details", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to load order details", 500, error);
   }
 }
-

@@ -1,17 +1,9 @@
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import {
-  Browser,
-  BrowserTag,
-  detectBrowserPlatform,
-  install,
-  computeExecutablePath,
-  resolveBuildId,
-} from "@puppeteer/browsers";
 import puppeteer from "puppeteer";
+import { jsonError } from "@/lib/api-response";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
   BRAND_NAME,
@@ -28,6 +20,10 @@ import {
   OrderDocumentError,
 } from "@/lib/order-documents";
 import { buildInvoiceFilename, buildInvoiceNumber } from "@/lib/invoice-number";
+import {
+  getInvoiceTemplatePath,
+  getPuppeteerLaunchOptions,
+} from "@/lib/invoice-runtime";
 
 type RawOrderItem = {
   name?: string;
@@ -89,13 +85,7 @@ type BuyerGstRow = {
   billingAddress?: string;
 };
 
-const INVOICE_TEMPLATE_PATH = path.join(process.cwd(), "src/templates/invoice.html");
-const PUPPETEER_CACHE_DIR = path.join(process.cwd(), ".cache", "puppeteer");
-const PUPPETEER_CHROME_BUILD_ID = (
-  puppeteer as typeof puppeteer & {
-    PUPPETEER_REVISIONS?: { chrome?: string };
-  }
-).PUPPETEER_REVISIONS?.chrome;
+const INVOICE_TEMPLATE_PATH = getInvoiceTemplatePath();
 
 const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
@@ -538,83 +528,6 @@ const buildInvoicePdfFallback = async (input: {
   return await pdf.save();
 };
 
-const ensureChromeExecutablePath = async () => {
-  const configuredExecutablePath =
-    process.env.PUPPETEER_EXECUTABLE_PATH?.trim() ||
-    process.env.CHROME_EXECUTABLE_PATH?.trim() ||
-    undefined;
-  const attemptedPaths: string[] = [];
-
-  if (configuredExecutablePath) {
-    if (existsSync(configuredExecutablePath)) {
-      return configuredExecutablePath;
-    }
-    attemptedPaths.push(configuredExecutablePath);
-  }
-
-  try {
-    const bundledExecutablePath = puppeteer.executablePath();
-    if (bundledExecutablePath && existsSync(bundledExecutablePath)) {
-      return bundledExecutablePath;
-    }
-    if (bundledExecutablePath) {
-      attemptedPaths.push(bundledExecutablePath);
-    }
-  } catch {
-    // Fall through to on-demand installation when Puppeteer has no usable local browser.
-  }
-
-  const platform = detectBrowserPlatform();
-  if (!platform) {
-    throw new Error("Unable to detect a supported platform for Chrome installation");
-  }
-
-  const buildId =
-    PUPPETEER_CHROME_BUILD_ID ??
-    (await resolveBuildId(Browser.CHROME, platform, BrowserTag.STABLE));
-  const executablePath = computeExecutablePath({
-    cacheDir: PUPPETEER_CACHE_DIR,
-    browser: Browser.CHROME,
-    buildId,
-    platform,
-  });
-
-  if (!existsSync(executablePath)) {
-    attemptedPaths.push(executablePath);
-    await install({
-      cacheDir: PUPPETEER_CACHE_DIR,
-      browser: Browser.CHROME,
-      buildId,
-      platform,
-      unpack: true,
-    });
-  }
-
-  if (!existsSync(executablePath)) {
-    throw new Error(
-      `Browser install completed but executable was still not found. Checked: ${attemptedPaths.join(" -> ")}`
-    );
-  }
-
-  return executablePath;
-};
-
-const getLaunchOptions = async () => {
-  const executablePath = await ensureChromeExecutablePath();
-  return {
-    headless: true,
-    executablePath,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-zygote",
-      "--single-process",
-    ],
-  } satisfies Parameters<typeof puppeteer.launch>[0];
-};
-
 export async function GET(
   _request: Request,
   context: { params: Promise<{ orderId: string }> }
@@ -806,7 +719,7 @@ export async function GET(
 
     let pdfBytes: Uint8Array;
     try {
-      browser = await puppeteer.launch(await getLaunchOptions());
+      browser = await puppeteer.launch(await getPuppeteerLaunchOptions());
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: "networkidle0" });
       await page.emulateMediaType("screen");
@@ -852,10 +765,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      { error: "Failed to generate invoice", details: String(error) },
-      { status: 500 }
-    );
+    return jsonError("Failed to generate invoice", 500, error);
   } finally {
     if (browser) {
       await browser.close().catch(() => undefined);
