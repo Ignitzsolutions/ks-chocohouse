@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "release/**",
+    ".cache/**",
     "next-env.d.ts",
     ".puppeteerrc.cjs",
   ]),
