@@ -49,8 +49,8 @@ jobs:
 
       - name: Build
         env:
-          NEXT_PUBLIC_SITE_URL: http://localhost:3006
-          SITE_URL: http://localhost:3006
+          NEXT_PUBLIC_SITE_URL: ${{ env.NEXT_PUBLIC_SITE_URL }}
+          SITE_URL: ${{ env.SITE_URL }}
           ADMIN_USERNAME: admin
           ADMIN_PASSWORD: admin123
           ADMIN_AUTH_SECRET: change-this-long-random-secret-for-dev-only
