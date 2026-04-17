@@ -29,6 +29,10 @@ const optionalKeys = [
   "NEXT_PUBLIC_UPI_LABEL",
 ];
 
+function shellQuote(value) {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
 function getRequiredValue(key) {
   const value = process.env[key];
   if (!value) {
@@ -37,12 +41,12 @@ function getRequiredValue(key) {
   return value;
 }
 
-const lines = requiredKeys.map((key) => `${key}=${getRequiredValue(key)}`);
+const lines = requiredKeys.map((key) => `${key}=${shellQuote(getRequiredValue(key))}`);
 
 for (const key of optionalKeys) {
   const value = process.env[key];
   if (value) {
-    lines.push(`${key}=${value}`);
+    lines.push(`${key}=${shellQuote(value)}`);
   }
 }
 
