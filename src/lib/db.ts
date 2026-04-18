@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import productsJson from "../../data/products.json";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
-import { buildInvoiceNumber } from "@/lib/invoice-number";
+import { resequenceInvoiceNumbers } from "@/lib/invoice-number";
 import { getRuntimeConfig } from "@/lib/runtime-config";
 
 const REQUIRED_HEALTH_TABLES = [
@@ -379,23 +379,11 @@ export function initDb() {
        AND COALESCE(to_value, '') <> @to_value`
   );
 
-  for (const row of invoiceRows) {
-    if (!row.invoice_number && Number(row.invoice_ready ?? 0) !== 1) continue;
-    const nextInvoiceNumber = buildInvoiceNumber(
-      row.id,
-      row.source,
-      row.order_kind,
-      row.source === "offline" ? row.sale_date : row.paid_at || row.created_at
-    );
-    if (row.invoice_number !== nextInvoiceNumber) {
-      updateInvoiceNumber.run({
-        id: row.id,
-        invoice_number: nextInvoiceNumber,
-      });
-    }
+  for (const row of resequenceInvoiceNumbers(invoiceRows)) {
+    updateInvoiceNumber.run(row);
     updateInvoiceEvents.run({
       order_id: row.id,
-      to_value: nextInvoiceNumber,
+      to_value: row.invoice_number,
     });
   }
 

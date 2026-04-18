@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import puppeteer from "puppeteer";
 import { jsonError } from "@/lib/api-response";
 import { generateOrderBarcodePng } from "@/lib/barcode";
@@ -197,337 +196,6 @@ const readBinaryIfExists = async (relativePath: string) => {
   }
 };
 
-const wrapPdfText = (text: string, font: PDFFont, fontSize: number, maxWidth: number) => {
-  const normalized = text.replace(/\r\n/g, "\n");
-  const paragraphs = normalized.split("\n");
-  const lines: string[] = [];
-
-  for (const paragraph of paragraphs) {
-    if (!paragraph.trim()) {
-      lines.push("");
-      continue;
-    }
-
-    const words = paragraph.split(/\s+/);
-    let current = "";
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
-        current = candidate;
-      } else {
-        if (current) lines.push(current);
-        current = word;
-      }
-    }
-    if (current) lines.push(current);
-  }
-
-  return lines;
-};
-
-const drawPdfLines = (
-  page: PDFPage,
-  lines: string[],
-  x: number,
-  y: number,
-  options: {
-    font: PDFFont;
-    size: number;
-    color?: ReturnType<typeof rgb>;
-    lineHeight?: number;
-  }
-) => {
-  const lineHeight = options.lineHeight ?? options.size * 1.35;
-  let currentY = y;
-  for (const line of lines) {
-    page.drawText(line, {
-      x,
-      y: currentY,
-      font: options.font,
-      size: options.size,
-      color: options.color ?? rgb(0.12, 0.09, 0.07),
-    });
-    currentY -= lineHeight;
-  }
-  return currentY;
-};
-
-const buildInvoicePdfFallback = async (input: {
-  order: OrderRow;
-  items: InvoiceItem[];
-  subtotal: number;
-  discountAmount: number;
-  taxAmount: number;
-  deliveryFee: number;
-  total: number;
-  buyerGst: ReturnType<typeof parseBuyerGst>;
-}) => {
-  const pdf = await PDFDocument.create();
-  let page = pdf.addPage([595.28, 841.89]);
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const margin = 40;
-  const pageWidth = page.getWidth();
-  const pageHeight = page.getHeight();
-  const contentWidth = pageWidth - margin * 2;
-  const muted = rgb(0.36, 0.24, 0.18);
-  const textColor = rgb(0.12, 0.09, 0.07);
-  const lineColor = rgb(0.9, 0.88, 0.85);
-  let cursorY = pageHeight - margin;
-
-  const ensureSpace = (heightNeeded: number) => {
-    if (cursorY - heightNeeded > margin) return;
-    page = pdf.addPage([595.28, 841.89]);
-    cursorY = pageHeight - margin;
-  };
-
-  const drawRule = () => {
-    page.drawLine({
-      start: { x: margin, y: cursorY },
-      end: { x: pageWidth - margin, y: cursorY },
-      thickness: 1,
-      color: lineColor,
-    });
-    cursorY -= 14;
-  };
-
-  const drawLabelValue = (label: string, value: string) => {
-    ensureSpace(28);
-    page.drawText(label, { x: margin, y: cursorY, font: bold, size: 9, color: muted });
-    page.drawText(value, {
-      x: margin + 110,
-      y: cursorY,
-      font: regular,
-      size: 10,
-      color: textColor,
-    });
-    cursorY -= 16;
-  };
-
-  page.drawText(BRAND_NAME, {
-    x: margin,
-    y: cursorY,
-    font: bold,
-    size: 22,
-    color: textColor,
-  });
-  page.drawText(TAGLINE, {
-    x: margin,
-    y: cursorY - 22,
-    font: regular,
-    size: 10,
-    color: muted,
-  });
-  const invoiceNumber =
-    input.order.invoice_number ||
-    buildInvoiceNumber(
-      input.order.id,
-      input.order.source,
-      input.order.order_kind,
-      input.order.source === "offline"
-        ? input.order.sale_date
-        : input.order.paid_at || input.order.created_at
-    );
-
-  page.drawText(`Invoice ${invoiceNumber}`, {
-    x: pageWidth - margin - 180,
-    y: cursorY,
-    font: bold,
-    size: 16,
-    color: textColor,
-  });
-  page.drawText(`Order ID: ${input.order.id}`, {
-    x: pageWidth - margin - 180,
-    y: cursorY - 18,
-    font: regular,
-    size: 10,
-    color: muted,
-  });
-  cursorY -= 42;
-  drawRule();
-
-  const sellerBlock = wrapPdfText(
-    [
-      SELLER_LEGAL_NAME,
-      FULL_ADDRESS,
-      `Phone: ${PHONE_NUMBER_DISPLAY}`,
-      `WhatsApp: +${WHATSAPP_NUMBER}`,
-      `GSTIN: ${SELLER_GSTIN}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    regular,
-    10,
-    contentWidth / 2 - 10
-  );
-
-  const buyerLines = [
-    input.order.customer_name || "Customer",
-    [input.order.address, input.order.pincode].filter(Boolean).join(", "),
-    input.order.phone ? `Phone: ${input.order.phone}` : "",
-    input.order.email || "",
-    input.buyerGst?.businessName ? `GST Name: ${input.buyerGst.businessName}` : "",
-    input.buyerGst?.gstin ? `GSTIN: ${input.buyerGst.gstin}` : "",
-    input.buyerGst?.billingAddress ? `GST Address: ${input.buyerGst.billingAddress}` : "",
-  ].filter(Boolean);
-  const buyerBlock = wrapPdfText(buyerLines.join("\n"), regular, 10, contentWidth / 2 - 10);
-
-  ensureSpace(Math.max(sellerBlock.length, buyerBlock.length) * 14 + 30);
-  page.drawText("From", { x: margin, y: cursorY, font: bold, size: 11, color: muted });
-  page.drawText("Bill To", {
-    x: margin + contentWidth / 2 + 10,
-    y: cursorY,
-    font: bold,
-    size: 11,
-    color: muted,
-  });
-  cursorY -= 16;
-  drawPdfLines(page, sellerBlock, margin, cursorY, { font: regular, size: 10, color: textColor });
-  drawPdfLines(page, buyerBlock, margin + contentWidth / 2 + 10, cursorY, {
-    font: regular,
-    size: 10,
-    color: textColor,
-  });
-  cursorY -= Math.max(sellerBlock.length, buyerBlock.length) * 14 + 8;
-  drawRule();
-
-  drawLabelValue(
-    "Invoice Date",
-    formatDate(
-      input.order.source === "offline" && input.order.sale_date
-        ? input.order.sale_date
-        : input.order.paid_at || input.order.created_at
-    )
-  );
-  drawLabelValue("Delivery Date", formatDate(input.order.delivery_date));
-  drawLabelValue("Payment Method", input.order.payment_method || "-");
-  drawLabelValue("Payment Status", input.order.payment_status || "-");
-  if (input.order.payment_reference || input.order.txn_id) {
-    drawLabelValue(
-      "Payment Ref",
-      input.order.payment_reference || input.order.txn_id || "-"
-    );
-  }
-  drawRule();
-
-  ensureSpace(32);
-  page.drawText("Item", { x: margin, y: cursorY, font: bold, size: 10, color: muted });
-  page.drawText("Qty", {
-    x: pageWidth - margin - 130,
-    y: cursorY,
-    font: bold,
-    size: 10,
-    color: muted,
-  });
-  page.drawText("Amount", {
-    x: pageWidth - margin - 60,
-    y: cursorY,
-    font: bold,
-    size: 10,
-    color: muted,
-  });
-  cursorY -= 14;
-  drawRule();
-
-  for (const item of input.items) {
-    const itemLines = wrapPdfText(item.name, bold, 10, contentWidth - 150);
-    const noteLines = item.customizationNote
-      ? wrapPdfText(item.customizationNote, regular, 9, contentWidth - 150)
-      : [];
-    const blockHeight = (itemLines.length + noteLines.length) * 13 + 8;
-    ensureSpace(blockHeight + 10);
-
-    drawPdfLines(page, itemLines, margin, cursorY, { font: bold, size: 10, color: textColor });
-    if (noteLines.length > 0) {
-      drawPdfLines(page, noteLines, margin, cursorY - itemLines.length * 13, {
-        font: regular,
-        size: 9,
-        color: muted,
-        lineHeight: 12,
-      });
-    }
-    page.drawText(String(item.qty), {
-      x: pageWidth - margin - 120,
-      y: cursorY,
-      font: regular,
-      size: 10,
-      color: textColor,
-    });
-    page.drawText(formatInr(item.lineTotal), {
-      x: pageWidth - margin - 60,
-      y: cursorY,
-      font: regular,
-      size: 10,
-      color: textColor,
-    });
-    cursorY -= blockHeight;
-    drawRule();
-  }
-
-  const totalsX = pageWidth - margin - 180;
-  const drawTotalRow = (label: string, value: string, emphasize = false) => {
-    ensureSpace(20);
-    page.drawText(label, {
-      x: totalsX,
-      y: cursorY,
-      font: emphasize ? bold : regular,
-      size: 10,
-      color: emphasize ? textColor : muted,
-    });
-    page.drawText(value, {
-      x: pageWidth - margin - 60,
-      y: cursorY,
-      font: emphasize ? bold : regular,
-      size: 10,
-      color: textColor,
-    });
-    cursorY -= 16;
-  };
-
-  drawTotalRow("Subtotal", formatInr(input.subtotal));
-  drawTotalRow("Discount", formatInr(input.discountAmount));
-  drawTotalRow("Tax", formatInr(input.taxAmount));
-  drawTotalRow("Delivery", formatInr(input.deliveryFee));
-  drawTotalRow("Total", formatInr(input.total), true);
-
-  const noteSections = [
-    input.order.cake_message?.trim() ? `Message / Note\n${input.order.cake_message.trim()}` : "",
-    input.order.void_reason ? `Void Reason\n${input.order.void_reason}` : "",
-  ].filter(Boolean);
-
-  if (noteSections.length > 0) {
-    cursorY -= 8;
-    drawRule();
-    ensureSpace(60);
-    page.drawText("Notes", { x: margin, y: cursorY, font: bold, size: 11, color: muted });
-    cursorY -= 16;
-    const noteLines = wrapPdfText(noteSections.join("\n\n"), regular, 10, contentWidth);
-    cursorY = drawPdfLines(page, noteLines, margin, cursorY, {
-      font: regular,
-      size: 10,
-      color: textColor,
-    });
-  }
-
-  const footer = wrapPdfText(
-    [
-      "Thank you for choosing K S Choco House.",
-      `Address: ${FULL_ADDRESS}`,
-      `Contact: ${PHONE_NUMBER_DISPLAY} | WhatsApp: +${WHATSAPP_NUMBER}`,
-    ].join("\n"),
-    regular,
-    9,
-    contentWidth
-  );
-
-  ensureSpace(footer.length * 12 + 20);
-  cursorY -= 8;
-  drawRule();
-  drawPdfLines(page, footer, margin, cursorY, { font: regular, size: 9, color: muted });
-
-  return await pdf.save();
-};
-
 export async function GET(
   _request: Request,
   context: { params: Promise<{ orderId: string }> }
@@ -543,6 +211,7 @@ export async function GET(
 
     const order = getOrderById(orderId) as OrderRow | undefined;
     assertInvoiceAvailable(order);
+
     const invoiceNumber =
       order.invoice_number ||
       buildInvoiceNumber(
@@ -563,7 +232,10 @@ export async function GET(
         : subtotalFromItems;
     const deliveryFee =
       order.delivery_fee_amount != null
-        ? safeNumber(order.delivery_fee_amount, Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0)))
+        ? safeNumber(
+            order.delivery_fee_amount,
+            Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0))
+          )
         : Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0));
     const discountAmount = safeNumber(order.discount_amount, 0);
     const buyerGst = parseBuyerGst(order.buyer_gst_json);
@@ -717,35 +389,21 @@ export async function GET(
       FSSAI_BLOCK: fssaiBlock,
     });
 
-    let pdfBytes: Uint8Array;
-    try {
-      browser = await puppeteer.launch(await getPuppeteerLaunchOptions());
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
-      await page.emulateMediaType("screen");
+    browser = await puppeteer.launch(await getPuppeteerLaunchOptions());
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.emulateMediaType("screen");
 
-      pdfBytes = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "0",
-          right: "0",
-          bottom: "0",
-          left: "0",
-        },
-      });
-    } catch {
-      pdfBytes = await buildInvoicePdfFallback({
-        order,
-        items,
-        subtotal,
-        discountAmount,
-        taxAmount,
-        deliveryFee,
-        total,
-        buyerGst,
-      });
-    }
+    const pdfBytes = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "0",
+        right: "0",
+        bottom: "0",
+        left: "0",
+      },
+    });
 
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {

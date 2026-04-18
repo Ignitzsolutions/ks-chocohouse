@@ -4,7 +4,7 @@ import { recordOrderEvent } from "@/lib/admin-sales";
 import { jsonError } from "@/lib/api-response";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { getDb, initDb } from "@/lib/db";
-import { buildInvoiceNumber } from "@/lib/invoice-number";
+import { allocateNextInvoiceNumber } from "@/lib/invoice-number";
 import { generateOrderId } from "@/lib/order-id";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
 
@@ -217,6 +217,14 @@ export async function PATCH(request: Request) {
 
     if (action === "verify_payment") {
       db.transaction(() => {
+        const invoiceNumber = allocateNextInvoiceNumber(
+          db,
+          id,
+          existing.source,
+          existing.order_kind,
+          existing.source === "offline" ? existing.sale_date : now
+        );
+
         db.prepare(
           `UPDATE orders
            SET payment_status = 'Verified',
@@ -244,12 +252,7 @@ export async function PATCH(request: Request) {
           id,
           now,
           actor,
-          invoice_number: buildInvoiceNumber(
-            id,
-            existing.source,
-            existing.order_kind,
-            existing.source === "offline" ? existing.sale_date : now
-          ),
+          invoice_number: invoiceNumber,
         });
 
         if ((existing.payment_status ?? "Verification Pending") !== "Verified") {
@@ -272,12 +275,7 @@ export async function PATCH(request: Request) {
             now,
             actor,
             null,
-            buildInvoiceNumber(
-              id,
-              existing.source,
-              existing.order_kind,
-              existing.source === "offline" ? existing.sale_date : now
-            )
+            invoiceNumber
           );
         }
       })();
@@ -322,6 +320,14 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Only offline drafts can be finalized" }, { status: 400 });
       }
 
+      const invoiceNumber = allocateNextInvoiceNumber(
+        db,
+        id,
+        existing.source,
+        existing.order_kind,
+        existing.sale_date ?? now
+      );
+
       db.transaction(() => {
         db.prepare(
           `UPDATE orders
@@ -336,12 +342,7 @@ export async function PATCH(request: Request) {
            WHERE id = @id`
         ).run({
           id,
-          invoice_number: buildInvoiceNumber(
-            id,
-            existing.source,
-            existing.order_kind,
-            existing.sale_date ?? now
-          ),
+          invoice_number: invoiceNumber,
           now,
         });
 
@@ -352,7 +353,7 @@ export async function PATCH(request: Request) {
           now,
           actor,
           null,
-          buildInvoiceNumber(id, existing.source, existing.order_kind, existing.sale_date ?? now)
+          invoiceNumber
         );
       })();
 
@@ -420,6 +421,13 @@ export async function PATCH(request: Request) {
       })();
 
       const returnOrderId = generateOrderId("RTN");
+      const returnInvoiceNumber = allocateNextInvoiceNumber(
+        db,
+        returnOrderId,
+        "offline",
+        "return",
+        existing.sale_date ?? now
+      );
       const returnItems = parsedItems.map((item) => ({
         ...item,
         lineTotal: -Math.abs(toInt(item.lineTotal, 0)),
@@ -469,12 +477,7 @@ export async function PATCH(request: Request) {
           payment_verified_at: now,
           payment_verified_by: actor,
           txn_id: `RETURN-${existing.id}`,
-          invoice_number: buildInvoiceNumber(
-            returnOrderId,
-            "offline",
-            "return",
-            existing.sale_date ?? now
-          ),
+          invoice_number: returnInvoiceNumber,
           invoice_ready: 1,
           paid_at: now,
           subtotal_amount: subtotalAmount,
@@ -596,7 +599,9 @@ export async function POST(request: Request) {
 
     const orderId = existingDraft?.id ?? generateOrderId("OFF");
     const invoiceNumber =
-      mode === "finalize" ? buildInvoiceNumber(orderId, "offline", "sale", saleDate) : null;
+      mode === "finalize"
+        ? allocateNextInvoiceNumber(db, orderId, "offline", "sale", saleDate)
+        : null;
     const lifecycleState = mode === "draft" ? "draft" : "finalized";
     const status = mode === "draft" ? "Awaiting Approval" : "Delivered";
     const invoiceReady = mode === "finalize" ? 1 : 0;
@@ -735,7 +740,7 @@ export async function POST(request: Request) {
       { source: "offline", lifecycleState }
     );
     if (mode === "finalize") {
-      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, buildInvoiceNumber(orderId, "offline", "sale", saleDate), {
+      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, invoiceNumber, {
         source: "offline",
       });
     }
