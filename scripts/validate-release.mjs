@@ -6,10 +6,13 @@ const releaseDir = process.argv[2] ? path.resolve(process.argv[2]) : process.cwd
 const requiredFiles = [
   "server.js",
   path.join(".next", "static"),
+  path.join(".next", "server"),
+  path.join(".next", "app-path-routes-manifest.json"),
+  path.join("node_modules", "next", "dist", "compiled", "cookie"),
   path.join("public", "images", "brand", "ks-choco-house-logo.jpg"),
   path.join("public", "images", "brand", "fssai-logo.svg"),
   path.join("src", "templates", "invoice.html"),
-  "scripts",
+  path.join("scripts", "validate-runtime.mjs"),
   "package.json",
   "package-lock.json",
 ];
