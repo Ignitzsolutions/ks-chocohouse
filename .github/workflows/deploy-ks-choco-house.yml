@@ -23,7 +23,7 @@ env:
   PUBLIC_UPLOADS_BASE_URL: "/images/uploads"
   ADMIN_USERNAME: "ksadmin"
   ADMIN_SESSION_TTL_SECONDS: "43200"
-  CHROME_EXECUTABLE_PATH: "/snap/bin/chromium"
+  CHROME_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
   NEXT_PUBLIC_UPI_QR_IMAGE: "/images/payments/ks-choco-house-upi-qr.png"
   NEXT_PUBLIC_UPI_LABEL: "Pay via UPI QR"
 

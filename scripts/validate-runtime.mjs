@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { access, constants } from "node:fs/promises";
 import path from "node:path";
+import puppeteer from "puppeteer";
 import { getRuntimeConfig } from "./runtime-config.mjs";
 
 async function resolveChromePath() {
@@ -38,6 +39,31 @@ async function resolveChromePath() {
   throw new Error("No executable Chrome or Chromium runtime was found");
 }
 
+async function verifyChromeLaunch(executablePath) {
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-zygote",
+      "--single-process",
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent("<html><body>runtime-ok</body></html>", {
+      waitUntil: "networkidle0",
+    });
+    await page.close();
+  } finally {
+    await browser.close();
+  }
+}
+
 async function main() {
   const config = getRuntimeConfig();
 
@@ -50,7 +76,8 @@ async function main() {
   );
 
   if (config.isProduction) {
-    await resolveChromePath();
+    const chromePath = await resolveChromePath();
+    await verifyChromeLaunch(chromePath);
   }
 
   process.stdout.write("Runtime validation passed\n");
