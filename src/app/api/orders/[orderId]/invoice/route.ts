@@ -405,7 +405,15 @@ export async function GET(
       },
     });
 
-    return new NextResponse(Buffer.from(pdfBytes), {
+    const pdfBinary = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes);
+    const pdfBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(pdfBinary);
+        controller.close();
+      },
+    });
+
+    return new Response(pdfBody, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename=\"${invoiceFilename}\"`,
@@ -423,6 +431,7 @@ export async function GET(
       );
     }
 
+    console.error("Failed to generate invoice PDF", error);
     return jsonError("Failed to generate invoice", 500, error);
   } finally {
     if (browser) {
