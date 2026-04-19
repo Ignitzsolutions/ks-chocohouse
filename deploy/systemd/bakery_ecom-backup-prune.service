@@ -1,0 +1,11 @@
+[Unit]
+Description=Prune bakery_ecom backup retention
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/bakery_ecom/bakery_ecom.env
+ExecStart=/bin/bash /var/www/bakery_ecom/current/scripts/prune-backups.sh
+StandardOutput=journal
+StandardError=journal

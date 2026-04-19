@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly bakery_ecom backup timer
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+Unit=bakery_ecom-backup.service
+
+[Install]
+WantedBy=timers.target

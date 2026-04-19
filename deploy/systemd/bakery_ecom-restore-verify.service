@@ -1,0 +1,12 @@
+[Unit]
+Description=Verify restored bakery_ecom environment
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/bakery_ecom/bakery_ecom.env
+ExecStart=/bin/bash /var/www/bakery_ecom/current/scripts/verify-restore.sh
+StandardOutput=journal
+StandardError=journal

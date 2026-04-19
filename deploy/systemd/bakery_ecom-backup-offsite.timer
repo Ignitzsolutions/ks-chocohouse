@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly bakery_ecom offsite backup timer
+
+[Timer]
+OnCalendar=Sun 04:00:00
+Persistent=true
+Unit=bakery_ecom-backup-offsite.service
+
+[Install]
+WantedBy=timers.target

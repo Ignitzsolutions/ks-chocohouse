@@ -27,6 +27,14 @@ const requiredKeys = [
 const optionalKeys = [
   "NEXT_PUBLIC_UPI_QR_IMAGE",
   "NEXT_PUBLIC_UPI_LABEL",
+  "BACKUP_DIR",
+  "DAILY_RETENTION",
+  "WEEKLY_RETENTION",
+  "MONTHLY_RETENTION",
+  "BACKUP_OFFSITE_ENABLED",
+  "BACKUP_OFFSITE_TOOL",
+  "BACKUP_OFFSITE_REMOTE",
+  "BACKUP_ALERT_WEBHOOK_URL",
 ];
 
 function shellQuote(value) {

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run bakery_ecom nightly backup
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/bakery_ecom/bakery_ecom.env
+ExecStart=/bin/bash /var/www/bakery_ecom/current/scripts/backup.sh
+StandardOutput=journal
+StandardError=journal

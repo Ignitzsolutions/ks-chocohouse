@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly bakery_ecom backup prune timer
+
+[Timer]
+OnCalendar=Sun 03:15:00
+Persistent=true
+Unit=bakery_ecom-backup-prune.service
+
+[Install]
+WantedBy=timers.target

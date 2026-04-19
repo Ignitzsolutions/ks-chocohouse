@@ -1,0 +1,13 @@
+[Unit]
+Description=Sync latest bakery_ecom backup offsite
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/bakery_ecom/bakery_ecom.env
+ExecStart=/bin/bash /var/www/bakery_ecom/current/scripts/offsite-sync.sh
+StandardOutput=journal
+StandardError=journal

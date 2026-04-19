@@ -23,6 +23,7 @@
 - App process: `/var/www/bakery_ecom/current/server.js`
 - Native production dependencies are installed on the VPS during each release activation with `npm ci --omit=dev`
 - Production env is intended to be rendered by GitHub Actions and installed at `/etc/bakery_ecom/bakery_ecom.env`
+- Persistent business data must remain under `/var/lib/bakery_ecom`, never under `/var/www/bakery_ecom/releases`
 
 ## TLS note
 - IP-only deployments stay on HTTP.
@@ -36,13 +37,35 @@
 - Stable non-sensitive runtime values are pinned in the workflow and GitHub Actions secrets remain the source of truth for deploy auth plus sensitive app config
 
 ## Backups
-- Run `scripts/backup.sh` daily.
-- Run `scripts/prune-backups.sh` after backup completion.
-- Run `scripts/prune-releases.sh` after successful deploys.
+- Nightly backup: `scripts/backup.sh`
+- Weekly prune: `scripts/prune-backups.sh`
+- Weekly offsite sync: `scripts/offsite-sync.sh`
+- Restore verification: `scripts/verify-restore.sh`
 - Same-host backups are operational recovery only, not disaster recovery.
+- Recommended timers:
+  - `bakery_ecom-backup.timer`
+  - `bakery_ecom-backup-prune.timer`
+  - `bakery_ecom-backup-offsite.timer`
+  - `bakery_ecom-restore-verify.timer` on non-production only
+- Each backup set includes:
+  - SQLite hot backup
+  - uploads archive
+  - `journald` export for `bakery_ecom.service`
+  - Nginx logs archive
+  - metadata and checksums
+- Default retention:
+  - 14 daily sets
+  - 8 weekly sets
+  - 3 monthly sets
 
 ## Restore
 1. Stop the service: `systemctl stop bakery_ecom`
-2. Run `scripts/restore.sh <db-backup> <uploads-backup>`
+2. Run `scripts/restore.sh /var/backups/bakery_ecom/sets/<timestamp> --restore-logs-to /var/backups/bakery_ecom/restored-logs/<timestamp>`
 3. Start the service: `systemctl start bakery_ecom`
 4. Verify `http://187.127.153.47/api/health`
+5. Run `scripts/verify-restore.sh`
+
+## Release pruning
+- `scripts/prune-releases.sh` must never prune the active release.
+- Keep multiple known-good releases on disk.
+- Releases newer than the minimum prune age are preserved to protect rollback during a verification window.
