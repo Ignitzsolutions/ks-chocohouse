@@ -7,7 +7,6 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CITY, PINCODE } from "@/lib/brand";
 import { addItem, clearCart, getCart, type CartItem } from "@/lib/cart";
 import { computePricing } from "@/lib/pricing";
 import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
@@ -35,39 +34,6 @@ type AppliedCouponState = {
   label: string;
   discountAmount: number;
 } | null;
-
-const SERVICEABLE_PIN_PREFIXES = ["5163"];
-const SERVICEABLE_LOCALITY_KEYWORDS = [
-  CITY.toLowerCase(),
-  "proddatur",
-  "proddutur",
-  "bollavaram",
-  "sastry nagar",
-];
-
-function normalizeText(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function isServiceableLocation(address: string, pincode: string) {
-  const normalizedAddress = normalizeText(address);
-  const normalizedPincode = String(pincode ?? "").trim().replace(/\D/g, "");
-
-  const localityMatch = SERVICEABLE_LOCALITY_KEYWORDS.some((keyword) =>
-    normalizedAddress.includes(keyword)
-  );
-  const pincodeMatch = SERVICEABLE_PIN_PREFIXES.some((prefix) =>
-    normalizedPincode.startsWith(prefix)
-  );
-
-  const isServiceable = localityMatch || pincodeMatch;
-  return {
-    isServiceable,
-    reason: isServiceable
-      ? ""
-      : `Delivery is currently available only in Proddatur surroundings (for example ${PINCODE}).`,
-  };
-}
 
 export default function BillingPage() {
   const { productById } = useProducts();
@@ -172,10 +138,6 @@ export default function BillingPage() {
     if (!deliveryDate) return null;
     return blackouts.find((item) => item.date === deliveryDate) ?? null;
   }, [blackouts, deliveryDate]);
-  const serviceability = useMemo(
-    () => isServiceableLocation(address, pincode),
-    [address, pincode]
-  );
 
   const normalizedPaymentRef = paymentReference.trim().toUpperCase();
 
@@ -183,7 +145,6 @@ export default function BillingPage() {
     !loading &&
     detailed.length > 0 &&
     !blockedInfo &&
-    serviceability.isServiceable &&
     Boolean(name.trim()) &&
     Boolean(phone.trim()) &&
     Boolean(address.trim()) &&
@@ -197,7 +158,6 @@ export default function BillingPage() {
     !address.trim() ? "Address" : null,
     !pincode.trim() ? "Pincode" : null,
     !deliveryDate.trim() ? "Delivery date" : null,
-    !serviceability.isServiceable ? "Delivery location (Proddatur area)" : null,
     normalizedPaymentRef.length < 6 ? "UTR / Reference" : null,
   ].filter(Boolean) as string[];
 
@@ -245,9 +205,6 @@ export default function BillingPage() {
     try {
       if (blockedInfo) {
         throw new Error("Selected delivery date is blocked");
-      }
-      if (!serviceability.isServiceable) {
-        throw new Error(serviceability.reason);
       }
 
       const orderDetails = {
@@ -391,9 +348,6 @@ export default function BillingPage() {
                     className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                     placeholder="Street, city, landmark"
                   />
-                  <p className="mt-1 text-xs font-medium text-black/55">
-                    Delivery is currently limited to Proddatur surroundings.
-                  </p>
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Pincode
@@ -404,11 +358,6 @@ export default function BillingPage() {
                     placeholder="e.g. 516360"
                   />
                 </label>
-                {!serviceability.isServiceable && (address.trim() || pincode.trim()) ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    {serviceability.reason}
-                  </div>
-                ) : null}
                 <label className="text-sm font-semibold text-black/70">
                   Delivery Date
                   <input
