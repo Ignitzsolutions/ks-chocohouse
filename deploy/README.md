@@ -15,20 +15,23 @@
 4. Copy `deploy/nginx/bakery_ecom.conf` to `/etc/nginx/sites-available/`, replace `__APP_PORT__` and `__PUBLIC_UPLOADS_BASE_URL__`, and enable it.
 5. Create `/etc/bakery_ecom/bakery_ecom.env` from `deploy/env/.env.production.example`.
 6. Enable the service: `systemctl daemon-reload && systemctl enable --now bakery_ecom`.
+7. Install `certbot` and the Nginx plugin, issue a certificate for `www.kschocohouse.com` and `kschocohouse.com`, then validate renewal.
 
 ## Current Hostinger setup
-- Runtime URL: `http://187.127.153.47`
+- Runtime URL: `https://www.kschocohouse.com`
 - Process manager: `systemd`
-- Public entrypoint: `nginx` on port `80`
+- Public entrypoint: `nginx` on ports `80/443`
 - App process: `/var/www/bakery_ecom/current/server.js`
 - Native production dependencies are installed on the VPS during each release activation with `npm ci --omit=dev`
 - Production env is intended to be rendered by GitHub Actions and installed at `/etc/bakery_ecom/bakery_ecom.env`
 - Persistent business data must remain under `/var/lib/bakery_ecom`, never under `/var/www/bakery_ecom/releases`
 
-## TLS note
-- IP-only deployments stay on HTTP.
-- Let’s Encrypt cannot issue a normal certificate for a bare IP address.
-- Add HTTPS only after a real domain or subdomain points to the VPS.
+## DNS and TLS
+- Set the GoDaddy apex `A` record for `kschocohouse.com` to `187.127.153.47`.
+- Keep `www` as `CNAME @`.
+- Leave MX, TXT, DMARC, and unrelated subdomains unchanged.
+- `kschocohouse.com` should redirect to `https://www.kschocohouse.com`.
+- Use Let’s Encrypt contact email `kschocohouse@gmail.com`.
 
 ## GitHub Actions secrets
 - Deploy transport: `VPS_USER`, `VPS_SSH_PRIVATE_KEY`, optional `VPS_KNOWN_HOSTS`
@@ -62,7 +65,7 @@
 1. Stop the service: `systemctl stop bakery_ecom`
 2. Run `scripts/restore.sh /var/backups/bakery_ecom/sets/<timestamp> --restore-logs-to /var/backups/bakery_ecom/restored-logs/<timestamp>`
 3. Start the service: `systemctl start bakery_ecom`
-4. Verify `http://187.127.153.47/api/health`
+4. Verify `https://www.kschocohouse.com/api/health`
 5. Run `scripts/verify-restore.sh`
 
 ## Release pruning

@@ -12,11 +12,11 @@ permissions:
 env:
   NODE_VERSION: "20"
   VPS_HOST: "187.127.153.47"
-  SITE_URL: "http://187.127.153.47"
+  SITE_URL: "https://www.kschocohouse.com"
   NODE_ENV: "production"
   APP_PORT: "3000"
   PORT: "3000"
-  NEXT_PUBLIC_SITE_URL: "http://187.127.153.47"
+  NEXT_PUBLIC_SITE_URL: "https://www.kschocohouse.com"
   TRUST_PROXY: "true"
   DATABASE_PATH: "/var/lib/bakery_ecom/bakery.sqlite"
   UPLOADS_DIR: "/var/lib/bakery_ecom/uploads"
@@ -26,6 +26,8 @@ env:
   CHROME_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
   NEXT_PUBLIC_UPI_QR_IMAGE: "/images/payments/ks-choco-house-upi-qr.png"
   NEXT_PUBLIC_UPI_LABEL: "Pay via UPI QR"
+  CANONICAL_HOST: "www.kschocohouse.com"
+  REDIRECT_HOST: "kschocohouse.com"
 
 jobs:
   ci:
