@@ -95,6 +95,7 @@ export default function MenuPage() {
   const fallbackCategories = getCategories();
   const { products: allProducts } = useProducts();
   const [categories, setCategories] = useState<ProductCategory[]>(fallbackCategories);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const [activeCategory, setActiveCategory] = useState<ProductCategory>(
     fallbackCategories[0] ?? "Chocolates"
@@ -125,6 +126,20 @@ export default function MenuPage() {
     void loadCategories();
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobileViewport(mediaQuery.matches);
+
+    sync();
+    mediaQuery.addEventListener("change", sync);
+    window.addEventListener("resize", sync);
+
+    return () => {
+      mediaQuery.removeEventListener("change", sync);
+      window.removeEventListener("resize", sync);
     };
   }, []);
 
@@ -223,6 +238,10 @@ export default function MenuPage() {
         }))
       ),
     [categories, searchMatchedProductsByCategory]
+  );
+  const visibleCategories = useMemo(
+    () => (hasSearchQuery || !isMobileViewport ? categories : [activeCategory]),
+    [activeCategory, categories, hasSearchQuery, isMobileViewport]
   );
 
   useEffect(() => {
@@ -551,6 +570,7 @@ export default function MenuPage() {
           {categories.map((category) => (
             <button
               key={category}
+              type="button"
               onClick={() => jumpToCategory(category)}
               className={`flex min-w-[84px] flex-col items-center gap-2 border px-2 py-3 text-[11px] font-semibold ${
                 activeCategory === category
@@ -714,7 +734,7 @@ export default function MenuPage() {
 
               {hasSearchQuery
                 ? null
-                : categories.map((category) => {
+                : visibleCategories.map((category) => {
                 const items = productsByCategory.get(category) ?? [];
                 const searchedItems = searchMatchedProductsByCategory.get(category) ?? [];
                 const subCategories = subCategoriesByCategory.get(category) ?? [];
@@ -727,12 +747,12 @@ export default function MenuPage() {
                 if (!showSection) return null;
 
                 return (
-                  <section
-                    key={category}
-                    ref={api.setSectionRef(category)}
-                    id={categoryId(category)}
-                    className="space-y-4 border-t border-black/10 pt-6"
-                  >
+                    <section
+                  key={category}
+                  ref={api.setSectionRef(category)}
+                  id={categoryId(category)}
+                  className="scroll-mt-24 space-y-4 border-t border-black/10 pt-6 md:scroll-mt-0"
+                >
                     <div className="flex items-end justify-between gap-3">
                       <h2 className="hero-display text-4xl leading-none text-[#2f2321]">{category}</h2>
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5f4a42]">

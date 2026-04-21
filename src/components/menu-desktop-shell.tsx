@@ -6,6 +6,21 @@ function joinClassNames(...values: Array<string | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+function isContainerScrollable(container: HTMLDivElement | null) {
+  if (!container) return false;
+  return container.scrollHeight > container.clientHeight + 1;
+}
+
+function getSectionTop(section: HTMLElement, container: HTMLDivElement | null) {
+  if (container && isContainerScrollable(container)) {
+    const containerRect = container.getBoundingClientRect();
+    const sectionRect = section.getBoundingClientRect();
+    return sectionRect.top - containerRect.top + container.scrollTop;
+  }
+
+  return section.getBoundingClientRect().top + window.scrollY;
+}
+
 export type MenuDesktopShellApi<TCategory extends string> = {
   categories: readonly TCategory[];
   activeCategory: TCategory;
@@ -74,15 +89,19 @@ export function MenuDesktopShell<TCategory extends string>({
     const section = sectionElementsRef.current.get(category);
     if (!container || !section) return null;
 
-    const containerRect = container.getBoundingClientRect();
-    const sectionRect = section.getBoundingClientRect();
-    const absoluteTop = sectionRect.top - containerRect.top + container.scrollTop;
+    const absoluteTop = getSectionTop(section, container);
     return Math.max(absoluteTop - sectionTopOffset, 0);
   }
 
   function scrollToCategory(category: TCategory, behavior: ScrollBehavior = "auto") {
     const container = catalogContainerRef.current;
-    if (!container) return;
+    const section = sectionElementsRef.current.get(category);
+    if (!section) return;
+
+    if (!container || !isContainerScrollable(container)) {
+      section.scrollIntoView({ behavior, block: "start" });
+      return;
+    }
 
     const top = findScrollTopForCategory(category);
     if (top === null) return;
@@ -115,23 +134,24 @@ export function MenuDesktopShell<TCategory extends string>({
 
   useEffect(() => {
     const container = catalogContainerRef.current;
-    if (!container || categories.length === 0) return;
+    if (categories.length === 0) return;
 
     let rafId = 0;
+    const useContainerScroll = isContainerScrollable(container);
 
     const updateActiveFromScroll = () => {
       rafId = 0;
 
-      const markerTop = container.scrollTop + sectionTopOffset + 12;
+      const markerTop = useContainerScroll
+        ? container!.scrollTop + sectionTopOffset + 12
+        : window.scrollY + sectionTopOffset + 12;
       let nextActive = categories[0];
 
       for (const category of categories) {
         const section = sectionElementsRef.current.get(category);
         if (!section) continue;
 
-        const containerRect = container.getBoundingClientRect();
-        const sectionRect = section.getBoundingClientRect();
-        const top = sectionRect.top - containerRect.top + container.scrollTop;
+        const top = getSectionTop(section, container);
 
         if (top <= markerTop) {
           nextActive = category;
@@ -156,12 +176,20 @@ export function MenuDesktopShell<TCategory extends string>({
     };
 
     requestUpdate();
-    container.addEventListener("scroll", requestUpdate, { passive: true });
+    if (useContainerScroll && container) {
+      container.addEventListener("scroll", requestUpdate, { passive: true });
+    } else {
+      window.addEventListener("scroll", requestUpdate, { passive: true });
+    }
     window.addEventListener("resize", requestUpdate);
 
     return () => {
       if (rafId !== 0) window.cancelAnimationFrame(rafId);
-      container.removeEventListener("scroll", requestUpdate);
+      if (useContainerScroll && container) {
+        container.removeEventListener("scroll", requestUpdate);
+      } else {
+        window.removeEventListener("scroll", requestUpdate);
+      }
       window.removeEventListener("resize", requestUpdate);
     };
   }, [categories, onActiveCategoryChange, resolvedActiveCategory, sectionTopOffset]);
