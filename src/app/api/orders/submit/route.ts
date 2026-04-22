@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payable amount" }, { status: 400 });
     }
 
-    const orderId = generateOrderId("KSC");
+    const orderId = generateOrderId("WEB");
     const now = new Date().toISOString();
     const categorySummary =
       orderDetails?.categorySummary ??

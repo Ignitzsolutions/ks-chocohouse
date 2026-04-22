@@ -18,7 +18,11 @@ import {
   getOrderById,
   OrderDocumentError,
 } from "@/lib/order-documents";
-import { buildInvoiceFilename, buildInvoiceNumber } from "@/lib/invoice-number";
+import {
+  buildInvoiceFilename,
+  buildInvoiceNumber,
+  resolveInvoiceDisplayDate,
+} from "@/lib/invoice-number";
 import {
   getInvoiceTemplatePath,
   getPuppeteerLaunchOptions,
@@ -96,7 +100,7 @@ const formatInr = (value: number) => {
   return `INR ${amount}`;
 };
 
-const formatDate = (value?: string | null) => {
+const formatCalendarDate = (value?: string | null) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -224,6 +228,13 @@ export async function GET(
         order.source === "offline" ? order.sale_date : order.paid_at || order.created_at
       );
     const invoiceFilename = buildInvoiceFilename(invoiceNumber);
+    const invoiceDisplayDate = resolveInvoiceDisplayDate(
+      order.id,
+      order.source,
+      order.order_kind,
+      order.source === "offline" ? order.sale_date : order.paid_at || order.created_at,
+      invoiceNumber
+    );
 
     const items = normalizeItems(order);
     const subtotalFromItems = items.reduce((sum, item) => sum + safeNumber(item.lineTotal), 0);
@@ -234,6 +245,7 @@ export async function GET(
         : subtotalFromItems;
     const discountAmount = safeNumber(order.discount_amount, 0);
     const gstAmount = safeNumber(order.gst_amount, 0);
+    const gstRatePercent = safeNumber(order.gst_rate_percent, 0);
     const deliveryFee =
       order.delivery_fee_amount != null
         ? safeNumber(
@@ -364,14 +376,8 @@ export async function GET(
       BADGES: badges,
       INVOICE_NUMBER: escapeHtml(invoiceNumber),
       ORDER_ID: escapeHtml(order.id),
-      CREATED_DATE: escapeHtml(
-        formatDate(
-          order.source === "offline" && order.sale_date
-            ? order.sale_date
-            : order.paid_at || order.created_at
-        )
-      ),
-      DUE_DATE: escapeHtml(formatDate(order.delivery_date)),
+      CREATED_DATE: escapeHtml(invoiceDisplayDate),
+      DUE_DATE: escapeHtml(formatCalendarDate(order.delivery_date)),
       PAYMENT_METHOD: escapeHtml(order.payment_method || "-"),
       PAYMENT_STATUS: escapeHtml(order.payment_status || "-"),
       BARCODE_BLOCK: barcodeBlock,
@@ -384,6 +390,7 @@ export async function GET(
         `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="right">-</td><td class="right">-</td></tr>`,
       SUBTOTAL: escapeHtml(formatInr(subtotal)),
       DISCOUNT: escapeHtml(formatInr(discountAmount)),
+      TAX_LABEL: escapeHtml(gstRatePercent > 0 ? `GST (${gstRatePercent}%)` : "GST"),
       TAX: escapeHtml(formatInr(gstAmount)),
       DELIVERY_FEE: escapeHtml(formatInr(deliveryFee)),
       TOTAL: escapeHtml(formatInr(total)),

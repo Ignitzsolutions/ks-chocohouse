@@ -5,7 +5,7 @@ function pad(value: number, size = 2) {
 }
 
 function dateKey(date: Date) {
-  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+  return `${pad(date.getDate())}${pad(date.getMonth() + 1)}${pad(date.getFullYear() % 100)}`;
 }
 
 export function generateOrderId(prefix = "KSC", now = new Date()) {

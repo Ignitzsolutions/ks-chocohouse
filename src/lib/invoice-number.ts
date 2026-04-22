@@ -4,14 +4,41 @@ function pad(value: number, size = 2) {
   return String(value).padStart(size, "0");
 }
 
-function toDateCode(date: Date) {
+export function toDateCode(date: Date) {
   return `${pad(date.getDate())}${pad(date.getMonth() + 1)}${pad(date.getFullYear() % 100)}`;
 }
 
-function parseOrderIdDate(orderId: string) {
+export function parseOrderIdDate(orderId: string) {
   const datePart = orderId.split("-")[1] ?? "";
-  if (!/^\d{8}$/.test(datePart)) return null;
-  return `${datePart.slice(6, 8)}${datePart.slice(4, 6)}${datePart.slice(2, 4)}`;
+  if (/^\d{6}$/.test(datePart)) {
+    return datePart;
+  }
+  if (/^\d{8}$/.test(datePart)) {
+    return `${datePart.slice(6, 8)}${datePart.slice(4, 6)}${datePart.slice(2, 4)}`;
+  }
+  return null;
+}
+
+function parseInvoiceNumberDateCode(invoiceNumber?: string | null) {
+  const raw = String(invoiceNumber ?? "").trim();
+  if (!raw) return null;
+
+  const saleMatch = raw.match(/^KS-(?:WEB|OFF)-(\d{6})-\d+$/i);
+  if (saleMatch) return saleMatch[1];
+
+  const returnMatch = raw.match(/^KSC-RTN-\d+-(\d{6})$/i);
+  if (returnMatch) return returnMatch[1];
+
+  return null;
+}
+
+export function formatDateCode(dateCode?: string | null) {
+  const raw = String(dateCode ?? "").trim();
+  if (!/^\d{6}$/.test(raw)) return "-";
+  const day = raw.slice(0, 2);
+  const month = raw.slice(2, 4);
+  const year = `20${raw.slice(4, 6)}`;
+  return `${day}-${month}-${year}`;
 }
 
 function normalizeReferenceDate(referenceDate?: string | null, fallbackOrderId?: string) {
@@ -208,4 +235,18 @@ export function resequenceInvoiceNumbers(rows: PersistedInvoiceRow[]) {
 
 export function buildInvoiceFilename(invoiceNumber: string) {
   return `${invoiceNumber.replace(/[^A-Z0-9-]+/gi, "-")}.pdf`;
+}
+
+export function resolveInvoiceDisplayDate(
+  orderId: string,
+  source?: string | null,
+  orderKind?: string | null,
+  referenceDate?: string | null,
+  invoiceNumber?: string | null
+) {
+  const dateCode =
+    parseInvoiceNumberDateCode(invoiceNumber) ??
+    getInvoiceSeries(orderId, source, orderKind, referenceDate).dateCode;
+
+  return formatDateCode(dateCode);
 }
