@@ -35,6 +35,7 @@ export type MenuDesktopShellProps<TCategory extends string> = {
   activeCategory: TCategory;
   onActiveCategoryChange?: (category: TCategory) => void;
   onCategorySelect?: (category: TCategory) => void;
+  syncActiveFromScroll?: boolean;
   sectionTopOffset?: number;
   desktopFrameHeightClassName?: string;
   className?: string;
@@ -50,6 +51,7 @@ export function MenuDesktopShell<TCategory extends string>({
   activeCategory,
   onActiveCategoryChange,
   onCategorySelect,
+  syncActiveFromScroll = true,
   sectionTopOffset = 8,
   desktopFrameHeightClassName = "md:h-[75vh]",
   className,
@@ -133,6 +135,7 @@ export function MenuDesktopShell<TCategory extends string>({
   }
 
   useEffect(() => {
+    if (!syncActiveFromScroll) return;
     const container = catalogContainerRef.current;
     if (categories.length === 0) return;
 
@@ -192,7 +195,13 @@ export function MenuDesktopShell<TCategory extends string>({
       }
       window.removeEventListener("resize", requestUpdate);
     };
-  }, [categories, onActiveCategoryChange, resolvedActiveCategory, sectionTopOffset]);
+  }, [
+    categories,
+    onActiveCategoryChange,
+    resolvedActiveCategory,
+    sectionTopOffset,
+    syncActiveFromScroll,
+  ]);
 
   const api: MenuDesktopShellApi<TCategory> = {
     categories,

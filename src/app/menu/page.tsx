@@ -335,8 +335,8 @@ export default function MenuPage() {
     [categories, searchMatchedProductsByCategory]
   );
   const visibleCategories = useMemo(
-    () => (hasSearchQuery || !isMobileViewport ? categories : [activeCategory]),
-    [activeCategory, categories, hasSearchQuery, isMobileViewport]
+    () => (hasSearchQuery ? categories : [activeCategory]),
+    [activeCategory, categories, hasSearchQuery]
   );
 
   useEffect(() => {
@@ -697,6 +697,7 @@ export default function MenuPage() {
         <MenuDesktopShell
           categories={categories}
           activeCategory={activeCategory}
+          syncActiveFromScroll={false}
           onCategorySelect={(category) => {
             const availableSubCategories = subCategoriesByCategory.get(category) ?? [];
             const nextSubCategory = availableSubCategories.includes(activeSubCategory)
