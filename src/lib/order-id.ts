@@ -8,7 +8,7 @@ function dateKey(date: Date) {
   return `${pad(date.getDate())}${pad(date.getMonth() + 1)}${pad(date.getFullYear() % 100)}`;
 }
 
-export function generateOrderId(prefix = "KSC", now = new Date()) {
+export function generateOrderId(prefix = "KSC", now = new Date(), ignoreExistingId?: string) {
   const key = dateKey(now);
   const base = `${prefix}-${key}`;
   const likePattern = `${base}-%`;
@@ -20,6 +20,7 @@ export function generateOrderId(prefix = "KSC", now = new Date()) {
   for (let bump = 0; bump < 20; bump += 1) {
     const serial = String(row.count + 1 + bump).padStart(3, "0");
     const candidate = `${base}-${serial}`;
+    if (ignoreExistingId && candidate === ignoreExistingId) return candidate;
     const exists = getDb()
       .prepare("SELECT 1 AS ok FROM orders WHERE id = ? LIMIT 1")
       .get(candidate) as { ok?: number } | undefined;

@@ -72,6 +72,11 @@ function normalizeDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
+function parseDateOnly(value: string | null) {
+  const normalized = normalizeDate(value);
+  return normalized ? new Date(`${normalized}T00:00:00`) : new Date();
+}
+
 function toInt(value: unknown, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -614,10 +619,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const orderId = existingDraft?.id ?? generateOrderId("OFF");
+    const desiredOrderId = generateOrderId(
+      "OFF",
+      parseDateOnly(saleDate),
+      existingDraft?.id
+    );
+    const orderId = existingDraft?.id ?? desiredOrderId;
+    const finalOrderId = mode === "finalize" ? desiredOrderId : orderId;
     const invoiceNumber =
       mode === "finalize"
-        ? allocateNextInvoiceNumber(db, orderId, "offline", "sale", saleDate)
+        ? allocateNextInvoiceNumber(
+            db,
+            finalOrderId,
+            "offline",
+            "sale",
+            saleDate
+          )
         : null;
     const lifecycleState = mode === "draft" ? "draft" : "finalized";
     const status = mode === "draft" ? "Awaiting Approval" : "Delivered";
@@ -626,7 +643,8 @@ export async function POST(request: Request) {
 
     db.transaction(() => {
       const params = {
-        id: orderId,
+        id: finalOrderId,
+        existing_id: existingDraft?.id ?? null,
         cake_name: rows.length === 1 ? rows[0].name : "Offline Mixed Sale",
         quantity,
         customer_name: String(body?.customerName ?? "").trim() || "Customer",
@@ -675,10 +693,18 @@ export async function POST(request: Request) {
         payment_updated_at: now,
       };
 
+      if (existingDraft && mode === "finalize" && desiredOrderId !== existingDraft.id) {
+        db.prepare(`UPDATE order_events SET order_id = ? WHERE order_id = ?`).run(
+          desiredOrderId,
+          existingDraft.id
+        );
+      }
+
       if (existingDraft) {
         db.prepare(
           `UPDATE orders
-           SET cake_name = @cake_name,
+           SET id = @id,
+               cake_name = @cake_name,
                quantity = @quantity,
                customer_name = @customer_name,
                phone = @phone,
@@ -721,7 +747,7 @@ export async function POST(request: Request) {
                updated_at = @updated_at,
                status_updated_at = @status_updated_at,
                payment_updated_at = @payment_updated_at
-           WHERE id = @id`
+           WHERE id = @existing_id`
         ).run(params);
       } else {
         db.prepare(
@@ -749,12 +775,12 @@ export async function POST(request: Request) {
     })();
 
     if (!existingDraft) {
-      writeOrderEvent(orderId, "payment_verified", now, adminName, null, "Verified", {
+      writeOrderEvent(finalOrderId, "payment_verified", now, adminName, null, "Verified", {
         source: "offline",
       });
     }
     writeOrderEvent(
-      orderId,
+      finalOrderId,
       existingDraft ? "order_updated" : "status_changed",
       now,
       adminName,
@@ -763,17 +789,19 @@ export async function POST(request: Request) {
       { source: "offline", lifecycleState }
     );
     if (mode === "finalize") {
-      writeOrderEvent(orderId, "invoice_generated", now, adminName, null, invoiceNumber, {
+      writeOrderEvent(finalOrderId, "invoice_generated", now, adminName, null, invoiceNumber, {
         source: "offline",
       });
     }
 
     return NextResponse.json({
       ok: true,
-      orderId,
+      orderId: finalOrderId,
       mode,
       invoiceUrl:
-        mode === "finalize" ? `/api/orders/${encodeURIComponent(orderId)}/invoice` : null,
+        mode === "finalize"
+          ? `/api/orders/${encodeURIComponent(finalOrderId)}/invoice`
+          : null,
     });
   } catch (error) {
     return jsonError("Failed to create offline invoice", 500, error);

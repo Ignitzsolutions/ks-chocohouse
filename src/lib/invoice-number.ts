@@ -64,9 +64,14 @@ function normalizeReferenceDate(referenceDate?: string | null, fallbackOrderId?:
 
 function resolveInvoiceDateCode(
   orderId: string,
+  source?: string | null,
   orderKind?: string | null,
   referenceDate?: string | null
 ) {
+  if (source === "offline" && orderKind !== "return") {
+    return normalizeReferenceDate(referenceDate, orderId);
+  }
+
   if (orderKind !== "return") {
     const fromOrderId = parseOrderIdDate(orderId);
     if (fromOrderId) return fromOrderId;
@@ -104,7 +109,7 @@ export function getInvoiceSeries(
   referenceDate?: string | null
 ) {
   const type = resolveInvoiceType(orderId, source, orderKind);
-  const dateCode = resolveInvoiceDateCode(orderId, orderKind, referenceDate);
+  const dateCode = resolveInvoiceDateCode(orderId, source, orderKind, referenceDate);
   return {
     type,
     dateCode,
