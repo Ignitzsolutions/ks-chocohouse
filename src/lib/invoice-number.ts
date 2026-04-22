@@ -35,6 +35,19 @@ function normalizeReferenceDate(referenceDate?: string | null, fallbackOrderId?:
   return toDateCode(new Date());
 }
 
+function resolveInvoiceDateCode(
+  orderId: string,
+  orderKind?: string | null,
+  referenceDate?: string | null
+) {
+  if (orderKind !== "return") {
+    const fromOrderId = parseOrderIdDate(orderId);
+    if (fromOrderId) return fromOrderId;
+  }
+
+  return normalizeReferenceDate(referenceDate, orderId);
+}
+
 export function resolveInvoiceType(
   orderId: string,
   source?: string | null,
@@ -64,7 +77,7 @@ export function getInvoiceSeries(
   referenceDate?: string | null
 ) {
   const type = resolveInvoiceType(orderId, source, orderKind);
-  const dateCode = normalizeReferenceDate(referenceDate, orderId);
+  const dateCode = resolveInvoiceDateCode(orderId, orderKind, referenceDate);
   return {
     type,
     dateCode,
