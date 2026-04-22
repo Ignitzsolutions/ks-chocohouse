@@ -96,7 +96,12 @@ type PersistedMenuState = {
   category: string;
   subCategory: string;
   scrollTop: number;
+  positions?: Record<string, number>;
 };
+
+function buildPositionKey(category: string, subCategory?: string) {
+  return `${category}::${subCategory ?? ""}`;
+}
 
 function readMenuState() {
   if (typeof window === "undefined") return null;
@@ -129,6 +134,36 @@ export default function MenuPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSizeByProduct, setSelectedSizeByProduct] = useState<Record<string, string>>({});
   const [cartQtyById, setCartQtyById] = useState<Record<string, number>>({});
+
+  const saveMenuPosition = (category: string, subCategory: string, scrollTop: number) => {
+    const persisted = readMenuState();
+    writeMenuState({
+      category,
+      subCategory,
+      scrollTop,
+      positions: {
+        ...(persisted?.positions ?? {}),
+        [buildPositionKey(category, subCategory)]: Math.max(0, scrollTop),
+      },
+    });
+  };
+
+  const getCurrentScrollTop = () =>
+    document.querySelector<HTMLElement>(".menu-catalog-viewport")?.scrollTop ?? window.scrollY;
+
+  const restoreMenuPosition = (category: string, subCategory: string) => {
+    const persisted = readMenuState();
+    const targetTop =
+      persisted?.positions?.[buildPositionKey(category, subCategory)] ??
+      persisted?.scrollTop ??
+      0;
+    const desktopCatalogRoot = document.querySelector<HTMLElement>(".menu-catalog-viewport");
+    if (desktopCatalogRoot) {
+      desktopCatalogRoot.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+      return;
+    }
+    window.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+  };
 
   useEffect(() => {
     let active = true;
@@ -207,13 +242,7 @@ export default function MenuPage() {
   }, [activeCategory, allProducts, categories]);
 
   useEffect(() => {
-    writeMenuState({
-      category: activeCategory,
-      subCategory: activeSubCategory,
-      scrollTop:
-        document.querySelector<HTMLElement>(".menu-catalog-viewport")?.scrollTop ??
-        window.scrollY,
-    });
+    saveMenuPosition(activeCategory, activeSubCategory, getCurrentScrollTop());
   }, [activeCategory, activeSubCategory]);
 
   useEffect(() => {
@@ -221,13 +250,8 @@ export default function MenuPage() {
       document.querySelector<HTMLElement>(".menu-catalog-viewport") ?? window;
 
     const saveScrollPosition = () => {
-      const scrollTop =
-        target instanceof Window ? target.scrollY : target.scrollTop;
-      writeMenuState({
-        category: activeCategory,
-        subCategory: activeSubCategory,
-        scrollTop,
-      });
+      const scrollTop = target instanceof Window ? target.scrollY : target.scrollTop;
+      saveMenuPosition(activeCategory, activeSubCategory, scrollTop);
     };
 
     saveScrollPosition();
@@ -242,12 +266,7 @@ export default function MenuPage() {
     if (persisted.category !== activeCategory || persisted.subCategory !== activeSubCategory) return;
 
     const frame = window.requestAnimationFrame(() => {
-      const desktopCatalogRoot = document.querySelector<HTMLElement>(".menu-catalog-viewport");
-      if (desktopCatalogRoot) {
-        desktopCatalogRoot.scrollTo({ top: Math.max(0, persisted.scrollTop), behavior: "auto" });
-      } else {
-        window.scrollTo({ top: Math.max(0, persisted.scrollTop), behavior: "auto" });
-      }
+      restoreMenuPosition(activeCategory, activeSubCategory);
       restoredScrollRef.current = true;
     });
 
@@ -329,12 +348,21 @@ export default function MenuPage() {
   }, [hasSearchQuery, deferredSearchQuery]);
 
   const jumpToCategory = (category: ProductCategory, subCategory = "") => {
+    saveMenuPosition(activeCategory, activeSubCategory, getCurrentScrollTop());
     setActiveCategory(category);
     const availableSubCategories = subCategoriesByCategory.get(category) ?? [];
     const nextSubCategory =
       subCategory && availableSubCategories.includes(subCategory) ? subCategory : "";
     setActiveSubCategory(nextSubCategory);
     window.history.replaceState(null, "", buildMenuUrl(category, nextSubCategory));
+
+    const persisted = readMenuState();
+    const storedTop = persisted?.positions?.[buildPositionKey(category, nextSubCategory)];
+    if (storedTop !== undefined) {
+      window.requestAnimationFrame(() => restoreMenuPosition(category, nextSubCategory));
+      return;
+    }
+
     const node = document.getElementById(categoryId(category));
     if (!node) return;
 
@@ -378,13 +406,7 @@ export default function MenuPage() {
   };
 
   const openProductPage = (item: Product) => {
-    writeMenuState({
-      category: activeCategory,
-      subCategory: activeSubCategory,
-      scrollTop:
-        document.querySelector<HTMLElement>(".menu-catalog-viewport")?.scrollTop ??
-        window.scrollY,
-    });
+    saveMenuPosition(activeCategory, activeSubCategory, getCurrentScrollTop());
     router.push(getProductHref(item));
   };
 
