@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi, requireAdminApiWithRequest } from "@/lib/admin-auth";
+import { getAdminSettings } from "@/lib/admin-settings";
 import { recordOrderEvent } from "@/lib/admin-sales";
 import { jsonError } from "@/lib/api-response";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
@@ -53,6 +54,9 @@ type OrderMutationRow = {
   subtotal_amount: number | null;
   delivery_fee_amount: number | null;
   discount_amount: number | null;
+  gst_enabled: number | null;
+  gst_rate_percent: number | null;
+  gst_amount: number | null;
   coupon_code: string | null;
   coupon_snapshot_json: string | null;
   order_kind: string | null;
@@ -122,7 +126,8 @@ function getExistingOrder(id: string) {
       `SELECT id, cake_name, quantity, customer_name, phone, email, address, pincode,
               sale_date, cake_message, order_items_json, category_summary, buyer_gst_json, source,
               payment_method, payment_reference, payment_status, invoice_number, invoice_ready,
-              total_amount, subtotal_amount, delivery_fee_amount, discount_amount, coupon_code,
+              total_amount, subtotal_amount, delivery_fee_amount, discount_amount, gst_enabled,
+              gst_rate_percent, gst_amount, coupon_code,
               coupon_snapshot_json, order_kind, lifecycle_state, parent_order_id, status, created_at
        FROM orders
        WHERE id = ?
@@ -436,6 +441,7 @@ export async function PATCH(request: Request) {
       const subtotalAmount = -Math.abs(toInt(existing.subtotal_amount, Math.abs(existing.total_amount)));
       const deliveryFeeAmount = -Math.abs(toInt(existing.delivery_fee_amount, 0));
       const discountAmount = -Math.abs(toInt(existing.discount_amount, 0));
+      const gstAmount = -Math.abs(toInt(existing.gst_amount, 0));
       const totalAmount = -Math.abs(toInt(existing.total_amount, 0));
 
       db.transaction(() => {
@@ -445,14 +451,14 @@ export async function PATCH(request: Request) {
              delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
              payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
              txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-             discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+             discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
              parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
              status_updated_at, payment_updated_at)
            VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date,
                    @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source,
                    @payment_method, @payment_reference, @payment_status, @payment_verified_at, @payment_verified_by,
                    @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount,
-                   @discount_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
+                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
                    @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at,
                    @status_updated_at, @payment_updated_at)`
         ).run({
@@ -483,6 +489,9 @@ export async function PATCH(request: Request) {
           subtotal_amount: subtotalAmount,
           delivery_fee_amount: deliveryFeeAmount,
           discount_amount: discountAmount,
+          gst_enabled: Number(existing.gst_enabled ?? 1) === 1 ? 1 : 0,
+          gst_rate_percent: toInt(existing.gst_rate_percent, 18),
+          gst_amount: gstAmount,
           coupon_code: existing.coupon_code,
           coupon_snapshot_json: existing.coupon_snapshot_json,
           total_amount: totalAmount,
@@ -540,6 +549,7 @@ export async function POST(request: Request) {
     initDb();
     const body = await request.json();
     const db = getDb();
+    const settings = getAdminSettings(db);
     const items = Array.isArray(body?.items) ? body.items : [];
     if (items.length === 0) {
       return NextResponse.json(
@@ -566,6 +576,8 @@ export async function POST(request: Request) {
 
     const subtotalAmount = rows.reduce((sum, row) => sum + row.lineTotal, 0);
     const mode = String(body?.mode ?? "finalize") === "draft" ? "draft" : "finalize";
+    const manualDiscountAmount = Math.max(0, toInt(body?.discountAmount, 0));
+    const applyDeliveryCharge = body?.applyDeliveryCharge === true;
     const couponCode = normalizeCouponCode(body?.couponCode);
     const couponValidation = couponCode
       ? validateCouponCode(db, couponCode, subtotalAmount)
@@ -577,7 +589,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const pricing = computePricing(subtotalAmount, couponValidation.discountAmount, 0);
+    const pricing = computePricing(
+      subtotalAmount,
+      couponValidation.discountAmount + manualDiscountAmount,
+      settings,
+      { deliveryEnabled: applyDeliveryCharge }
+    );
     const quantity = rows.reduce((sum, row) => sum + row.qty, 0);
     const categorySummary = Array.from(new Set(rows.map((row) => row.category))).join(", ");
     const now = new Date().toISOString();
@@ -637,6 +654,9 @@ export async function POST(request: Request) {
         subtotal_amount: pricing.subtotalAmount,
         delivery_fee_amount: pricing.deliveryFeeAmount,
         discount_amount: pricing.discountAmount,
+        gst_enabled: pricing.gstEnabled ? 1 : 0,
+        gst_rate_percent: pricing.gstRatePercent,
+        gst_amount: pricing.gstAmount,
         coupon_code: couponValidation.coupon?.code ?? null,
         coupon_snapshot_json: couponValidation.coupon
           ? JSON.stringify(getCouponByCode(db, couponValidation.coupon.code))
@@ -685,6 +705,9 @@ export async function POST(request: Request) {
                subtotal_amount = @subtotal_amount,
                delivery_fee_amount = @delivery_fee_amount,
                discount_amount = @discount_amount,
+               gst_enabled = @gst_enabled,
+               gst_rate_percent = @gst_rate_percent,
+               gst_amount = @gst_amount,
                coupon_code = @coupon_code,
                coupon_snapshot_json = @coupon_snapshot_json,
                total_amount = @total_amount,
@@ -707,14 +730,14 @@ export async function POST(request: Request) {
              sale_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
              payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
              txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-             discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+             discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
              parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
              status_updated_at, payment_updated_at)
            VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date,
                    @sale_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source,
                    @payment_method, @payment_reference, @payment_status, @payment_verified_at, @payment_verified_by,
                    @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount,
-                   @discount_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
+                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
                    @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at,
                    @status_updated_at, @payment_updated_at)`
         ).run(params);

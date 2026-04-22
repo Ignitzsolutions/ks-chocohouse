@@ -7,6 +7,10 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  type AdminSettings,
+} from "@/lib/admin-settings";
 import { addItem, clearCart, getCart, type CartItem } from "@/lib/cart";
 import { computePricing } from "@/lib/pricing";
 import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
@@ -56,6 +60,7 @@ export default function BillingPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCouponState>(null);
   const [couponBusy, setCouponBusy] = useState(false);
   const [blackouts, setBlackouts] = useState<{ date: string; reason: string }[]>([]);
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
@@ -78,6 +83,11 @@ export default function BillingPage() {
       .then((res) => res.json())
       .then((data) => setBlackouts(data.blackouts ?? []))
       .catch(() => setBlackouts([]));
+
+    fetch("/api/settings", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setSettings((data.settings ?? DEFAULT_ADMIN_SETTINGS) as AdminSettings))
+      .catch(() => setSettings(DEFAULT_ADMIN_SETTINGS));
   }, []);
 
   useEffect(() => {
@@ -112,8 +122,8 @@ export default function BillingPage() {
 
   const subtotal = detailed.reduce((sum, item) => sum + item.lineTotal, 0);
   const pricing = useMemo(
-    () => computePricing(subtotal, appliedCoupon?.discountAmount ?? 0),
-    [appliedCoupon?.discountAmount, subtotal]
+    () => computePricing(subtotal, appliedCoupon?.discountAmount ?? 0, settings),
+    [appliedCoupon?.discountAmount, settings, subtotal]
   );
   const totalQty = detailed.reduce((sum, item) => sum + item.qty, 0);
   const categorySummary = Array.from(new Set(detailed.map((i) => i.category))).join(", ");
@@ -177,7 +187,6 @@ export default function BillingPage() {
         body: JSON.stringify({
           code: normalizedCode,
           subtotal,
-          deliveryFee: computePricing(subtotal).deliveryFeeAmount,
         }),
       });
       const data = await response.json();
@@ -538,18 +547,27 @@ export default function BillingPage() {
                   <span>Subtotal</span>
                   <span>{formatInr(pricing.subtotalAmount)}</span>
                 </div>
+                {pricing.discountAmount > 0 ? (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>Discount</span>
+                    <span>- {formatInr(pricing.discountAmount)}</span>
+                  </div>
+                ) : null}
+                {pricing.gstEnabled ? (
+                  <div className="flex items-center justify-between">
+                    <span>GST ({pricing.gstRatePercent}%)</span>
+                    <span>{formatInr(pricing.gstAmount)}</span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span>Delivery</span>
                   <span>{formatInr(pricing.deliveryFeeAmount)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Discount</span>
-                  <span>{formatInr(pricing.discountAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Tax</span>
-                  <span>{formatInr(0)}</span>
-                </div>
+                {pricing.freeDeliveryApplied ? (
+                  <p className="text-xs text-emerald-700">
+                    Delivery charge waived for orders above {formatInr(settings.freeDeliveryThreshold)}.
+                  </p>
+                ) : null}
                 <div className="flex items-center justify-between text-base font-semibold">
                   <span>Total</span>
                   <span>{formatInr(pricing.totalAmount)}</span>

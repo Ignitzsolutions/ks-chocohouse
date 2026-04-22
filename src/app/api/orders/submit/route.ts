@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAdminSettings } from "@/lib/admin-settings";
 import { getDb, initDb } from "@/lib/db";
 import { generateOrderId } from "@/lib/order-id";
 import { recordOrderEvent } from "@/lib/admin-sales";
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
 
     initDb();
     const db = getDb();
+    const settings = getAdminSettings(db);
 
     if (orderDetails?.delivery_date) {
       const blocked = db
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const pricing = computePricing(subtotalAmount, couponValidation.discountAmount);
+    const pricing = computePricing(subtotalAmount, couponValidation.discountAmount, settings);
     if (pricing.totalAmount <= 0) {
       return NextResponse.json({ error: "Invalid payable amount" }, { status: 400 });
     }
@@ -125,8 +127,8 @@ export async function POST(request: Request) {
     db.transaction(() => {
       db.prepare(
         `INSERT INTO orders
-          (id, cake_name, quantity, customer_name, phone, email, address, pincode, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source, payment_method, payment_reference, payment_status, txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount, discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state, parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at, status_updated_at, payment_updated_at)
-          VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source, @payment_method, @payment_reference, @payment_status, @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount, @discount_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state, @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at, @status_updated_at, @payment_updated_at)`
+          (id, cake_name, quantity, customer_name, phone, email, address, pincode, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source, payment_method, payment_reference, payment_status, txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount, discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state, parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at, status_updated_at, payment_updated_at)
+          VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source, @payment_method, @payment_reference, @payment_status, @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount, @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state, @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at, @status_updated_at, @payment_updated_at)`
       ).run({
         id: orderId,
         cake_name: cakeName,
@@ -153,6 +155,9 @@ export async function POST(request: Request) {
         subtotal_amount: pricing.subtotalAmount,
         delivery_fee_amount: pricing.deliveryFeeAmount,
         discount_amount: pricing.discountAmount,
+        gst_enabled: pricing.gstEnabled ? 1 : 0,
+        gst_rate_percent: pricing.gstRatePercent,
+        gst_amount: pricing.gstAmount,
         coupon_code: couponValidation.coupon?.code ?? null,
         coupon_snapshot_json: couponValidation.coupon
           ? JSON.stringify(getCouponByCode(db, couponValidation.coupon.code))

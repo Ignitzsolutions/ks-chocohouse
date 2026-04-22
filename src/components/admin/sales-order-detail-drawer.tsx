@@ -202,6 +202,7 @@ export function SalesOrderDetailDrawer({
                 <p>Subtotal: {formatInr(Number(order.subtotal_amount ?? order.total_amount))}</p>
                 <p>Delivery: {formatInr(Number(order.delivery_fee_amount ?? 0))}</p>
                 <p>Discount: {formatInr(Number(order.discount_amount ?? 0))}</p>
+                <p>GST: {formatInr(Number(order.gst_amount ?? 0))}</p>
                 <p>Coupon: {order.coupon_code || "-"}</p>
               </div>
               {order.category_summary ? (

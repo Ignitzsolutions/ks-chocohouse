@@ -16,9 +16,18 @@ type ProductRow = {
   image_src: string;
   image_gallery_json?: string | null;
   size_options_json: string;
+  flavor_selection_enabled?: number;
+  flavor_names_csv?: string | null;
   eggless: number;
   available: number;
 };
+
+function parseCsvList(value: string | null | undefined) {
+  return String(value ?? "")
+    .split("||")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 function parseSizeOptions(value: string | null | undefined) {
   try {
@@ -60,6 +69,8 @@ function toApiProduct(row: ProductRow) {
     imageSrc: row.image_src,
     imageGallery: parseImageGallery(row.image_gallery_json, row.image_src),
     sizeOptions: parseSizeOptions(row.size_options_json),
+    flavorSelectionEnabled: Number(row.flavor_selection_enabled ?? 0) === 1,
+    flavors: parseCsvList(row.flavor_names_csv),
     eggless: row.eggless === 1,
     available: row.available === 1,
   };
@@ -73,9 +84,10 @@ export async function GET(request: Request) {
     const subCategory = String(searchParams.get("subCategory") ?? "").trim();
 
     let query =
-      `SELECT id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available
-       FROM products
-       WHERE available = 1`;
+      `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
+              (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
+       FROM products p
+       WHERE p.available = 1`;
     const params: Record<string, string> = {};
     if (category) {
       query += " AND category = @category";
@@ -85,7 +97,7 @@ export async function GET(request: Request) {
       query += " AND sub_category = @subCategory";
       params.subCategory = subCategory;
     }
-    query += " ORDER BY category ASC, name ASC";
+    query += " ORDER BY p.category ASC, p.name ASC";
 
     const rows = getDb().prepare(query).all(params) as ProductRow[];
 

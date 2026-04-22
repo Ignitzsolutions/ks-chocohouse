@@ -17,6 +17,8 @@ export type Product = {
   imageSrc: string;
   imageGallery: string[];
   sizeOptions?: string[];
+  flavors?: string[];
+  flavorSelectionEnabled?: boolean;
   eggless: boolean;
   available: boolean;
 };
@@ -35,6 +37,8 @@ type RawProduct = {
   imageSrc: string;
   imageGallery?: string[];
   sizeOptions?: string[];
+  flavors?: string[];
+  flavorSelectionEnabled?: boolean;
   eggless: boolean;
   available: boolean;
 };
@@ -118,6 +122,10 @@ function toProduct(raw: RawProduct): Product {
     imageSrc: raw.imageSrc,
     imageGallery: normalizeGallery(raw),
     sizeOptions: raw.sizeOptions?.map((value) => value.trim()).filter(Boolean),
+    flavors: Array.isArray(raw.flavors)
+      ? raw.flavors.map((value) => String(value).trim()).filter(Boolean)
+      : [],
+    flavorSelectionEnabled: raw.flavorSelectionEnabled === true,
     eggless: raw.eggless,
     available: raw.available,
   };
@@ -247,6 +255,13 @@ export function getDisplayFlavorOptions(
   product: Product,
   availableProducts: Product[] = products
 ): string[] {
+  const explicitFlavors = Array.isArray(product.flavors)
+    ? product.flavors.map((value) => String(value).trim()).filter(Boolean)
+    : [];
+  if (explicitFlavors.length > 0) {
+    return Array.from(new Set(explicitFlavors));
+  }
+
   const sameCategory = availableProducts.filter((item) => item.category === product.category);
   const preferred = inferFlavorLabels(product);
   const categoryFlavors = sameCategory.flatMap((item) => inferFlavorLabels(item));

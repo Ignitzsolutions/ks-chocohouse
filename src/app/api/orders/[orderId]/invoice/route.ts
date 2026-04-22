@@ -65,6 +65,9 @@ type OrderRow = {
   subtotal_amount?: number | null;
   delivery_fee_amount?: number | null;
   discount_amount?: number | null;
+  gst_enabled?: number | null;
+  gst_rate_percent?: number | null;
+  gst_amount?: number | null;
   coupon_code?: string | null;
   total_amount?: number;
   order_kind?: string | null;
@@ -225,19 +228,19 @@ export async function GET(
     const items = normalizeItems(order);
     const subtotalFromItems = items.reduce((sum, item) => sum + safeNumber(item.lineTotal), 0);
     const total = safeNumber(order.total_amount, 0);
-    const taxAmount = 0;
     const subtotal =
       order.subtotal_amount != null
         ? safeNumber(order.subtotal_amount, subtotalFromItems)
         : subtotalFromItems;
+    const discountAmount = safeNumber(order.discount_amount, 0);
+    const gstAmount = safeNumber(order.gst_amount, 0);
     const deliveryFee =
       order.delivery_fee_amount != null
         ? safeNumber(
             order.delivery_fee_amount,
-            Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0))
+            Math.max(0, total - subtotal - gstAmount + discountAmount)
           )
-        : Math.max(0, total - subtotal + safeNumber(order.discount_amount, 0));
-    const discountAmount = safeNumber(order.discount_amount, 0);
+        : Math.max(0, total - subtotal - gstAmount + discountAmount);
     const buyerGst = parseBuyerGst(order.buyer_gst_json);
 
     const [template, bakeryLogoBytes, fssaiBytes, barcodeBytes] = await Promise.all([
@@ -381,7 +384,7 @@ export async function GET(
         `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="right">-</td><td class="right">-</td></tr>`,
       SUBTOTAL: escapeHtml(formatInr(subtotal)),
       DISCOUNT: escapeHtml(formatInr(discountAmount)),
-      TAX: escapeHtml(formatInr(taxAmount)),
+      TAX: escapeHtml(formatInr(gstAmount)),
       DELIVERY_FEE: escapeHtml(formatInr(deliveryFee)),
       TOTAL: escapeHtml(formatInr(total)),
       NOTES_BLOCK: notesBlock,

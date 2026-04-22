@@ -7,6 +7,11 @@ import { AdminGuard } from "@/components/admin-guard";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Badge } from "@/components/ui/badge";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  type AdminSettings,
+} from "@/lib/admin-settings";
+import { computePricing } from "@/lib/pricing";
 import { formatInr } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
@@ -41,6 +46,9 @@ export default function AdminInvoicesPage() {
   const [gstin, setGstin] = useState("");
   const [gstBillingAddress, setGstBillingAddress] = useState("");
   const [couponCode, setCouponCode] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("0");
+  const [applyDeliveryCharge, setApplyDeliveryCharge] = useState(false);
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
   const [note, setNote] = useState("");
   const [items, setItems] = useState<OfflineItem[]>([emptyItem()]);
   const [draftOrderId, setDraftOrderId] = useState<string | null>(null);
@@ -50,6 +58,13 @@ export default function AdminInvoicesPage() {
 
   useEffect(() => {
     setSaleDate((current) => current || getTodayAdminDate());
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/settings", { credentials: "include", cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setSettings((data.settings ?? DEFAULT_ADMIN_SETTINGS) as AdminSettings))
+      .catch(() => setSettings(DEFAULT_ADMIN_SETTINGS));
   }, []);
 
   const productMap = useMemo(() => {
@@ -74,6 +89,17 @@ export default function AdminInvoicesPage() {
       { qty: 0, amount: 0 }
     );
   }, [items, productMap]);
+
+  const pricing = useMemo(
+    () =>
+      computePricing(
+        totals.amount,
+        Math.max(0, Number(discountAmount || 0)),
+        settings,
+        { deliveryEnabled: applyDeliveryCharge }
+      ),
+    [applyDeliveryCharge, discountAmount, settings, totals.amount]
+  );
 
   const canGenerate =
     Boolean(saleDate) &&
@@ -105,6 +131,8 @@ export default function AdminInvoicesPage() {
     setGstin("");
     setGstBillingAddress("");
     setCouponCode("");
+    setDiscountAmount("0");
+    setApplyDeliveryCharge(false);
     setNote("");
     setItems([emptyItem()]);
     setDraftOrderId(null);
@@ -137,6 +165,8 @@ export default function AdminInvoicesPage() {
           paymentMethod,
           paymentReference,
           couponCode,
+          discountAmount: Math.max(0, Number(discountAmount || 0)),
+          applyDeliveryCharge,
           buyerGst: {
             businessName: gstBusinessName,
             gstin,
@@ -201,6 +231,12 @@ export default function AdminInvoicesPage() {
               className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold"
             >
               Sales Dashboard
+            </Link>
+            <Link
+              href="/admin/settings"
+              className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
+            >
+              Settings
             </Link>
           </div>
 
@@ -290,6 +326,17 @@ export default function AdminInvoicesPage() {
                   placeholder="Optional"
                 />
               </label>
+              <label className="text-sm font-semibold text-black/70">
+                Discount (INR)
+                <input
+                  type="number"
+                  min={0}
+                  value={discountAmount}
+                  onChange={(event) => setDiscountAmount(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                  placeholder="0"
+                />
+              </label>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -332,6 +379,15 @@ export default function AdminInvoicesPage() {
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                 placeholder="Optional note for invoice"
               />
+            </label>
+
+            <label className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-black/70">
+              <input
+                type="checkbox"
+                checked={applyDeliveryCharge}
+                onChange={(event) => setApplyDeliveryCharge(event.target.checked)}
+              />
+              Apply delivery charge
             </label>
 
             <div className="mt-6 space-y-3">
@@ -396,7 +452,16 @@ export default function AdminInvoicesPage() {
 
             <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm">
               <p>Total Quantity: {totals.qty}</p>
-              <p className="font-semibold">Grand Total: {formatInr(totals.amount)}</p>
+              <p>Subtotal: {formatInr(pricing.subtotalAmount)}</p>
+              <p>Discount: {formatInr(pricing.discountAmount)}</p>
+              <p>GST ({pricing.gstRatePercent}%): {formatInr(pricing.gstAmount)}</p>
+              <p>Delivery: {formatInr(pricing.deliveryFeeAmount)}</p>
+              {pricing.freeDeliveryApplied ? (
+                <p className="text-xs text-emerald-700">
+                  Delivery charge waived for orders above {formatInr(settings.freeDeliveryThreshold)}.
+                </p>
+              ) : null}
+              <p className="font-semibold">Grand Total: {formatInr(pricing.totalAmount)}</p>
             </div>
 
             {error && (

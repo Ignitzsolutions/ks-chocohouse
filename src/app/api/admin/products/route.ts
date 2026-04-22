@@ -17,11 +17,21 @@ type ProductRow = {
   image_src: string;
   image_gallery_json: string | null;
   size_options_json: string;
+  flavor_selection_enabled: number;
+  flavor_ids_csv?: string | null;
+  flavor_names_csv?: string | null;
   eggless: number;
   available: number;
   created_at: string;
   updated_at: string;
 };
+
+function parseCsvList(value: string | null | undefined) {
+  return String(value ?? "")
+    .split("||")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 function parseSizeOptions(value: string | null | undefined) {
   try {
@@ -74,6 +84,9 @@ function toApiProduct(row: ProductRow) {
     imageSrc: row.image_src,
     imageGallery: parseImageGallery(row.image_gallery_json, row.image_src),
     sizeOptions: parseSizeOptions(row.size_options_json),
+    flavorSelectionEnabled: row.flavor_selection_enabled === 1,
+    flavorIds: parseCsvList(row.flavor_ids_csv),
+    flavors: parseCsvList(row.flavor_names_csv),
     eggless: row.eggless === 1,
     available: row.available === 1,
     createdAt: row.created_at,
@@ -95,6 +108,33 @@ function ensureCategory(category: unknown) {
     throw new Error("Category is required");
   }
   return value;
+}
+
+function normalizeFlavorIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => String(item).trim()).filter(Boolean)));
+}
+
+function syncProductFlavors(productId: string, flavorIds: string[]) {
+  const db = getDb();
+  db.prepare("DELETE FROM product_flavors WHERE product_id = ?").run(productId);
+  if (flavorIds.length === 0) return;
+
+  const placeholders = flavorIds.map(() => "?").join(", ");
+  const existing = db
+    .prepare(`SELECT id FROM flavors WHERE id IN (${placeholders})`)
+    .all(...flavorIds) as Array<{ id: string }>;
+  if (existing.length !== flavorIds.length) {
+    throw new Error("One or more selected flavors are invalid");
+  }
+
+  const insert = db.prepare(
+    `INSERT INTO product_flavors (product_id, flavor_id, created_at) VALUES (?, ?, ?)`
+  );
+  const now = new Date().toISOString();
+  for (const flavorId of flavorIds) {
+    insert.run(productId, flavorId, now);
+  }
 }
 
 function ensureCategoryRow(name: string, imageSrc: string) {
@@ -133,9 +173,11 @@ export async function GET() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at
-         FROM products
-         ORDER BY category ASC, name ASC`
+        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available, p.created_at, p.updated_at,
+                (SELECT GROUP_CONCAT(flavor_id, '||') FROM product_flavors WHERE product_id = p.id) AS flavor_ids_csv,
+                (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
+         FROM products p
+         ORDER BY p.category ASC, p.name ASC`
       )
       .all() as ProductRow[];
 
@@ -173,6 +215,8 @@ export async function POST(request: Request) {
       pricingMode === "pcs" ? String(body?.pieceLabel ?? "").trim() || "pieces" : null;
     const eggless = body?.eggless !== false;
     const available = body?.available !== false;
+    const flavorSelectionEnabled = body?.flavorSelectionEnabled === true;
+    const flavorIds = normalizeFlavorIds(body?.flavorIds);
 
     if (!name || !description || !imageSrc || !Number.isFinite(priceInr) || priceInr < 0) {
       return NextResponse.json(
@@ -186,33 +230,37 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     ensureCategoryRow(category, imageSrc);
 
-    getDb()
-      .prepare(
-        `INSERT INTO products
-          (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        id,
-        name,
-        description,
-        category,
-        subCategory,
-        subCategoryId,
-        pricingMode,
-        Math.round(priceInr),
-        pricingMode === "kg" && typeof basePricePerKgInr === "number" && Number.isFinite(basePricePerKgInr)
-          ? Math.round(basePricePerKgInr)
-          : null,
-        pieceLabel,
-        imageSrc,
-        JSON.stringify(Array.from(new Set([imageSrc, ...imageGallery].filter(Boolean)))),
-        JSON.stringify(sizeOptions),
-        eggless ? 1 : 0,
-        available ? 1 : 0,
-        now,
-        now
-      );
+    getDb().transaction(() => {
+      getDb()
+        .prepare(
+          `INSERT INTO products
+            (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, flavor_selection_enabled, eggless, available, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          id,
+          name,
+          description,
+          category,
+          subCategory,
+          subCategoryId,
+          pricingMode,
+          Math.round(priceInr),
+          pricingMode === "kg" && typeof basePricePerKgInr === "number" && Number.isFinite(basePricePerKgInr)
+            ? Math.round(basePricePerKgInr)
+            : null,
+          pieceLabel,
+          imageSrc,
+          JSON.stringify(Array.from(new Set([imageSrc, ...imageGallery].filter(Boolean)))),
+          JSON.stringify(sizeOptions),
+          flavorSelectionEnabled ? 1 : 0,
+          eggless ? 1 : 0,
+          available ? 1 : 0,
+          now,
+          now
+        );
+      syncProductFlavors(id, flavorIds);
+    })();
 
     return NextResponse.json({ ok: true, id });
   } catch (error) {
@@ -321,6 +369,10 @@ export async function PATCH(request: Request) {
       fields.push("available = ?");
       values.push(body.available ? 1 : 0);
     }
+    if (body?.flavorSelectionEnabled !== undefined) {
+      fields.push("flavor_selection_enabled = ?");
+      values.push(body.flavorSelectionEnabled ? 1 : 0);
+    }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -330,9 +382,15 @@ export async function PATCH(request: Request) {
     values.push(new Date().toISOString());
     values.push(id);
 
-    getDb()
-      .prepare(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`)
-      .run(...values);
+    getDb().transaction(() => {
+      getDb()
+        .prepare(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`)
+        .run(...values);
+
+      if (body?.flavorIds !== undefined) {
+        syncProductFlavors(id, normalizeFlavorIds(body.flavorIds));
+      }
+    })();
 
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -353,7 +411,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Product id is required" }, { status: 400 });
     }
 
-    getDb().prepare("DELETE FROM products WHERE id = ?").run(id);
+    getDb().transaction(() => {
+      getDb().prepare("DELETE FROM product_flavors WHERE product_id = ?").run(id);
+      getDb().prepare("DELETE FROM products WHERE id = ?").run(id);
+    })();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError("Failed to delete product", 500, error);

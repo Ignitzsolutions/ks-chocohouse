@@ -2,6 +2,12 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import productsJson from "../../data/products.json";
+import {
+  ADMIN_SETTINGS_ID,
+  DEFAULT_DELIVERY_FEE_AMOUNT,
+  DEFAULT_FREE_DELIVERY_THRESHOLD,
+  DEFAULT_GST_RATE_PERCENT,
+} from "@/lib/admin-settings";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
 import { resequenceInvoiceNumbers } from "@/lib/invoice-number";
 import { getRuntimeConfig } from "@/lib/runtime-config";
@@ -22,6 +28,30 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+const FLAVOR_SEED_PATTERNS = [
+  { label: "Dark Chocolate", test: /dark chocolate/i },
+  { label: "Milk Chocolate", test: /milk chocolate/i },
+  { label: "Chocolate", test: /\bchoco(?:late)?\b/i },
+  { label: "Truffle", test: /truffle/i },
+  { label: "Vanilla", test: /vanilla/i },
+  { label: "Strawberry", test: /strawberry/i },
+  { label: "Blueberry", test: /blueberry/i },
+  { label: "Pineapple", test: /pineapple/i },
+  { label: "Red Velvet", test: /red velvet/i },
+  { label: "Mango", test: /mango/i },
+  { label: "Lotus Biscoff", test: /biscoff|lotus/i },
+  { label: "Butter", test: /butter/i },
+  { label: "Almond", test: /almond/i },
+  { label: "Walnut", test: /walnut/i },
+  { label: "Cherry", test: /cherry/i },
+  { label: "Fudge", test: /fudge/i },
+  { label: "Cream", test: /cream/i },
+];
+
+function inferFlavorLabels(value: string) {
+  return FLAVOR_SEED_PATTERNS.filter((entry) => entry.test.test(value)).map((entry) => entry.label);
 }
 
 function resolveDbPath() {
@@ -111,6 +141,9 @@ export function initDb() {
         subtotal_amount INTEGER NOT NULL DEFAULT 0,
         delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
         discount_amount INTEGER NOT NULL DEFAULT 0,
+        gst_enabled INTEGER NOT NULL DEFAULT 1,
+        gst_rate_percent INTEGER NOT NULL DEFAULT 18,
+        gst_amount INTEGER NOT NULL DEFAULT 0,
         coupon_code TEXT,
         coupon_snapshot_json TEXT,
         total_amount INTEGER NOT NULL,
@@ -225,6 +258,27 @@ export function initDb() {
     // column already exists
   }
   try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN gst_enabled INTEGER NOT NULL DEFAULT 1")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN gst_rate_percent INTEGER NOT NULL DEFAULT 18")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance
+      .prepare("ALTER TABLE orders ADD COLUMN gst_amount INTEGER NOT NULL DEFAULT 0")
+      .run();
+  } catch {
+    // column already exists
+  }
+  try {
     instance.prepare("ALTER TABLE orders ADD COLUMN coupon_code TEXT").run();
   } catch {
     // column already exists
@@ -320,9 +374,15 @@ export function initDb() {
              ELSE CASE
                WHEN source = 'online' AND total_amount >= 120 THEN 120
                ELSE 0
-             END
+           END
            END,
            discount_amount = COALESCE(discount_amount, 0),
+           gst_enabled = COALESCE(gst_enabled, 1),
+           gst_rate_percent = CASE
+             WHEN COALESCE(gst_rate_percent, 0) > 0 THEN gst_rate_percent
+             ELSE 18
+           END,
+           gst_amount = COALESCE(gst_amount, 0),
            order_kind = COALESCE(NULLIF(order_kind, ''), 'sale'),
            lifecycle_state = COALESCE(NULLIF(lifecycle_state, ''), 'finalized'),
            sale_date = COALESCE(
@@ -412,8 +472,46 @@ export function initDb() {
         image_src TEXT NOT NULL,
         image_gallery_json TEXT NOT NULL DEFAULT '[]',
         size_options_json TEXT NOT NULL DEFAULT '[]',
+        flavor_selection_enabled INTEGER NOT NULL DEFAULT 0,
         eggless INTEGER NOT NULL DEFAULT 1,
         available INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    )
+    .run();
+
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS flavors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`
+    )
+    .run();
+
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS product_flavors (
+        product_id TEXT NOT NULL,
+        flavor_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (product_id, flavor_id)
+      )`
+    )
+    .run();
+
+  instance
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS admin_settings (
+        id TEXT PRIMARY KEY,
+        gst_enabled INTEGER NOT NULL DEFAULT 1,
+        gst_rate_percent INTEGER NOT NULL DEFAULT 18,
+        delivery_fee_amount INTEGER NOT NULL DEFAULT 120,
+        free_delivery_threshold INTEGER NOT NULL DEFAULT 1500,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`
@@ -522,6 +620,19 @@ export function initDb() {
       `CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`
     )
     .run();
+  instance
+    .prepare(`CREATE INDEX IF NOT EXISTS idx_flavors_name ON flavors(name)`)
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_product_flavors_product ON product_flavors(product_id)`
+    )
+    .run();
+  instance
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_product_flavors_flavor ON product_flavors(flavor_id)`
+    )
+    .run();
   try {
     instance
       .prepare("ALTER TABLE products ADD COLUMN size_options_json TEXT NOT NULL DEFAULT '[]'")
@@ -558,6 +669,13 @@ export function initDb() {
   } catch {
     // column already exists
   }
+  try {
+    instance
+      .prepare("ALTER TABLE products ADD COLUMN flavor_selection_enabled INTEGER NOT NULL DEFAULT 0")
+      .run();
+  } catch {
+    // column already exists
+  }
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order, name)`
@@ -576,8 +694,8 @@ export function initDb() {
   if (productsCount.count === 0) {
     const insertProduct = instance.prepare(
       `INSERT INTO products
-        (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, eggless, available, created_at, updated_at)
-        VALUES (@id, @name, @description, @category, @sub_category, @sub_category_id, @pricing_mode, @price_inr, @base_price_per_kg_inr, @piece_label, @image_src, @image_gallery_json, @size_options_json, @eggless, @available, @created_at, @updated_at)`
+        (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, flavor_selection_enabled, eggless, available, created_at, updated_at)
+        VALUES (@id, @name, @description, @category, @sub_category, @sub_category_id, @pricing_mode, @price_inr, @base_price_per_kg_inr, @piece_label, @image_src, @image_gallery_json, @size_options_json, @flavor_selection_enabled, @eggless, @available, @created_at, @updated_at)`
     );
 
     const now = new Date().toISOString();
@@ -595,6 +713,7 @@ export function initDb() {
       imageSrc: string;
       imageGallery?: string[];
       sizeOptions?: string[];
+      flavorSelectionEnabled?: boolean;
       eggless: boolean;
       available: boolean;
     }>;
@@ -622,6 +741,7 @@ export function initDb() {
               : [product.imageSrc]
           ),
           size_options_json: JSON.stringify(product.sizeOptions ?? []),
+          flavor_selection_enabled: product.flavorSelectionEnabled ? 1 : 0,
           eggless: product.eggless ? 1 : 0,
           available: product.available ? 1 : 0,
           created_at: now,
@@ -697,7 +817,7 @@ export function initDb() {
   );
   const productRows = instance
     .prepare(
-      `SELECT id, category, sub_category, price_inr, pricing_mode, base_price_per_kg_inr, piece_label, image_src, image_gallery_json
+      `SELECT id, category, sub_category, price_inr, pricing_mode, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, flavor_selection_enabled
        FROM products`
     )
     .all() as Array<{
@@ -710,6 +830,7 @@ export function initDb() {
     piece_label: string | null;
     image_src: string;
     image_gallery_json: string | null;
+    flavor_selection_enabled: number | null;
   }>;
 
   const productSubcategoryCounts = new Map<string, number>();
@@ -721,6 +842,7 @@ export function initDb() {
          base_price_per_kg_inr = @base_price_per_kg_inr,
          piece_label = @piece_label,
          image_gallery_json = @image_gallery_json,
+         flavor_selection_enabled = @flavor_selection_enabled,
          updated_at = @updated_at
      WHERE id = @id`
   );
@@ -777,7 +899,73 @@ export function initDb() {
       base_price_per_kg_inr: pricingMode === "kg" ? Number(row.base_price_per_kg_inr ?? row.price_inr) : null,
       piece_label: pieceLabel,
       image_gallery_json: imageGalleryJson,
+      flavor_selection_enabled: Number(row.flavor_selection_enabled ?? 0) === 1 ? 1 : 0,
       updated_at: now,
     });
+  }
+
+  const existingSettings = instance
+    .prepare("SELECT id FROM admin_settings WHERE id = ? LIMIT 1")
+    .get(ADMIN_SETTINGS_ID) as { id: string } | undefined;
+  if (!existingSettings) {
+    instance
+      .prepare(
+        `INSERT INTO admin_settings
+          (id, gst_enabled, gst_rate_percent, delivery_fee_amount, free_delivery_threshold, created_at, updated_at)
+         VALUES (?, 1, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        ADMIN_SETTINGS_ID,
+        DEFAULT_GST_RATE_PERCENT,
+        DEFAULT_DELIVERY_FEE_AMOUNT,
+        DEFAULT_FREE_DELIVERY_THRESHOLD,
+        now,
+        now
+      );
+  }
+
+  const flavorCatalogCount = instance
+    .prepare("SELECT COUNT(*) AS count FROM flavors")
+    .get() as { count: number };
+  const productFlavorCount = instance
+    .prepare("SELECT COUNT(*) AS count FROM product_flavors")
+    .get() as { count: number };
+  if (flavorCatalogCount.count === 0 && productFlavorCount.count === 0) {
+    const seedRows = instance
+      .prepare("SELECT id, name, description FROM products")
+      .all() as Array<{ id: string; name: string; description: string }>;
+    const insertFlavor = instance.prepare(
+      `INSERT OR IGNORE INTO flavors (id, name, active, created_at, updated_at)
+       VALUES (@id, @name, 1, @created_at, @updated_at)`
+    );
+    const insertProductFlavor = instance.prepare(
+      `INSERT OR IGNORE INTO product_flavors (product_id, flavor_id, created_at)
+       VALUES (@product_id, @flavor_id, @created_at)`
+    );
+    const enableFlavorSelection = instance.prepare(
+      `UPDATE products SET flavor_selection_enabled = 1, updated_at = @updated_at WHERE id = @id`
+    );
+
+    for (const row of seedRows) {
+      const labels = Array.from(
+        new Set(inferFlavorLabels(`${row.name} ${row.description}`))
+      );
+      if (labels.length === 0) continue;
+      for (const label of labels) {
+        const flavorId = slugify(label);
+        insertFlavor.run({
+          id: flavorId,
+          name: label,
+          created_at: now,
+          updated_at: now,
+        });
+        insertProductFlavor.run({
+          product_id: row.id,
+          flavor_id: flavorId,
+          created_at: now,
+        });
+      }
+      enableFlavorSelection.run({ id: row.id, updated_at: now });
+    }
   }
 }

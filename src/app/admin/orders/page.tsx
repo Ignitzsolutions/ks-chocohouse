@@ -142,6 +142,12 @@ export default function AdminOrdersPage() {
               >
                 Offline Invoice
               </Link>
+              <Link
+                href="/admin/settings"
+                className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
+              >
+                Settings
+              </Link>
             </div>
           </div>
 

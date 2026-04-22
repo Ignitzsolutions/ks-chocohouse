@@ -29,6 +29,9 @@ type AdminProduct = {
   imageSrc: string;
   imageGallery?: string[];
   sizeOptions?: string[];
+  flavorSelectionEnabled?: boolean;
+  flavorIds?: string[];
+  flavors?: string[];
   eggless: boolean;
   available: boolean;
   createdAt?: string;
@@ -48,6 +51,8 @@ type ProductForm = {
   imageSrc: string;
   imageGallery: string[];
   sizeOptions: string;
+  flavorSelectionEnabled: boolean;
+  flavorIds: string[];
   eggless: boolean;
   available: boolean;
 };
@@ -67,6 +72,12 @@ type AdminSubCategory = {
   active: boolean;
 };
 
+type AdminFlavor = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
 function buildEmptyForm(defaultCategory: string): ProductForm {
   return {
     name: "",
@@ -81,6 +92,8 @@ function buildEmptyForm(defaultCategory: string): ProductForm {
     imageSrc: "",
     imageGallery: [],
     sizeOptions: "",
+    flavorSelectionEnabled: false,
+    flavorIds: [],
     eggless: true,
     available: true,
   };
@@ -96,6 +109,10 @@ const EMPTY_SUBCATEGORY_FORM = {
   name: "",
 };
 
+const EMPTY_FLAVOR_FORM = {
+  name: "",
+};
+
 function normalizeImageSrc(value: string) {
   const cleaned = value.trim().replaceAll("\\", "/");
   if (!cleaned) return "";
@@ -107,16 +124,20 @@ export default function AdminProductsPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [subCategories, setSubCategories] = useState<AdminSubCategory[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [flavors, setFlavors] = useState<AdminFlavor[]>([]);
   const [form, setForm] = useState<ProductForm>(buildEmptyForm("Chocolates"));
   const [categoryForm, setCategoryForm] = useState(EMPTY_CATEGORY_FORM);
   const [subcategoryForm, setSubcategoryForm] = useState(EMPTY_SUBCATEGORY_FORM);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
+  const [editingFlavorId, setEditingFlavorId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [categorySaving, setCategorySaving] = useState(false);
   const [subcategorySaving, setSubcategorySaving] = useState(false);
+  const [flavorForm, setFlavorForm] = useState(EMPTY_FLAVOR_FORM);
+  const [flavorSaving, setFlavorSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -132,6 +153,10 @@ export default function AdminProductsPage() {
   const subcategoryHeading = useMemo(
     () => (editingSubcategoryId ? "Edit Subcategory" : "Add Subcategory"),
     [editingSubcategoryId]
+  );
+  const flavorHeading = useMemo(
+    () => (editingFlavorId ? "Edit Flavor" : "Add Flavor"),
+    [editingFlavorId]
   );
 
   const loadProducts = async () => {
@@ -177,10 +202,21 @@ export default function AdminProductsPage() {
     setSubCategories(data.subcategories ?? []);
   };
 
+  const loadFlavors = async () => {
+    const response = await fetch("/api/admin/flavors", { cache: "no-store" });
+    const data = (await response.json()) as {
+      flavors?: AdminFlavor[];
+      error?: string;
+    };
+    if (!response.ok) throw new Error(data.error ?? "Failed to load flavors");
+    setFlavors(data.flavors ?? []);
+  };
+
   useEffect(() => {
     void (async () => {
       await loadCategories();
       await loadSubCategories();
+      await loadFlavors();
       await loadProducts();
     })();
   }, []);
@@ -328,6 +364,8 @@ export default function AdminProductsPage() {
         priceInr: Number(form.priceInr),
         basePricePerKgInr: Number(form.basePricePerKgInr || 0),
         sizeOptions: form.sizeOptions,
+        flavorSelectionEnabled: form.flavorSelectionEnabled,
+        flavorIds: form.flavorIds,
       };
 
       const response = await fetch("/api/admin/products", {
@@ -363,6 +401,8 @@ export default function AdminProductsPage() {
       imageSrc: product.imageSrc,
       imageGallery: product.imageGallery ?? [product.imageSrc],
       sizeOptions: (product.sizeOptions ?? []).join(", "),
+      flavorSelectionEnabled: product.flavorSelectionEnabled === true,
+      flavorIds: product.flavorIds ?? [],
       eggless: product.eggless,
       available: product.available,
     });
@@ -558,6 +598,89 @@ export default function AdminProductsPage() {
     }
   };
 
+  const resetFlavorForm = () => {
+    setEditingFlavorId(null);
+    setFlavorForm(EMPTY_FLAVOR_FORM);
+  };
+
+  const handleCreateFlavor = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setFlavorSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/flavors", {
+        method: editingFlavorId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          editingFlavorId
+            ? { id: editingFlavorId, name: flavorForm.name }
+            : { name: flavorForm.name }
+        ),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Failed to save flavor");
+      resetFlavorForm();
+      setMessage(editingFlavorId ? "Flavor updated." : "Flavor created.");
+      await loadFlavors();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setFlavorSaving(false);
+    }
+  };
+
+  const handleEditFlavor = (flavor: AdminFlavor) => {
+    setEditingFlavorId(flavor.id);
+    setFlavorForm({ name: flavor.name });
+    setError("");
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleToggleFlavor = async (flavor: AdminFlavor) => {
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/flavors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: flavor.id, active: !flavor.active }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Failed to update flavor");
+      setMessage(`Flavor ${!flavor.active ? "enabled" : "disabled"}.`);
+      await loadFlavors();
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
+  const handleDeleteFlavor = async (id: string) => {
+    const ok = window.confirm("Delete this flavor?");
+    if (!ok) return;
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/flavors", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Failed to delete flavor");
+      if (editingFlavorId === id) resetFlavorForm();
+      setForm((prev) => ({
+        ...prev,
+        flavorIds: prev.flavorIds.filter((value) => value !== id),
+      }));
+      setMessage("Flavor deleted.");
+      await loadFlavors();
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
   return (
     <AdminGuard>
       <div>
@@ -589,6 +712,12 @@ export default function AdminProductsPage() {
                 className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
               >
                 Coupons
+              </Link>
+              <Link
+                href="/admin/settings"
+                className="rounded-full border border-black/10 px-4 py-2 text-sm font-semibold"
+              >
+                Settings
               </Link>
             </div>
           </div>
@@ -751,6 +880,54 @@ export default function AdminProductsPage() {
                 Enter comma-separated options. The first option is used for price preview.
               </p>
             </label>
+            <div className="md:col-span-2 rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-4">
+              <label className="inline-flex items-center gap-2 text-sm font-semibold text-black/70">
+                <input
+                  type="checkbox"
+                  checked={form.flavorSelectionEnabled}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      flavorSelectionEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                Enable flavour selection for this product
+              </label>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {flavors.map((flavor) => {
+                  const checked = form.flavorIds.includes(flavor.id);
+                  return (
+                    <label
+                      key={flavor.id}
+                      className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm ${
+                        flavor.active ? "border-black/10 bg-white" : "border-amber-200 bg-amber-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            flavorIds: event.target.checked
+                              ? Array.from(new Set([...prev.flavorIds, flavor.id]))
+                              : prev.flavorIds.filter((value) => value !== flavor.id),
+                          }))
+                        }
+                      />
+                      <span>
+                        {flavor.name}
+                        {!flavor.active ? " (inactive)" : ""}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-black/55">
+                Assigned flavors appear on the product page. If none are assigned, legacy inferred flavors remain as fallback.
+              </p>
+            </div>
             <div className="rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-4 text-sm md:col-span-2">
               <p className="font-semibold text-black/75">Pricing Preview</p>
               <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-black/65">
@@ -904,6 +1081,50 @@ export default function AdminProductsPage() {
                 </button>
               )}
             </div>
+          </form>
+
+          <form
+            onSubmit={handleCreateFlavor}
+            className="mt-6 grid gap-4 rounded-3xl border border-black/5 bg-white p-6 md:grid-cols-[1fr_auto]"
+          >
+            <h2 className="md:col-span-2 text-2xl">{flavorHeading}</h2>
+            <label className="text-sm font-semibold text-black/70">
+              Flavor Name
+              <input
+                value={flavorForm.name}
+                onChange={(event) =>
+                  setFlavorForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                required
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              />
+            </label>
+            <div className="self-end">
+              <button
+                type="submit"
+                disabled={flavorSaving}
+                className="rounded-full bg-[color:var(--berry)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {flavorSaving
+                  ? editingFlavorId
+                    ? "Updating..."
+                    : "Adding..."
+                  : editingFlavorId
+                    ? "Update Flavor"
+                    : "Add Flavor"}
+              </button>
+            </div>
+            {editingFlavorId ? (
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  onClick={resetFlavorForm}
+                  className="rounded-full border border-black/10 px-5 py-2 text-sm font-semibold"
+                >
+                  Cancel Flavor Edit
+                </button>
+              </div>
+            ) : null}
           </form>
 
           <form
@@ -1109,6 +1330,51 @@ export default function AdminProductsPage() {
             </div>
           </section>
 
+          <section className="mt-6 rounded-3xl border border-black/5 bg-white p-6">
+            <h2 className="text-2xl">All Flavors</h2>
+            {flavors.length === 0 && (
+              <p className="mt-3 text-sm text-black/60">No flavors found.</p>
+            )}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {flavors.map((flavor) => (
+                <article
+                  key={flavor.id}
+                  className="rounded-2xl border border-black/10 bg-[color:var(--cream)] p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{flavor.name}</p>
+                    <p className="text-xs text-black/50">
+                      {flavor.active ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditFlavor(flavor)}
+                      className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFlavor(flavor)}
+                      className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold"
+                    >
+                      {flavor.active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteFlavor(flavor.id)}
+                      className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="mt-8 rounded-3xl border border-black/5 bg-white p-6">
             <h2 className="text-2xl">All Products</h2>
             {loading && <p className="mt-3 text-sm text-black/60">Loading products...</p>}
@@ -1145,6 +1411,14 @@ export default function AdminProductsPage() {
                       ) : null}
                       <p className="mt-1 text-xs text-black/55">
                         Gallery images: {product.imageGallery?.length ?? 1}
+                      </p>
+                      {product.flavors && product.flavors.length > 0 ? (
+                        <p className="mt-1 text-xs text-black/55">
+                          Flavors: {product.flavors.join(" · ")}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-black/55">
+                        Flavor selection: {product.flavorSelectionEnabled ? "Enabled" : "Disabled"}
                       </p>
                       <p className="text-sm font-semibold text-[color:var(--berry)]">
                         {getPriceDisplayMeta(

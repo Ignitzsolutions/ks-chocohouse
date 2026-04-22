@@ -45,6 +45,9 @@ export type SalesOrderRow = {
   subtotal_amount?: number | null;
   delivery_fee_amount?: number | null;
   discount_amount?: number | null;
+  gst_enabled?: number | null;
+  gst_rate_percent?: number | null;
+  gst_amount?: number | null;
   coupon_code?: string | null;
   coupon_snapshot_json?: string | null;
   total_amount: number;

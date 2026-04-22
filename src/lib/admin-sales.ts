@@ -247,7 +247,7 @@ function selectOrderColumns() {
     sale_date, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
     payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
     txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-    discount_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+    discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
     parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
     status_updated_at, payment_updated_at`;
 }

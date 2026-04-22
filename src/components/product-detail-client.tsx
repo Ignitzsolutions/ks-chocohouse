@@ -55,7 +55,10 @@ export function ProductDetailClient({ product }: Props) {
   const galleryFrames = useMemo(() => buildGalleryFrames(product), [product]);
   const sizeOptions = useMemo(() => getDisplaySizeOptions(product), [product]);
   const optionLabel = useMemo(() => getProductOptionLabel(product), [product]);
-  const flavorOptions = useMemo(() => getDisplayFlavorOptions(product), [product]);
+  const flavorOptions = useMemo(
+    () => (product.flavorSelectionEnabled ? getDisplayFlavorOptions(product) : []),
+    [product]
+  );
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState(sizeOptions[0] ?? "");
   const [selectedFlavor, setSelectedFlavor] = useState(flavorOptions[0] ?? "");

@@ -50,7 +50,11 @@ export function buildInvoiceNumberForSequence(
   dateCode: string,
   sequence: number
 ) {
-  return `KSC-${type}-${String(Math.max(1, sequence)).padStart(3, "0")}-${dateCode}`;
+  const serial = String(Math.max(1, sequence)).padStart(3, "0");
+  if (type === "RTN") {
+    return `KSC-${type}-${serial}-${dateCode}`;
+  }
+  return `KS-${type}-${dateCode}-${serial}`;
 }
 
 export function getInvoiceSeries(
@@ -64,16 +68,15 @@ export function getInvoiceSeries(
   return {
     type,
     dateCode,
-    prefix: `KSC-${type}-`,
+    prefix: type === "RTN" ? `KSC-${type}-` : `KS-${type}-${dateCode}-`,
   };
 }
 
 function parseSequenceFromInvoiceNumber(invoiceNumber: string, prefix: string) {
   if (!invoiceNumber.startsWith(prefix)) return null;
   const remainder = invoiceNumber.slice(prefix.length);
-  const [serial, dateCode] = remainder.split("-");
+  const [serial] = remainder.split("-");
   if (!/^\d+$/.test(serial ?? "")) return null;
-  if (!/^\d{6}$/.test(dateCode ?? "")) return null;
   const parsed = Number.parseInt(serial, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
@@ -103,7 +106,9 @@ export function allocateNextInvoiceNumber(
        FROM orders
        WHERE invoice_number LIKE @pattern`
     )
-    .all({ pattern: `${prefix}%-${dateCode}` }) as Array<{ invoice_number: string | null }>;
+    .all({
+      pattern: type === "RTN" ? `${prefix}%-${dateCode}` : `${prefix}%`,
+    }) as Array<{ invoice_number: string | null }>;
 
   let nextSequence = 1;
   for (const row of rows) {

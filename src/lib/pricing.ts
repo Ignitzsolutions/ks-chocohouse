@@ -1,6 +1,9 @@
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  normalizeAdminSettings,
+  type AdminSettings,
+} from "@/lib/admin-settings";
 import type { AppliedCoupon, BuyerGstDetails, PricingBreakdown } from "@/types/order";
-
-export const DEFAULT_DELIVERY_FEE = 120;
 
 export type CouponValidationResult = {
   valid: boolean;
@@ -17,23 +20,59 @@ type CouponInput = AppliedCoupon & {
   active?: boolean;
 };
 
-export function computeDeliveryFee(subtotalAmount: number) {
-  return subtotalAmount > 0 ? DEFAULT_DELIVERY_FEE : 0;
+export function computeDeliveryFee(
+  subtotalAmount: number,
+  settings: Partial<AdminSettings> | null | undefined = DEFAULT_ADMIN_SETTINGS
+) {
+  const normalizedSettings = normalizeAdminSettings(settings);
+  const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
+  const freeDeliveryApplied =
+    safeSubtotal > 0 && safeSubtotal >= normalizedSettings.freeDeliveryThreshold;
+  const deliveryFeeAmount =
+    safeSubtotal > 0 && !freeDeliveryApplied ? normalizedSettings.deliveryFeeAmount : 0;
+
+  return {
+    deliveryFeeAmount,
+    freeDeliveryApplied,
+  };
 }
 
 export function computePricing(
   subtotalAmount: number,
   discountAmount = 0,
-  deliveryFeeAmount = computeDeliveryFee(subtotalAmount)
+  settings: Partial<AdminSettings> | null | undefined = DEFAULT_ADMIN_SETTINGS,
+  options?: {
+    forceDeliveryFeeAmount?: number;
+    deliveryEnabled?: boolean;
+  }
 ): PricingBreakdown {
+  const normalizedSettings = normalizeAdminSettings(settings);
   const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
-  const safeDelivery = Math.max(0, Math.round(deliveryFeeAmount));
-  const safeDiscount = Math.max(0, Math.min(Math.round(discountAmount), safeSubtotal + safeDelivery));
+  const safeDiscount = Math.max(0, Math.min(Math.round(discountAmount), safeSubtotal));
+  const taxableAmount = Math.max(0, safeSubtotal - safeDiscount);
+  const gstEnabled = normalizedSettings.gstEnabled;
+  const gstRatePercent = normalizedSettings.gstRatePercent;
+  const gstAmount = gstEnabled ? Math.round((taxableAmount * gstRatePercent) / 100) : 0;
+  const delivery =
+    options?.forceDeliveryFeeAmount !== undefined
+      ? {
+          deliveryFeeAmount: Math.max(0, Math.round(options.forceDeliveryFeeAmount)),
+          freeDeliveryApplied: Math.max(0, Math.round(options.forceDeliveryFeeAmount)) === 0,
+        }
+      : options?.deliveryEnabled === false
+        ? { deliveryFeeAmount: 0, freeDeliveryApplied: false }
+        : computeDeliveryFee(safeSubtotal, normalizedSettings);
+
   return {
     subtotalAmount: safeSubtotal,
-    deliveryFeeAmount: safeDelivery,
     discountAmount: safeDiscount,
-    totalAmount: Math.max(0, safeSubtotal + safeDelivery - safeDiscount),
+    taxableAmount,
+    gstEnabled,
+    gstRatePercent,
+    gstAmount,
+    deliveryFeeAmount: delivery.deliveryFeeAmount,
+    freeDeliveryApplied: delivery.freeDeliveryApplied,
+    totalAmount: Math.max(0, taxableAmount + gstAmount + delivery.deliveryFeeAmount),
   };
 }
 

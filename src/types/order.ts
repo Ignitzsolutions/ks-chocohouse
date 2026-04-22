@@ -15,8 +15,13 @@ export type AppliedCoupon = {
 
 export type PricingBreakdown = {
   subtotalAmount: number;
-  deliveryFeeAmount: number;
   discountAmount: number;
+  taxableAmount: number;
+  gstEnabled: boolean;
+  gstRatePercent: number;
+  gstAmount: number;
+  deliveryFeeAmount: number;
+  freeDeliveryApplied: boolean;
   totalAmount: number;
 };
 
