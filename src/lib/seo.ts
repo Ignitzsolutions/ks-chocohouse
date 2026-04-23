@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BRAND_NAME, DESCRIPTION, LOCATION, TAGLINE } from "@/lib/brand";
+import { BRAND_LOGO_PATH, BRAND_NAME, DESCRIPTION, LOCATION, TAGLINE } from "@/lib/brand";
 import { getSiteUrl as getConfiguredSiteUrl } from "@/lib/runtime-config";
 
 export function getSiteUrl() {
@@ -22,7 +22,7 @@ type MetadataInput = {
 
 export function buildPageMetadata(input: MetadataInput): Metadata {
   const canonical = getAbsoluteUrl(input.path ?? "/");
-  const image = getAbsoluteUrl("/images/brand/ks-choco-house-logo.jpg");
+  const image = getAbsoluteUrl(BRAND_LOGO_PATH);
 
   return {
     title: input.title,
@@ -31,10 +31,10 @@ export function buildPageMetadata(input: MetadataInput): Metadata {
     metadataBase: new URL(getSiteUrl()),
     icons: {
       icon: [
-        { url: "/images/brand/ks-choco-house-logo.jpg", type: "image/jpeg" },
+        { url: BRAND_LOGO_PATH, type: "image/svg+xml" },
       ],
-      shortcut: ["/images/brand/ks-choco-house-logo.jpg"],
-      apple: ["/images/brand/ks-choco-house-logo.jpg"],
+      shortcut: [BRAND_LOGO_PATH],
+      apple: [BRAND_LOGO_PATH],
     },
     alternates: { canonical },
     openGraph: {

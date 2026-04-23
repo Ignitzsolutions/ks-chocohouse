@@ -2,6 +2,10 @@ export const BRAND_NAME = "K S Choco House";
 export const TAGLINE = "The Ultimate Choco Destination";
 export const DESCRIPTION =
   "Indulge in sweetness with our homemade customised cakes and chocolates.";
+export const BRAND_LOGO_PATH = "/images/brand/ks-choco-house-logo.svg";
+export const BRAND_LOGO_FILE_PATH = "public/images/brand/ks-choco-house-logo.svg";
+export const BRAND_LOGO_MIME_TYPE = "image/svg+xml";
+export const BRAND_LOGO_ALT = "K S Choco House logo";
 export const LOCATION = "Sastry Nagar, Bollavaram, Proddatur";
 export const FULL_ADDRESS =
   "2/520, opp. to SRI RAJARAJESWARI RESIDENCY, Sastry Nagar, Bollavaram, Proddatur, Andhra Pradesh 516360, India";

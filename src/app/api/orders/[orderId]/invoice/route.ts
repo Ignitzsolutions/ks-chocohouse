@@ -5,6 +5,8 @@ import puppeteer from "puppeteer";
 import { jsonError } from "@/lib/api-response";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
+  BRAND_LOGO_FILE_PATH,
+  BRAND_LOGO_MIME_TYPE,
   BRAND_NAME,
   FULL_ADDRESS,
   PHONE_NUMBER_DISPLAY,
@@ -257,7 +259,7 @@ export async function GET(
 
     const [template, bakeryLogoBytes, fssaiBytes, barcodeBytes] = await Promise.all([
       readFile(INVOICE_TEMPLATE_PATH, "utf8"),
-      readBinaryIfExists("public/images/brand/ks-choco-house-logo.jpg"),
+      readBinaryIfExists(BRAND_LOGO_FILE_PATH),
       readBinaryIfExists("public/images/brand/fssai-logo.png"),
       generateOrderBarcodePng(order.id, {
         includeText: true,
@@ -370,7 +372,7 @@ export async function GET(
       .join("\n");
 
     const html = renderTemplate(template, {
-      LOGO_SRC: bakeryLogoBytes ? toDataUri(bakeryLogoBytes, "image/jpeg") : "",
+      LOGO_SRC: bakeryLogoBytes ? toDataUri(bakeryLogoBytes, BRAND_LOGO_MIME_TYPE) : "",
       BRAND_NAME: escapeHtml(BRAND_NAME),
       BRAND_SUBTITLE: escapeHtml(TAGLINE),
       BADGES: badges,

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BRAND_NAME, PHONE_NUMBER_DISPLAY, TAGLINE } from "@/lib/brand";
+import { BRAND_LOGO_ALT, BRAND_LOGO_PATH, BRAND_NAME, PHONE_NUMBER_DISPLAY, TAGLINE } from "@/lib/brand";
 import { isGiftCollectionEnabled } from "@/lib/features";
 
 const coreNavLinks = [
@@ -28,8 +28,8 @@ export function SiteHeader() {
         <Link href="/" className="flex items-center gap-3">
           <div className="relative h-11 w-11 overflow-hidden rounded-full border border-[color:var(--line)] bg-white shadow-[0_8px_18px_rgba(32,22,16,0.12)]">
             <Image
-              src="/images/brand/ks-choco-house-logo.jpg"
-              alt="K S Choco House logo"
+              src={BRAND_LOGO_PATH}
+              alt={BRAND_LOGO_ALT}
               fill
               sizes="44px"
               className="object-cover"

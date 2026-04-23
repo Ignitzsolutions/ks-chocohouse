@@ -7,6 +7,7 @@ import { HomeCategoriesGrid } from "@/components/home-categories-grid";
 import { ReviewsMarquee } from "@/components/reviews-marquee";
 import { JsonLd } from "@/components/seo/json-ld";
 import {
+  BRAND_LOGO_PATH,
   BRAND_NAME,
   CITY,
   COUNTRY_CODE,
@@ -37,7 +38,7 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function Home() {
   const siteUrl = getAbsoluteUrl("/");
-  const logoUrl = getAbsoluteUrl("/images/brand/ks-choco-house-logo.jpg");
+  const logoUrl = getAbsoluteUrl(BRAND_LOGO_PATH);
 
   const structuredData = {
     "@context": "https://schema.org",
