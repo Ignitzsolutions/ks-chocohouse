@@ -31,7 +31,7 @@ export function buildPageMetadata(input: MetadataInput): Metadata {
     metadataBase: new URL(getSiteUrl()),
     icons: {
       icon: [
-        { url: BRAND_LOGO_PATH, type: "image/svg+xml" },
+        { url: BRAND_LOGO_PATH, type: "image/png" },
       ],
       shortcut: [BRAND_LOGO_PATH],
       apple: [BRAND_LOGO_PATH],

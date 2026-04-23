@@ -32,7 +32,7 @@ export function SiteHeader() {
               alt={BRAND_LOGO_ALT}
               fill
               sizes="44px"
-              className="object-cover"
+              className="object-contain p-0.5"
               priority
             />
           </div>

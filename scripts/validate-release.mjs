@@ -9,7 +9,7 @@ const requiredFiles = [
   path.join(".next", "server"),
   path.join(".next", "app-path-routes-manifest.json"),
   path.join("node_modules", "next", "dist", "compiled", "cookie"),
-  path.join("public", "images", "brand", "ks-choco-house-logo.svg"),
+  path.join("public", "images", "brand", "ks-choco-house-logo.png"),
   path.join("public", "images", "brand", "fssai-logo.svg"),
   path.join("src", "templates", "invoice.html"),
   path.join("scripts", "validate-runtime.mjs"),

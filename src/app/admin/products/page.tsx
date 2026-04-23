@@ -139,6 +139,7 @@ export default function AdminProductsPage() {
   const [flavorForm, setFlavorForm] = useState(EMPTY_FLAVOR_FORM);
   const [flavorSaving, setFlavorSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [categoryUploading, setCategoryUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -383,6 +384,36 @@ export default function AdminProductsPage() {
       setError(String(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCategoryUpload = async (files: FileList | File[]) => {
+    setCategoryUploading(true);
+    setError("");
+    setMessage("");
+    try {
+      const payload = new FormData();
+      Array.from(files).forEach((file) => payload.append("files", file));
+      const response = await fetch("/api/admin/products/upload", {
+        method: "POST",
+        body: payload,
+      });
+      const data = (await response.json()) as {
+        imageSrc?: string;
+        error?: string;
+      };
+      if (!response.ok || !data.imageSrc) {
+        throw new Error(data.error ?? "Category image upload failed");
+      }
+      setCategoryForm((prev) => ({
+        ...prev,
+        imageSrc: normalizeImageSrc(data.imageSrc ?? prev.imageSrc),
+      }));
+      setMessage("Category image uploaded.");
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setCategoryUploading(false);
     }
   };
 
@@ -1129,9 +1160,9 @@ export default function AdminProductsPage() {
 
           <form
             onSubmit={handleCreateCategory}
-            className="mt-6 grid gap-4 rounded-3xl border border-black/5 bg-white p-6 md:grid-cols-[1fr_1fr_auto]"
+            className="mt-6 grid gap-4 rounded-3xl border border-black/5 bg-white p-6 md:grid-cols-[1fr_1fr] lg:grid-cols-[1fr_1fr_auto]"
           >
-            <h2 className="md:col-span-3 text-2xl">{categoryHeading}</h2>
+            <h2 className="md:col-span-2 lg:col-span-3 text-2xl">{categoryHeading}</h2>
             <label className="text-sm font-semibold text-black/70">
               Category Name
               <input
@@ -1157,10 +1188,52 @@ export default function AdminProductsPage() {
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
               />
             </label>
-            <div className="self-end">
+            <div className="rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-4 text-sm md:col-span-2 lg:col-span-1">
+              <p className="font-semibold text-black/75">Upload Category Image</p>
+              <label className="mt-3 inline-flex cursor-pointer rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-black/70">
+                Choose Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const files = event.target.files;
+                    if (files && files.length > 0) {
+                      void handleCategoryUpload(files);
+                    }
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              {categoryUploading ? (
+                <p className="mt-2 text-xs text-black/60">Uploading category image...</p>
+              ) : null}
+              {categoryForm.imageSrc ? (
+                <div className="mt-3 flex items-center gap-3">
+                  <img
+                    src={normalizeImageSrc(categoryForm.imageSrc)}
+                    alt="Category preview"
+                    className="h-14 w-14 rounded-xl border border-black/10 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryForm((prev) => ({
+                        ...prev,
+                        imageSrc: "",
+                      }))
+                    }
+                    className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold"
+                  >
+                    Clear Image
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div className="self-end md:col-span-2 lg:col-span-1">
               <button
                 type="submit"
-                disabled={categorySaving}
+                disabled={categorySaving || categoryUploading}
                 className="rounded-full bg-[color:var(--berry)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {categorySaving
@@ -1173,7 +1246,7 @@ export default function AdminProductsPage() {
               </button>
             </div>
             {editingCategoryId && (
-              <div className="md:col-span-3">
+              <div className="md:col-span-2 lg:col-span-3">
                 <button
                   type="button"
                   onClick={resetCategoryForm}
