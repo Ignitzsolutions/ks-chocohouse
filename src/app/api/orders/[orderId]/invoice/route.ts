@@ -101,7 +101,7 @@ const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 0,
   }).format(Math.round(Number.isFinite(value) ? value : 0));
-  return `INR ${amount}`;
+  return `₹${amount}`;
 };
 
 const formatCalendarDate = (value?: string | null) => {
@@ -380,7 +380,6 @@ export async function GET(
               <div class="item-title">${escapeHtml(item.name)}</div>
               ${note}
             </td>
-            <td class="right">-</td>
             <td class="right">${escapeHtml(String(item.qty))}</td>
             <td class="right">${escapeHtml(formatInr(item.unitPrice))}</td>
             <td class="right">${escapeHtml(formatInr(item.lineTotal))}</td>
