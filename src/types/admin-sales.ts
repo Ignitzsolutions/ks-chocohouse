@@ -48,6 +48,7 @@ export type SalesOrderRow = {
   gst_enabled?: number | null;
   gst_rate_percent?: number | null;
   gst_amount?: number | null;
+  billing_breakdown_json?: string | null;
   coupon_code?: string | null;
   coupon_snapshot_json?: string | null;
   total_amount: number;

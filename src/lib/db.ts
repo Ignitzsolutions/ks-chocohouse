@@ -144,6 +144,7 @@ export function initDb() {
         gst_enabled INTEGER NOT NULL DEFAULT 1,
         gst_rate_percent INTEGER NOT NULL DEFAULT 18,
         gst_amount INTEGER NOT NULL DEFAULT 0,
+        billing_breakdown_json TEXT,
         coupon_code TEXT,
         coupon_snapshot_json TEXT,
         total_amount INTEGER NOT NULL,
@@ -275,6 +276,11 @@ export function initDb() {
     instance
       .prepare("ALTER TABLE orders ADD COLUMN gst_amount INTEGER NOT NULL DEFAULT 0")
       .run();
+  } catch {
+    // column already exists
+  }
+  try {
+    instance.prepare("ALTER TABLE orders ADD COLUMN billing_breakdown_json TEXT").run();
   } catch {
     // column already exists
   }
@@ -508,10 +514,18 @@ export function initDb() {
     .prepare(
       `CREATE TABLE IF NOT EXISTS admin_settings (
         id TEXT PRIMARY KEY,
+        discount_enabled INTEGER NOT NULL DEFAULT 1,
         gst_enabled INTEGER NOT NULL DEFAULT 1,
         gst_rate_percent INTEGER NOT NULL DEFAULT 18,
+        cgst_enabled INTEGER NOT NULL DEFAULT 1,
+        cgst_rate_percent INTEGER NOT NULL DEFAULT 9,
+        sgst_enabled INTEGER NOT NULL DEFAULT 1,
+        sgst_rate_percent INTEGER NOT NULL DEFAULT 9,
+        delivery_fee_enabled INTEGER NOT NULL DEFAULT 1,
         delivery_fee_amount INTEGER NOT NULL DEFAULT 120,
         free_delivery_threshold INTEGER NOT NULL DEFAULT 1500,
+        shipping_igst_enabled INTEGER NOT NULL DEFAULT 1,
+        shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`
@@ -530,6 +544,23 @@ export function initDb() {
       )`
     )
     .run();
+
+  for (const statement of [
+    "ALTER TABLE admin_settings ADD COLUMN discount_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN cgst_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN cgst_rate_percent INTEGER NOT NULL DEFAULT 9",
+    "ALTER TABLE admin_settings ADD COLUMN sgst_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN sgst_rate_percent INTEGER NOT NULL DEFAULT 9",
+    "ALTER TABLE admin_settings ADD COLUMN delivery_fee_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN shipping_igst_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18",
+  ]) {
+    try {
+      instance.prepare(statement).run();
+    } catch {
+      // column already exists
+    }
+  }
 
   instance
     .prepare(

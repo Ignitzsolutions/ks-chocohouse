@@ -452,16 +452,17 @@ export default function AdminInvoicesPage() {
 
             <div className="mt-6 rounded-2xl border border-black/10 bg-white p-4 text-sm">
               <p>Total Quantity: {totals.qty}</p>
-              <p>Subtotal: {formatInr(pricing.subtotalAmount)}</p>
-              <p>Discount: {formatInr(pricing.discountAmount)}</p>
-              <p>GST ({pricing.gstRatePercent}%): {formatInr(pricing.gstAmount)}</p>
-              <p>Delivery: {formatInr(pricing.deliveryFeeAmount)}</p>
+              {pricing.billingLines.map((line) => (
+                <p key={line.key} className={line.key === "total" ? "font-semibold" : ""}>
+                  {line.label}: {line.kind === "discount" ? "- " : ""}
+                  {formatInr(line.amount)}
+                </p>
+              ))}
               {pricing.freeDeliveryApplied ? (
                 <p className="text-xs text-emerald-700">
                   Delivery charge waived for orders above {formatInr(settings.freeDeliveryThreshold)}.
                 </p>
               ) : null}
-              <p className="font-semibold">Grand Total: {formatInr(pricing.totalAmount)}</p>
             </div>
 
             {error && (

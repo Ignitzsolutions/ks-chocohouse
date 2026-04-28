@@ -29,6 +29,7 @@ import {
   getInvoiceTemplatePath,
   getPuppeteerLaunchOptions,
 } from "@/lib/invoice-runtime";
+import type { BillingLineItem, PricingBreakdown } from "@/types/order";
 
 type RawOrderItem = {
   name?: string;
@@ -74,6 +75,7 @@ type OrderRow = {
   gst_enabled?: number | null;
   gst_rate_percent?: number | null;
   gst_amount?: number | null;
+  billing_breakdown_json?: string | null;
   coupon_code?: string | null;
   total_amount?: number;
   order_kind?: string | null;
@@ -140,6 +142,86 @@ const parseBuyerGst = (value?: string | null) => {
   } catch {
     return null;
   }
+};
+
+const parseBillingLines = (order: OrderRow) => {
+  if (order.billing_breakdown_json) {
+    try {
+      const parsed = JSON.parse(order.billing_breakdown_json) as Partial<PricingBreakdown>;
+      if (Array.isArray(parsed.billingLines) && parsed.billingLines.length > 0) {
+        return parsed.billingLines.filter(
+          (line): line is BillingLineItem =>
+            typeof line === "object" &&
+            line !== null &&
+            typeof line.label === "string" &&
+            typeof line.key === "string" &&
+            Number.isFinite(Number(line.amount))
+        );
+      }
+    } catch {
+      // Fall back to legacy columns below.
+    }
+  }
+
+  const total = safeNumber(order.total_amount, 0);
+  const subtotal = safeNumber(order.subtotal_amount, total);
+  const discount = safeNumber(order.discount_amount, 0);
+  const gstAmount = safeNumber(order.gst_amount, 0);
+  const gstRatePercent = safeNumber(order.gst_rate_percent, 0);
+  const deliveryFee = safeNumber(
+    order.delivery_fee_amount,
+    Math.max(0, total - subtotal - gstAmount + discount)
+  );
+  const lines: BillingLineItem[] = [
+    { key: "subtotal", label: "Subtotal", amount: subtotal, kind: "charge" },
+  ];
+  if (discount > 0) {
+    lines.push({ key: "discount", label: "Discount", amount: discount, kind: "discount" });
+  }
+  if (gstAmount > 0) {
+    lines.push({
+      key: "cgst",
+      label: gstRatePercent > 0 ? `GST (${gstRatePercent}%)` : "GST",
+      amount: gstAmount,
+      ratePercent: gstRatePercent,
+      kind: "tax",
+    });
+  }
+  if (deliveryFee > 0) {
+    lines.push({
+      key: "delivery",
+      label: "Shipping / Delivery Fee",
+      amount: deliveryFee,
+      kind: "charge",
+    });
+  }
+  lines.push({ key: "total", label: "Total", amount: total, kind: "total" });
+  return lines;
+};
+
+const renderBillingRows = (lines: BillingLineItem[]) => {
+  const visibleLines = lines.filter((line) => line.key === "total" || Number(line.amount) > 0);
+  const hasMiddleRows = visibleLines.some(
+    (line) => line.key !== "subtotal" && line.key !== "discount" && line.key !== "total"
+  );
+
+  return visibleLines
+    .flatMap((line, index) => {
+      const rows: string[] = [];
+      if (line.key !== "total" && hasMiddleRows && (line.key === "cgst" || line.key === "delivery")) {
+        const previous = visibleLines[index - 1];
+        if (previous?.key === "subtotal" || previous?.key === "discount") {
+          rows.push(`<tr class="divider"><td colspan="2"><hr /></td></tr>`);
+        }
+      }
+      const amountPrefix = line.kind === "discount" ? "- " : "";
+      const className = line.key === "total" ? ` class="total-row"` : "";
+      rows.push(
+        `<tr${className}><td class="label">${escapeHtml(line.label)}</td><td class="amount">${amountPrefix}${escapeHtml(formatInr(line.amount))}</td></tr>`
+      );
+      return rows;
+    })
+    .join("");
 };
 
 const normalizeItems = (order: OrderRow) => {
@@ -239,22 +321,7 @@ export async function GET(
     );
 
     const items = normalizeItems(order);
-    const subtotalFromItems = items.reduce((sum, item) => sum + safeNumber(item.lineTotal), 0);
-    const total = safeNumber(order.total_amount, 0);
-    const subtotal =
-      order.subtotal_amount != null
-        ? safeNumber(order.subtotal_amount, subtotalFromItems)
-        : subtotalFromItems;
-    const discountAmount = safeNumber(order.discount_amount, 0);
-    const gstAmount = safeNumber(order.gst_amount, 0);
-    const gstRatePercent = safeNumber(order.gst_rate_percent, 0);
-    const deliveryFee =
-      order.delivery_fee_amount != null
-        ? safeNumber(
-            order.delivery_fee_amount,
-            Math.max(0, total - subtotal - gstAmount + discountAmount)
-          )
-        : Math.max(0, total - subtotal - gstAmount + discountAmount);
+    const billingRows = renderBillingRows(parseBillingLines(order));
     const buyerGst = parseBuyerGst(order.buyer_gst_json);
 
     const [template, bakeryLogoBytes, fssaiBytes, barcodeBytes] = await Promise.all([
@@ -313,7 +380,9 @@ export async function GET(
               <div class="item-title">${escapeHtml(item.name)}</div>
               ${note}
             </td>
+            <td class="right">-</td>
             <td class="right">${escapeHtml(String(item.qty))}</td>
+            <td class="right">${escapeHtml(formatInr(item.unitPrice))}</td>
             <td class="right">${escapeHtml(formatInr(item.lineTotal))}</td>
           </tr>
         `;
@@ -379,7 +448,9 @@ export async function GET(
       INVOICE_NUMBER: escapeHtml(invoiceNumber),
       ORDER_ID: escapeHtml(order.id),
       CREATED_DATE: escapeHtml(invoiceDisplayDate),
+      ORDER_DATE: escapeHtml(formatCalendarDate(order.sale_date || order.created_at)),
       DUE_DATE: escapeHtml(formatCalendarDate(order.delivery_date)),
+      SHIPPING_METHOD: escapeHtml(order.delivery_slot || "Delivery"),
       PAYMENT_METHOD: escapeHtml(order.payment_method || "-"),
       PAYMENT_STATUS: escapeHtml(order.payment_status || "-"),
       BARCODE_BLOCK: barcodeBlock,
@@ -390,12 +461,8 @@ export async function GET(
       ITEM_ROWS:
         itemRows ||
         `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="right">-</td><td class="right">-</td></tr>`,
-      SUBTOTAL: escapeHtml(formatInr(subtotal)),
-      DISCOUNT: escapeHtml(formatInr(discountAmount)),
-      TAX_LABEL: escapeHtml(gstRatePercent > 0 ? `GST (${gstRatePercent}%)` : "GST"),
-      TAX: escapeHtml(formatInr(gstAmount)),
-      DELIVERY_FEE: escapeHtml(formatInr(deliveryFee)),
-      TOTAL: escapeHtml(formatInr(total)),
+      BILLING_ROWS: billingRows,
+      NOTES: escapeHtml(noteSections.join("\n\n")),
       NOTES_BLOCK: notesBlock,
       FOOTER_TEXT: footerLines,
       FSSAI_BLOCK: fssaiBlock,

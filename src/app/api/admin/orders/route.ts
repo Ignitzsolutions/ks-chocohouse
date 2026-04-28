@@ -675,6 +675,7 @@ export async function POST(request: Request) {
         gst_enabled: pricing.gstEnabled ? 1 : 0,
         gst_rate_percent: pricing.gstRatePercent,
         gst_amount: pricing.gstAmount,
+        billing_breakdown_json: JSON.stringify(pricing),
         coupon_code: couponValidation.coupon?.code ?? null,
         coupon_snapshot_json: couponValidation.coupon
           ? JSON.stringify(getCouponByCode(db, couponValidation.coupon.code))
@@ -734,6 +735,7 @@ export async function POST(request: Request) {
                gst_enabled = @gst_enabled,
                gst_rate_percent = @gst_rate_percent,
                gst_amount = @gst_amount,
+               billing_breakdown_json = @billing_breakdown_json,
                coupon_code = @coupon_code,
                coupon_snapshot_json = @coupon_snapshot_json,
                total_amount = @total_amount,
@@ -756,14 +758,14 @@ export async function POST(request: Request) {
              sale_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
              payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
              txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-             discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+             discount_amount, gst_enabled, gst_rate_percent, gst_amount, billing_breakdown_json, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
              parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
              status_updated_at, payment_updated_at)
            VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date,
                    @sale_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source,
                    @payment_method, @payment_reference, @payment_status, @payment_verified_at, @payment_verified_by,
                    @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount,
-                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
+                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @billing_breakdown_json, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
                    @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at,
                    @status_updated_at, @payment_updated_at)`
         ).run(params);

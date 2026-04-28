@@ -57,9 +57,9 @@ export default function AdminSettingsPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
               <Badge tone="gold">Admin Settings</Badge>
-              <h1 className="text-3xl">Tax and Delivery</h1>
+              <h1 className="text-3xl">Billing Settings</h1>
               <p className="text-sm text-black/60">
-                Configure GST and delivery charge defaults used in checkout and invoices.
+                Configure the billing rows used in checkout, offline invoices, and invoice PDFs.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -85,31 +85,82 @@ export default function AdminSettingsPage() {
             <label className="inline-flex items-center gap-2 text-sm font-semibold text-black/70 md:col-span-2">
               <input
                 type="checkbox"
-                checked={settings.gstEnabled}
+                checked={settings.discountEnabled}
                 onChange={(event) =>
-                  setSettings((prev) => ({ ...prev, gstEnabled: event.target.checked }))
+                  setSettings((prev) => ({ ...prev, discountEnabled: event.target.checked }))
                 }
               />
-              Enable GST
+              Enable discounts
             </label>
             <label className="text-sm font-semibold text-black/70">
-              GST Rate (%)
+              <span className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={settings.gstEnabled && settings.cgstEnabled}
+                  onChange={(event) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      gstEnabled: event.target.checked || prev.sgstEnabled || prev.shippingIgstEnabled,
+                      cgstEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                CGST Rate (%)
+              </span>
               <input
                 type="number"
                 min={0}
                 max={100}
-                value={settings.gstRatePercent}
+                value={settings.cgstRatePercent}
                 onChange={(event) =>
                   setSettings((prev) => ({
                     ...prev,
-                    gstRatePercent: Math.max(0, Math.min(100, Number(event.target.value || 0))),
+                    cgstRatePercent: Math.max(0, Math.min(100, Number(event.target.value || 0))),
                   }))
                 }
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
               />
             </label>
             <label className="text-sm font-semibold text-black/70">
-              Standard Delivery Charge (INR)
+              <span className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={settings.gstEnabled && settings.sgstEnabled}
+                  onChange={(event) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      gstEnabled: event.target.checked || prev.cgstEnabled || prev.shippingIgstEnabled,
+                      sgstEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                SGST Rate (%)
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={settings.sgstRatePercent}
+                onChange={(event) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    sgstRatePercent: Math.max(0, Math.min(100, Number(event.target.value || 0))),
+                  }))
+                }
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              />
+            </label>
+            <label className="text-sm font-semibold text-black/70">
+              <span className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={settings.deliveryFeeEnabled}
+                  onChange={(event) =>
+                    setSettings((prev) => ({ ...prev, deliveryFeeEnabled: event.target.checked }))
+                  }
+                />
+                Standard Delivery Charge (INR)
+              </span>
               <input
                 type="number"
                 min={0}
@@ -133,6 +184,35 @@ export default function AdminSettingsPage() {
                   setSettings((prev) => ({
                     ...prev,
                     freeDeliveryThreshold: Math.max(0, Number(event.target.value || 0)),
+                  }))
+                }
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+              />
+            </label>
+            <label className="text-sm font-semibold text-black/70 md:col-span-2">
+              <span className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={settings.gstEnabled && settings.shippingIgstEnabled}
+                  onChange={(event) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      gstEnabled: event.target.checked || prev.cgstEnabled || prev.sgstEnabled,
+                      shippingIgstEnabled: event.target.checked,
+                    }))
+                  }
+                />
+                Shipping IGST Rate (%)
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={settings.shippingIgstRatePercent}
+                onChange={(event) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    shippingIgstRatePercent: Math.max(0, Math.min(100, Number(event.target.value || 0))),
                   }))
                 }
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"

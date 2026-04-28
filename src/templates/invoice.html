@@ -1,546 +1,499 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Invoice</title>
-    <style>
-      :root {
-        --ink: #1a1a1a;
-        --muted: #5d5b57;
-        --line: #d8d4cd;
-        --line-soft: #e9e5de;
-        --paper: #ffffff;
-        --paper-soft: #f7f5f1;
-        --accent: #2b211b;
-      }
+<head>
+<meta charset="UTF-8" />
+<title>Invoice</title>
 
-      * {
-        box-sizing: border-box;
-      }
+<style>
+@page {
+  size: A4;
+  margin: 9mm;
+}
 
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-      }
+:root {
+  --ink: #1a1a1a;
+  --muted: #5d5b57;
+  --line: #d8d4cd;
+  --line-soft: #e9e5de;
+  --paper: #ffffff;
+  --paper-soft: #f7f5f1;
+  --accent: #2b211b;
+}
 
-      body {
-        background: #efede9;
-        color: var(--ink);
-        font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.45;
-      }
+* {
+  box-sizing: border-box;
+}
 
-      .page {
-        padding: 18px;
-      }
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
 
-      .invoice-box {
-        width: 100%;
-        max-width: 840px;
-        margin: 0 auto;
-        border: 1px solid var(--line);
-        border-top: 5px solid var(--accent);
-        background: var(--paper);
-        box-shadow: 0 14px 34px rgba(25, 23, 19, 0.12);
-        padding: 22px 22px 18px;
-      }
+body {
+  background: #fff;
+  color: var(--ink);
+  font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
 
-      .kicker {
-        margin: 0;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: #6f6a63;
-      }
+.page {
+  width: 192mm;
+  margin: 0 auto;
+}
 
-      .header {
-        display: grid;
-        grid-template-columns: minmax(0, 1.45fr) minmax(250px, 1fr);
-        gap: 18px;
-        padding-bottom: 14px;
-        border-bottom: 1px solid var(--line);
-      }
+.invoice-box {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  padding: 10mm;
+}
 
-      .invoice-title {
-        margin: 3px 0 0;
-        font-family: "Baskerville", "Times New Roman", serif;
-        font-size: 31px;
-        line-height: 1.02;
-        letter-spacing: 0.05em;
-        color: #181716;
-      }
+/* HEADER */
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 7px;
+}
 
-      .brand-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-top: 9px;
-      }
+.header-left {
+  max-width: 58%;
+}
 
-      .brand-logo {
-        width: 44px;
-        height: 44px;
-        object-fit: contain;
-        border: 1px solid var(--line);
-        background: #fff;
-        flex-shrink: 0;
-      }
+.kicker {
+  margin: 0;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6f6a63;
+}
 
-      .brand-copy {
-        min-width: 0;
-      }
+.invoice-title {
+  margin: 2px 0 5px;
+  font-family: Baskerville, "Times New Roman", serif;
+  font-size: 23px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+}
 
-      .brand-name {
-        margin: 0;
-        font-size: 16px;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        color: #191816;
-      }
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-      .brand-subtitle {
-        margin: 2px 0 0;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        color: #6f695f;
-      }
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: #fff;
+}
 
-      .badge-row {
-        margin-top: 10px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
+.brand-name {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+}
 
-      .badge-row:empty {
-        display: none;
-      }
+.brand-subtitle {
+  margin: 1px 0 0;
+  font-size: 7.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #6f695f;
+}
 
-      .badge {
-        border: 1px solid #d9d3c8;
-        border-radius: 999px;
-        background: #fbfaf7;
-        padding: 3px 8px;
-        font-size: 9px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #5f594e;
-      }
+.meta {
+  min-width: 68mm;
+  text-align: right;
+  font-size: 9.2px;
+  line-height: 1.35;
+}
 
-      .meta-card {
-        border: 1px solid var(--line);
-        background: var(--paper-soft);
-        padding: 11px 12px;
-      }
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 2px 0;
+}
 
-      .meta-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 14px;
-        border-bottom: 1px solid var(--line-soft);
-        padding: 5px 0;
-      }
+.meta-row:last-child {
+  border-bottom: 0;
+}
 
-      .meta-row:first-child {
-        padding-top: 0;
-      }
+.meta-label {
+  color: #68645d;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 7.2px;
+  white-space: nowrap;
+}
 
-      .meta-row:last-child {
-        border-bottom: 0;
-        padding-bottom: 0;
-      }
+.meta-value {
+  font-weight: 800;
+  color: #1e1d1a;
+}
 
-      .meta-label {
-        font-size: 9px;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: #68645d;
-        white-space: nowrap;
-      }
+/* PARTIES */
+.parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
 
-      .meta-value {
-        font-size: 12px;
-        font-weight: 700;
-        color: #1e1d1a;
-        text-align: right;
-        word-break: break-word;
-      }
+.party {
+  border: 1px solid var(--line-soft);
+  background: #fff;
+  padding: 6px 7px;
+  page-break-inside: avoid;
+}
 
-      .barcode-wrap {
-        margin-top: 8px;
-        border: 1px solid #ddd8cf;
-        background: #fff;
-        padding: 6px;
-      }
+.party h3 {
+  margin: 0;
+  font-size: 7.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #68635d;
+}
 
-      .barcode-wrap:empty {
-        display: none;
-      }
+.party .name {
+  display: block;
+  margin: 3px 0 2px;
+  font-size: 10px;
+  font-weight: 800;
+}
 
-      .barcode-wrap img {
-        display: block;
-        margin-left: auto;
-        width: 100%;
-        max-width: 180px;
-        height: auto;
-      }
+.party .content {
+  white-space: pre-line;
+  font-size: 8.8px;
+  line-height: 1.28;
+  color: #4f4c46;
+  overflow-wrap: anywhere;
+}
 
-      .parties {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 14px;
-      }
+/* ITEMS */
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  table-layout: fixed;
+}
 
-      .party {
-        border: 1px solid var(--line-soft);
-        background: #fff;
-        padding: 9px 10px;
-      }
+.items-table thead {
+  display: table-header-group;
+}
 
-      .party h3 {
-        margin: 0;
-        font-size: 9px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: #68635d;
-      }
+.items-table th {
+  background: #f6f3ee;
+  border-top: 1px solid #cfc8bc;
+  border-bottom: 1px solid #cfc8bc;
+  padding: 5px 5px;
+  font-size: 7.7px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #5f5a52;
+  text-align: left;
+}
 
-      .party .name {
-        display: block;
-        margin: 4px 0 3px;
-        font-size: 13px;
-        font-weight: 700;
-        color: #1c1a17;
-      }
+.items-table td {
+  border-bottom: 1px solid var(--line-soft);
+  padding: 4.5px 5px;
+  font-size: 9.2px;
+  vertical-align: top;
+  line-height: 1.25;
+}
 
-      .party .content {
-        white-space: pre-line;
-        font-size: 11px;
-        line-height: 1.45;
-        color: #4f4c46;
-        overflow-wrap: anywhere;
-      }
+.items-table th:nth-child(1),
+.items-table td:nth-child(1) {
+  width: 46%;
+}
 
-      .items-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 14px;
-      }
+.items-table th:nth-child(2),
+.items-table td:nth-child(2) {
+  width: 13%;
+}
 
-      .items-table thead {
-        display: table-header-group;
-      }
+.items-table th:nth-child(3),
+.items-table td:nth-child(3) {
+  width: 10%;
+}
 
-      .items-table th {
-        border-top: 1px solid #cfc8bc;
-        border-bottom: 1px solid #cfc8bc;
-        background: #f6f3ee;
-        padding: 8px 10px;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.13em;
-        text-transform: uppercase;
-        color: #5f5a52;
-        text-align: left;
-      }
+.items-table th:nth-child(4),
+.items-table td:nth-child(4) {
+  width: 15%;
+}
 
-      .items-table th.right,
-      .items-table td.right {
-        text-align: right;
-      }
+.items-table th:nth-child(5),
+.items-table td:nth-child(5) {
+  width: 16%;
+}
 
-      .items-table td {
-        border-bottom: 1px solid var(--line-soft);
-        padding: 9px 10px;
-        vertical-align: top;
-        font-size: 12px;
-      }
+tr {
+  page-break-inside: avoid;
+}
 
-      .item-title {
-        font-weight: 700;
-        color: #1d1a16;
-      }
+.right {
+  text-align: right;
+}
 
-      .item-note {
-        margin-top: 4px;
-        font-size: 11px;
-        line-height: 1.4;
-        color: #656157;
-        white-space: pre-line;
-        overflow-wrap: anywhere;
-      }
+.item-title {
+  font-weight: 800;
+  color: #1d1a16;
+}
 
-      .financials {
-        margin-top: 12px;
-        display: flex;
-        justify-content: flex-end;
-      }
+.item-note {
+  margin-top: 2px;
+  font-size: 8px;
+  color: #656157;
+  white-space: pre-line;
+}
 
-      .totals-box {
-        width: min(350px, 100%);
-        border: 1px solid #d7d0c4;
-        background: #faf8f4;
-        padding: 10px 12px;
-      }
+/* TOTALS */
+.financials {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  page-break-inside: avoid;
+}
 
-      .totals {
-        width: 100%;
-        border-collapse: collapse;
-      }
+.totals-box {
+  width: 295px;
+  max-width: 100%;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #fffdf9 0%, #f7f2ea 100%);
+  border: 1px solid #d3c8b8;
+  padding: 8px 10px;
+}
 
-      .totals td {
-        border: 0;
-        padding: 5px 0;
-        font-size: 12px;
-      }
+.totals-header {
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #d8d0c4;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #4f463d;
+}
 
-      .totals .label {
-        color: #5f5a53;
-      }
+.totals {
+  width: 100%;
+  border-collapse: collapse;
+}
 
-      .totals .amount {
-        text-align: right;
-        font-weight: 700;
-        color: #201e1b;
-      }
+.totals td {
+  padding: 3px 0;
+  font-size: 9.5px;
+}
 
-      .totals .total-row td {
-        border-top: 1px solid #cfc7ba;
-        padding-top: 8px;
-        font-size: 14px;
-        font-weight: 800;
-        color: #171613;
-      }
+.totals .label {
+  color: #5c554c;
+}
 
-      .notes {
-        margin-top: 16px;
-        border: 1px solid #dbd4c8;
-        background: #fcfbf8;
-        padding: 12px 13px;
-      }
+.totals .amount {
+  text-align: right;
+  font-weight: 800;
+  color: #201e1b;
+}
 
-      .notes strong {
-        display: block;
-        margin: 0;
-        font-size: 10px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: #5f5950;
-      }
+.totals .divider td {
+  padding: 4px 0;
+}
 
-      .notes-body {
-        margin-top: 8px;
-        white-space: pre-line;
-        font-size: 12px;
-        line-height: 1.65;
-        color: #4f4a43;
-        overflow-wrap: anywhere;
-      }
+.totals hr {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #d7d0c4;
+}
 
-      .footer {
-        margin-top: 16px;
-        padding-top: 13px;
-        border-top: 1px solid var(--line);
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(190px, 0.46fr);
-        gap: 16px;
-      }
+.total-row td {
+  background: var(--accent);
+  color: #fff;
+  padding: 7px 6px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
 
-      .footer-copy {
-        font-size: 11px;
-        line-height: 1.65;
-        color: #646056;
-        white-space: pre-line;
-        overflow-wrap: anywhere;
-      }
+.total-row .amount {
+  color: #fff;
+}
 
-      .footer-cert {
-        border-left: 1px solid var(--line-soft);
-        padding-left: 14px;
-        font-size: 11px;
-        line-height: 1.5;
-        color: #615c54;
-        text-align: right;
-      }
+/* NOTES */
+.notes {
+  margin-top: 8px;
+  border: 1px solid #dbd4c8;
+  background: #fcfbf8;
+  padding: 7px 8px;
+  page-break-inside: avoid;
+}
 
-      .footer-cert img {
-        display: block;
-        width: 96px;
-        height: auto;
-        margin-left: auto;
-        margin-bottom: 5px;
-      }
+.notes strong {
+  display: block;
+  font-size: 7.8px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #5f5950;
+}
 
-      @media print {
-        body {
-          background: #fff;
-        }
+.notes-body {
+  margin-top: 4px;
+  font-size: 9px;
+  color: #4f4a43;
+  line-height: 1.35;
+  white-space: pre-line;
+}
 
-        .page {
-          padding: 0;
-        }
+/* FOOTER */
+.footer {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 165px;
+  gap: 10px;
+  page-break-inside: avoid;
+}
 
-        .invoice-box {
-          max-width: none;
-          border: 0;
-          border-top: 4px solid var(--accent);
-          box-shadow: none;
-          padding: 14mm 13mm 12mm;
-        }
-      }
+.footer-copy,
+.footer-cert {
+  font-size: 8.5px;
+  color: #646056;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 
-      @media (max-width: 780px) {
-        .page {
-          padding: 0;
-        }
+.footer-cert {
+  text-align: right;
+  border-left: 1px solid var(--line-soft);
+  padding-left: 10px;
+}
 
-        .invoice-box {
-          max-width: none;
-          border-left: 0;
-          border-right: 0;
-          box-shadow: none;
-          padding: 20px 16px 18px;
-        }
+@media print {
+  body {
+    background: #fff;
+  }
 
-        .header {
-          grid-template-columns: 1fr;
-        }
+  .page {
+    width: auto;
+    margin: 0;
+  }
 
-        .parties {
-          grid-template-columns: 1fr;
-        }
+  .invoice-box {
+    box-shadow: none;
+  }
+}
+</style>
+</head>
 
-        .footer {
-          grid-template-columns: 1fr;
-        }
+<body>
+<div class="page">
+  <div class="invoice-box">
 
-        .footer-cert {
-          border-left: 0;
-          border-top: 1px solid var(--line-soft);
-          padding: 10px 0 0;
-          text-align: left;
-        }
+    <header class="header">
+      <section class="header-left">
+        <p class="kicker">Tax Invoice / Order Confirmation</p>
+        <h1 class="invoice-title">INVOICE</h1>
 
-        .footer-cert img {
-          margin-left: 0;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="invoice-box">
-        <header class="header">
-          <section>
-            <p class="kicker">Tax Invoice</p>
-            <h1 class="invoice-title">INVOICE</h1>
-            <div class="brand-row">
-              <img class="brand-logo" src="{{LOGO_SRC}}" alt="Brand logo" />
-              <div class="brand-copy">
-                <p class="brand-name">{{BRAND_NAME}}</p>
-                <p class="brand-subtitle">{{BRAND_SUBTITLE}}</p>
-              </div>
-            </div>
-            <div class="badge-row">{{BADGES}}</div>
-          </section>
-
-          <aside class="meta-card">
-            <div class="meta-row">
-              <span class="meta-label">Invoice No</span>
-              <span class="meta-value">{{INVOICE_NUMBER}}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Order ID</span>
-              <span class="meta-value">{{ORDER_ID}}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Invoice Date</span>
-              <span class="meta-value">{{CREATED_DATE}}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Due Date</span>
-              <span class="meta-value">{{DUE_DATE}}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Payment</span>
-              <span class="meta-value">{{PAYMENT_METHOD}}</span>
-            </div>
-            <div class="meta-row">
-              <span class="meta-label">Status</span>
-              <span class="meta-value">{{PAYMENT_STATUS}}</span>
-            </div>
-            {{BARCODE_BLOCK}}
-          </aside>
-        </header>
-
-        <section class="parties">
-          <div class="party">
-            <h3>Bill From</h3>
-            <div class="content"><span class="name">{{SENDER_NAME}}</span>
-{{SENDER_LINES}}</div>
+        <div class="brand-row">
+          <img class="brand-logo" src="{{LOGO_SRC}}" alt="Brand logo" />
+          <div>
+            <p class="brand-name">{{BRAND_NAME}}</p>
+            <p class="brand-subtitle">{{BRAND_SUBTITLE}}</p>
           </div>
-          <div class="party">
-            <h3>Bill To</h3>
-            <div class="content"><span class="name">{{RECEIVER_NAME}}</span>
-{{RECEIVER_LINES}}</div>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th class="right">Qty</th>
-              <th class="right">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{ITEM_ROWS}}
-          </tbody>
-        </table>
+      <aside class="meta">
+        <div class="meta-row">
+          <span class="meta-label">Invoice No</span>
+          <span class="meta-value">{{INVOICE_NUMBER}}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Order ID</span>
+          <span class="meta-value">{{ORDER_ID}}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Invoice Date</span>
+          <span class="meta-value">{{CREATED_DATE}}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Order Date</span>
+          <span class="meta-value">{{ORDER_DATE}}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Shipping</span>
+          <span class="meta-value">{{SHIPPING_METHOD}}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Status</span>
+          <span class="meta-value">{{PAYMENT_STATUS}}</span>
+        </div>
+      </aside>
+    </header>
 
-        <section class="financials">
-          <div class="totals-box">
-            <table class="totals">
-              <tr>
-                <td class="label">Subtotal</td>
-                <td class="amount">{{SUBTOTAL}}</td>
-              </tr>
-              <tr>
-                <td class="label">Discount</td>
-                <td class="amount">{{DISCOUNT}}</td>
-              </tr>
-              <tr>
-                <td class="label">{{TAX_LABEL}}</td>
-                <td class="amount">{{TAX}}</td>
-              </tr>
-              <tr>
-                <td class="label">Delivery Fee</td>
-                <td class="amount">{{DELIVERY_FEE}}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Total</td>
-                <td class="amount">{{TOTAL}}</td>
-              </tr>
-            </table>
-          </div>
-        </section>
-
-        {{NOTES_BLOCK}}
-
-        <footer class="footer">
-          <div class="footer-copy">{{FOOTER_TEXT}}</div>
-          <div class="footer-cert">
-            {{FSSAI_BLOCK}}
-          </div>
-        </footer>
+    <section class="parties">
+      <div class="party">
+        <h3>Bill From</h3>
+        <div class="content">
+<span class="name">{{SENDER_NAME}}</span>
+{{SENDER_LINES}}
+        </div>
       </div>
-    </div>
-  </body>
+
+      <div class="party">
+        <h3>Bill To</h3>
+        <div class="content">
+<span class="name">{{RECEIVER_NAME}}</span>
+{{RECEIVER_LINES}}
+        </div>
+      </div>
+    </section>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th class="right">HSN</th>
+          <th class="right">Qty</th>
+          <th class="right">Unit Price</th>
+          <th class="right">Sub-Total</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {{ITEM_ROWS}}
+      </tbody>
+    </table>
+
+    <section class="financials">
+      <div class="totals-box">
+        <div class="totals-header">Billing Summary</div>
+
+        <table class="totals">
+          {{BILLING_ROWS}}
+        </table>
+      </div>
+    </section>
+
+    <section class="notes">
+      <strong>Notes</strong>
+      <div class="notes-body">{{NOTES}}</div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-copy">{{FOOTER_TEXT}}</div>
+      <div class="footer-cert">{{FSSAI_BLOCK}}</div>
+    </footer>
+
+  </div>
+</div>
+</body>
 </html>

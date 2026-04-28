@@ -543,35 +543,29 @@ export default function BillingPage() {
               </div>
 
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatInr(pricing.subtotalAmount)}</span>
-                </div>
-                {pricing.discountAmount > 0 ? (
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span>Discount</span>
-                    <span>- {formatInr(pricing.discountAmount)}</span>
+                {pricing.billingLines.map((line) => (
+                  <div
+                    key={line.key}
+                    className={`flex items-center justify-between ${
+                      line.key === "total"
+                        ? "border-t border-black/10 pt-2 text-base font-semibold"
+                        : line.kind === "discount"
+                          ? "text-emerald-700"
+                          : ""
+                    }`}
+                  >
+                    <span>{line.label}</span>
+                    <span>
+                      {line.kind === "discount" ? "- " : ""}
+                      {formatInr(line.amount)}
+                    </span>
                   </div>
-                ) : null}
-                {pricing.gstEnabled ? (
-                  <div className="flex items-center justify-between">
-                    <span>GST ({pricing.gstRatePercent}%)</span>
-                    <span>{formatInr(pricing.gstAmount)}</span>
-                  </div>
-                ) : null}
-                <div className="flex items-center justify-between">
-                  <span>Delivery</span>
-                  <span>{formatInr(pricing.deliveryFeeAmount)}</span>
-                </div>
+                ))}
                 {pricing.freeDeliveryApplied ? (
                   <p className="text-xs text-emerald-700">
                     Delivery charge waived for orders above {formatInr(settings.freeDeliveryThreshold)}.
                   </p>
                 ) : null}
-                <div className="flex items-center justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span>{formatInr(pricing.totalAmount)}</span>
-                </div>
               </div>
 
               {composedMessage ? (

@@ -3,7 +3,7 @@ import {
   normalizeAdminSettings,
   type AdminSettings,
 } from "@/lib/admin-settings";
-import type { AppliedCoupon, BuyerGstDetails, PricingBreakdown } from "@/types/order";
+import type { AppliedCoupon, BillingLineItem, BuyerGstDetails, PricingBreakdown } from "@/types/order";
 
 export type CouponValidationResult = {
   valid: boolean;
@@ -27,9 +27,13 @@ export function computeDeliveryFee(
   const normalizedSettings = normalizeAdminSettings(settings);
   const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
   const freeDeliveryApplied =
-    safeSubtotal > 0 && safeSubtotal >= normalizedSettings.freeDeliveryThreshold;
+    normalizedSettings.deliveryFeeEnabled &&
+    safeSubtotal > 0 &&
+    safeSubtotal >= normalizedSettings.freeDeliveryThreshold;
   const deliveryFeeAmount =
-    safeSubtotal > 0 && !freeDeliveryApplied ? normalizedSettings.deliveryFeeAmount : 0;
+    normalizedSettings.deliveryFeeEnabled && safeSubtotal > 0 && !freeDeliveryApplied
+      ? normalizedSettings.deliveryFeeAmount
+      : 0;
 
   return {
     deliveryFeeAmount,
@@ -48,11 +52,16 @@ export function computePricing(
 ): PricingBreakdown {
   const normalizedSettings = normalizeAdminSettings(settings);
   const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
-  const safeDiscount = Math.max(0, Math.min(Math.round(discountAmount), safeSubtotal));
+  const safeDiscount = normalizedSettings.discountEnabled
+    ? Math.max(0, Math.min(Math.round(discountAmount), safeSubtotal))
+    : 0;
   const taxableAmount = Math.max(0, safeSubtotal - safeDiscount);
-  const gstEnabled = normalizedSettings.gstEnabled;
-  const gstRatePercent = normalizedSettings.gstRatePercent;
-  const gstAmount = gstEnabled ? Math.round((taxableAmount * gstRatePercent) / 100) : 0;
+  const cgstEnabled = normalizedSettings.gstEnabled && normalizedSettings.cgstEnabled;
+  const sgstEnabled = normalizedSettings.gstEnabled && normalizedSettings.sgstEnabled;
+  const cgstRatePercent = normalizedSettings.cgstRatePercent;
+  const sgstRatePercent = normalizedSettings.sgstRatePercent;
+  const cgstAmount = cgstEnabled ? Math.round((taxableAmount * cgstRatePercent) / 100) : 0;
+  const sgstAmount = sgstEnabled ? Math.round((taxableAmount * sgstRatePercent) / 100) : 0;
   const delivery =
     options?.forceDeliveryFeeAmount !== undefined
       ? {
@@ -62,17 +71,86 @@ export function computePricing(
       : options?.deliveryEnabled === false
         ? { deliveryFeeAmount: 0, freeDeliveryApplied: false }
         : computeDeliveryFee(safeSubtotal, normalizedSettings);
+  const shippingIgstEnabled =
+    normalizedSettings.gstEnabled &&
+    normalizedSettings.shippingIgstEnabled &&
+    delivery.deliveryFeeAmount > 0;
+  const shippingIgstRatePercent = normalizedSettings.shippingIgstRatePercent;
+  const shippingIgstAmount = shippingIgstEnabled
+    ? Math.round((delivery.deliveryFeeAmount * shippingIgstRatePercent) / 100)
+    : 0;
+  const gstRatePercent = cgstRatePercent + sgstRatePercent;
+  const gstAmount = cgstAmount + sgstAmount + shippingIgstAmount;
+  const billingLines: BillingLineItem[] = [
+    { key: "subtotal", label: "Subtotal", amount: safeSubtotal, kind: "charge" },
+  ];
+  if (safeDiscount > 0) {
+    billingLines.push({ key: "discount", label: "Discount", amount: safeDiscount, kind: "discount" });
+  }
+  if (cgstEnabled || sgstEnabled || delivery.deliveryFeeAmount > 0 || shippingIgstEnabled) {
+    if (cgstEnabled) {
+      billingLines.push({
+        key: "cgst",
+        label: `CGST (${cgstRatePercent}%)`,
+        amount: cgstAmount,
+        ratePercent: cgstRatePercent,
+        kind: "tax",
+      });
+    }
+    if (sgstEnabled) {
+      billingLines.push({
+        key: "sgst",
+        label: `SGST (${sgstRatePercent}%)`,
+        amount: sgstAmount,
+        ratePercent: sgstRatePercent,
+        kind: "tax",
+      });
+    }
+    if (delivery.deliveryFeeAmount > 0) {
+      billingLines.push({
+        key: "delivery",
+        label: "Shipping / Delivery Fee",
+        amount: delivery.deliveryFeeAmount,
+        kind: "charge",
+      });
+    }
+    if (shippingIgstEnabled) {
+      billingLines.push({
+        key: "shippingIgst",
+        label: `Shipping IGST (${shippingIgstRatePercent}%)`,
+        amount: shippingIgstAmount,
+        ratePercent: shippingIgstRatePercent,
+        kind: "tax",
+      });
+    }
+  }
+  const totalAmount = Math.max(
+    0,
+    taxableAmount + cgstAmount + sgstAmount + delivery.deliveryFeeAmount + shippingIgstAmount
+  );
+  billingLines.push({ key: "total", label: "Total", amount: totalAmount, kind: "total" });
 
   return {
     subtotalAmount: safeSubtotal,
     discountAmount: safeDiscount,
     taxableAmount,
-    gstEnabled,
+    gstEnabled: cgstEnabled || sgstEnabled || shippingIgstEnabled,
     gstRatePercent,
     gstAmount,
+    cgstEnabled,
+    cgstRatePercent,
+    cgstAmount,
+    sgstEnabled,
+    sgstRatePercent,
+    sgstAmount,
     deliveryFeeAmount: delivery.deliveryFeeAmount,
+    deliveryFeeEnabled: normalizedSettings.deliveryFeeEnabled,
     freeDeliveryApplied: delivery.freeDeliveryApplied,
-    totalAmount: Math.max(0, taxableAmount + gstAmount + delivery.deliveryFeeAmount),
+    shippingIgstEnabled,
+    shippingIgstRatePercent,
+    shippingIgstAmount,
+    totalAmount,
+    billingLines,
   };
 }
 
