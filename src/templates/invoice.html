@@ -7,7 +7,7 @@
 <style>
 @page {
   size: A4;
-  margin: 9mm;
+  margin: 6mm;
 }
 
 :root {
@@ -34,30 +34,34 @@ body {
   background: #fff;
   color: var(--ink);
   font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
-  font-size: 10.5px;
-  line-height: 1.3;
+  font-size: 11.8px;
+  line-height: 1.38;
 }
 
 .page {
-  width: 192mm;
+  width: 198mm;
+  min-height: 285mm;
   margin: 0 auto;
 }
 
 .invoice-box {
   width: 100%;
+  min-height: 285mm;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-top: 4px solid var(--accent);
-  padding: 10mm;
+  border-top: 5px solid var(--accent);
+  padding: 12mm;
+  display: flex;
+  flex-direction: column;
 }
 
 /* HEADER */
 .header {
   display: flex;
   justify-content: space-between;
-  gap: 14px;
+  gap: 18px;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 7px;
+  padding-bottom: 10px;
 }
 
 .header-left {
@@ -66,7 +70,7 @@ body {
 
 .kicker {
   margin: 0;
-  font-size: 7.5px;
+  font-size: 8.4px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -74,9 +78,9 @@ body {
 }
 
 .invoice-title {
-  margin: 2px 0 5px;
+  margin: 3px 0 7px;
   font-family: Baskerville, "Times New Roman", serif;
-  font-size: 23px;
+  font-size: 31px;
   line-height: 1;
   letter-spacing: 0.05em;
 }
@@ -84,12 +88,12 @@ body {
 .brand-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .brand-logo {
-  width: 34px;
-  height: 34px;
+  width: 43px;
+  height: 43px;
   object-fit: contain;
   border: 1px solid var(--line);
   background: #fff;
@@ -97,31 +101,31 @@ body {
 
 .brand-name {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 800;
 }
 
 .brand-subtitle {
   margin: 1px 0 0;
-  font-size: 7.5px;
+  font-size: 8.5px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #6f695f;
 }
 
 .meta {
-  min-width: 68mm;
+  min-width: 76mm;
   text-align: right;
-  font-size: 9.2px;
+  font-size: 10px;
   line-height: 1.35;
 }
 
 .meta-row {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   border-bottom: 1px solid var(--line-soft);
-  padding: 2px 0;
+  padding: 3px 0;
 }
 
 .meta-row:last-child {
@@ -132,7 +136,7 @@ body {
   color: #68645d;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 7.2px;
+  font-size: 8px;
   white-space: nowrap;
 }
 
@@ -145,20 +149,20 @@ body {
 .parties {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .party {
   border: 1px solid var(--line-soft);
   background: #fff;
-  padding: 6px 7px;
+  padding: 8px 9px;
   page-break-inside: avoid;
 }
 
 .party h3 {
   margin: 0;
-  font-size: 7.5px;
+  font-size: 8px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #68635d;
@@ -166,15 +170,15 @@ body {
 
 .party .name {
   display: block;
-  margin: 3px 0 2px;
-  font-size: 10px;
+  margin: 5px 0 3px;
+  font-size: 11px;
   font-weight: 800;
 }
 
 .party .content {
   white-space: pre-line;
-  font-size: 8.8px;
-  line-height: 1.28;
+  font-size: 9.8px;
+  line-height: 1.35;
   color: #4f4c46;
   overflow-wrap: anywhere;
 }
@@ -183,7 +187,7 @@ body {
 .items-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 8px;
+  margin-top: 10px;
   table-layout: fixed;
 }
 
@@ -195,8 +199,8 @@ body {
   background: #f6f3ee;
   border-top: 1px solid #cfc8bc;
   border-bottom: 1px solid #cfc8bc;
-  padding: 5px 5px;
-  font-size: 7.7px;
+  padding: 6px 6px;
+  font-size: 8.4px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #5f5a52;
@@ -205,8 +209,8 @@ body {
 
 .items-table td {
   border-bottom: 1px solid var(--line-soft);
-  padding: 4.5px 5px;
-  font-size: 9.2px;
+  padding: 6px;
+  font-size: 10px;
   vertical-align: top;
   line-height: 1.25;
 }
@@ -250,34 +254,34 @@ tr {
 }
 
 .item-note {
-  margin-top: 2px;
-  font-size: 8px;
+  margin-top: 3px;
+  font-size: 9px;
   color: #656157;
   white-space: pre-line;
 }
 
 /* TOTALS */
 .financials {
-  margin-top: 8px;
+  margin-top: 12px;
   display: flex;
   justify-content: flex-end;
   page-break-inside: avoid;
 }
 
 .totals-box {
-  width: 295px;
+  width: 355px;
   max-width: 100%;
   border-radius: 7px;
   background: linear-gradient(180deg, #fffdf9 0%, #f7f2ea 100%);
   border: 1px solid #d3c8b8;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 
 .totals-header {
-  margin-bottom: 5px;
-  padding-bottom: 5px;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
   border-bottom: 1px solid #d8d0c4;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -290,8 +294,8 @@ tr {
 }
 
 .totals td {
-  padding: 3px 0;
-  font-size: 9.5px;
+  padding: 4px 0;
+  font-size: 10.5px;
 }
 
 .totals .label {
@@ -317,8 +321,8 @@ tr {
 .total-row td {
   background: var(--accent);
   color: #fff;
-  padding: 7px 6px;
-  font-size: 11.5px;
+  padding: 8px 7px;
+  font-size: 13px;
   font-weight: 900;
 }
 
@@ -328,24 +332,24 @@ tr {
 
 /* NOTES */
 .notes {
-  margin-top: 8px;
+  margin-top: 12px;
   border: 1px solid #dbd4c8;
   background: #fcfbf8;
-  padding: 7px 8px;
+  padding: 9px 10px;
   page-break-inside: avoid;
 }
 
 .notes strong {
   display: block;
-  font-size: 7.8px;
+  font-size: 8.5px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: #5f5950;
 }
 
 .notes-body {
-  margin-top: 4px;
-  font-size: 9px;
+  margin-top: 5px;
+  font-size: 10px;
   color: #4f4a43;
   line-height: 1.35;
   white-space: pre-line;
@@ -353,27 +357,32 @@ tr {
 
 /* FOOTER */
 .footer {
-  margin-top: 8px;
-  padding-top: 7px;
+  margin-top: auto;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
   display: grid;
-  grid-template-columns: 1fr 165px;
-  gap: 10px;
+  grid-template-columns: 1fr 185px;
+  gap: 14px;
   page-break-inside: avoid;
 }
 
 .footer-copy,
 .footer-cert {
-  font-size: 8.5px;
+  font-size: 9.3px;
   color: #646056;
-  line-height: 1.35;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
 .footer-cert {
   text-align: right;
   border-left: 1px solid var(--line-soft);
-  padding-left: 10px;
+  padding-left: 14px;
+}
+
+.footer-cert img {
+  max-width: 155px;
+  height: auto;
 }
 
 @media print {
