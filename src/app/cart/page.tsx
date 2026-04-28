@@ -59,6 +59,14 @@ export default function CartPage() {
             <p className="text-black/70">
               Update quantities or proceed directly to checkout.
             </p>
+            <div className="flex flex-wrap gap-2 pt-1 text-xs font-semibold">
+              <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-black/65">
+                No returns or refunds after confirmation
+              </span>
+              <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-black/65">
+                Customer details are used only for order, billing, and delivery
+              </span>
+            </div>
           </div>
           <Link
             href="/menu"
