@@ -14,7 +14,7 @@ export type AppliedCoupon = {
 };
 
 export type BillingLineItem = {
-  key: "subtotal" | "discount" | "cgst" | "sgst" | "delivery" | "shippingIgst" | "total";
+  key: "subtotal" | "discount" | "cgst" | "sgst" | "delivery" | "igst" | "shippingIgst" | "total";
   label: string;
   amount: number;
   ratePercent?: number;

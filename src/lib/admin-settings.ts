@@ -60,24 +60,24 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 function clampCurrency(value: unknown, fallback: number) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.round(parsed));
+  return Math.max(0, Number(parsed.toFixed(2)));
 }
 
 function clampPercent(value: unknown, fallback: number) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, Math.min(100, Math.round(parsed)));
+  return Math.max(0, Math.min(100, Number(parsed.toFixed(2))));
 }
 
 export function normalizeAdminSettings(value: Partial<AdminSettings> | null | undefined): AdminSettings {
   const fallbackGstRate = clampPercent(value?.gstRatePercent, DEFAULT_ADMIN_SETTINGS.gstRatePercent);
   const cgstRatePercent = clampPercent(
     value?.cgstRatePercent,
-    Math.round(fallbackGstRate / 2)
+    fallbackGstRate / 2
   );
   const sgstRatePercent = clampPercent(
     value?.sgstRatePercent,
-    Math.max(0, fallbackGstRate - Math.round(fallbackGstRate / 2))
+    Math.max(0, fallbackGstRate - cgstRatePercent)
   );
   return {
     discountEnabled: value?.discountEnabled ?? DEFAULT_ADMIN_SETTINGS.discountEnabled,

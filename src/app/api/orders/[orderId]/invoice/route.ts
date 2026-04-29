@@ -99,8 +99,9 @@ const INVOICE_TEMPLATE_PATH = getInvoiceTemplatePath();
 
 const formatInr = (value: number) => {
   const amount = new Intl.NumberFormat("en-IN", {
-    maximumFractionDigits: 0,
-  }).format(Math.round(Number.isFinite(value) ? value : 0));
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
   return `₹${amount}`;
 };
 
@@ -145,18 +146,43 @@ const parseBuyerGst = (value?: string | null) => {
 };
 
 const parseBillingLines = (order: OrderRow) => {
+  const normalizeLine = (line: BillingLineItem): BillingLineItem => {
+    if (line.key === "shippingIgst") {
+      return {
+        ...line,
+        key: "igst",
+        label: line.ratePercent ? `IGST (${line.ratePercent}%)` : "IGST",
+      };
+    }
+    if (/shipping\s+igst/i.test(line.label)) {
+      return {
+        ...line,
+        label: line.label.replace(/shipping\s+/i, ""),
+      };
+    }
+    if (/shipping\s*\/\s*delivery fee/i.test(line.label)) {
+      return {
+        ...line,
+        label: "Delivery Fee",
+      };
+    }
+    return line;
+  };
+
   if (order.billing_breakdown_json) {
     try {
       const parsed = JSON.parse(order.billing_breakdown_json) as Partial<PricingBreakdown>;
       if (Array.isArray(parsed.billingLines) && parsed.billingLines.length > 0) {
-        return parsed.billingLines.filter(
-          (line): line is BillingLineItem =>
+        return parsed.billingLines
+          .filter(
+            (line): line is BillingLineItem =>
             typeof line === "object" &&
             line !== null &&
             typeof line.label === "string" &&
             typeof line.key === "string" &&
             Number.isFinite(Number(line.amount))
-        );
+          )
+          .map(normalizeLine);
       }
     } catch {
       // Fall back to legacy columns below.
@@ -190,7 +216,7 @@ const parseBillingLines = (order: OrderRow) => {
   if (deliveryFee > 0) {
     lines.push({
       key: "delivery",
-      label: "Shipping / Delivery Fee",
+      label: "Delivery Fee",
       amount: deliveryFee,
       kind: "charge",
     });

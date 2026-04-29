@@ -83,6 +83,12 @@ function toInt(value: unknown, fallback = 0) {
   return Math.round(parsed);
 }
 
+function toMoney(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Number(parsed.toFixed(2)));
+}
+
 function parseOfflineItems(items: unknown[]) {
   return items
     .map((item) => ({
@@ -112,7 +118,7 @@ function resolveOfflineItems(items: OfflineSelectedItem[]) {
   for (const item of items) {
     const product = productMap.get(item.productId);
     if (!product) return null;
-    const unitPrice = toInt(product.price_inr, 0);
+    const unitPrice = toMoney(product.price_inr, 0);
     rows.push({
       id: product.id,
       name: product.name,

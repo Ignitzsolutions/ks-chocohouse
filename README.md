@@ -17,7 +17,7 @@ Live site: [https://www.kschocohouse.com](https://www.kschocohouse.com)
 - UPI/payment-reference based order submission and admin verification.
 - Admin product, category, subcategory, flavor, coupon, blackout-date, and order management.
 - Offline invoice creation for walk-in or manual sales.
-- Configurable billing engine for discount, CGST, SGST, delivery fee, free-delivery threshold, and shipping IGST.
+- Configurable billing engine for discount, CGST, SGST, IGST, delivery fee, and free-delivery threshold.
 - PDF tax invoices with barcode, FSSAI details, buyer GST details, and stored billing snapshots.
 - Sales dashboard with filtering, analytics, CSV export, and order detail views.
 - Customer policy surfaces for no-return/no-refund and privacy expectations.

@@ -13,7 +13,10 @@ export async function POST(request: Request) {
     };
 
     initDb();
-    const subtotalAmount = Math.max(0, Math.round(Number(body.subtotal ?? 0)));
+    const parsedSubtotal = Number(body.subtotal ?? 0);
+    const subtotalAmount = Number.isFinite(parsedSubtotal)
+      ? Math.max(0, Number(parsedSubtotal.toFixed(2)))
+      : 0;
     const result = validateCouponCode(getDb(), body.code, subtotalAmount);
     if (!result.valid || !result.coupon) {
       return NextResponse.json(

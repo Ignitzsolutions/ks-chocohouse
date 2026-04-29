@@ -187,7 +187,8 @@ export function formatInr(value: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -222,16 +223,17 @@ export function getProductOptionLabel(product: Product) {
 }
 
 export function getProductPriceForOption(product: Product, optionLabel?: string) {
+  const toMoney = (value: number) => Math.max(0, Number(value.toFixed(2)));
   if (product.pricingMode === "kg") {
     const weightKg = parseWeightKg(optionLabel);
     const base = Number(product.basePricePerKgInr ?? product.priceInr ?? 0);
     if (weightKg && base > 0) {
-      return Math.round(base * weightKg);
+      return toMoney(base * weightKg);
     }
-    return Math.round(product.priceInr);
+    return toMoney(product.priceInr);
   }
 
-  return Math.round(product.priceInr);
+  return toMoney(product.priceInr);
 }
 
 export function getPriceDisplayMeta(product: Product, optionLabel?: string) {

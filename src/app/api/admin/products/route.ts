@@ -43,6 +43,11 @@ function parseSizeOptions(value: string | null | undefined) {
   }
 }
 
+function toMoney(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Number(parsed.toFixed(2))) : 0;
+}
+
 function normalizeSizeOptions(value: unknown) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean);
@@ -245,9 +250,9 @@ export async function POST(request: Request) {
           subCategory,
           subCategoryId,
           pricingMode,
-          Math.round(priceInr),
+          toMoney(priceInr),
           pricingMode === "kg" && typeof basePricePerKgInr === "number" && Number.isFinite(basePricePerKgInr)
-            ? Math.round(basePricePerKgInr)
+            ? toMoney(basePricePerKgInr)
             : null,
           pieceLabel,
           imageSrc,
@@ -325,7 +330,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Invalid price" }, { status: 400 });
       }
       fields.push("price_inr = ?");
-      values.push(Math.round(value));
+      values.push(toMoney(value));
     }
     if (body?.imageSrc !== undefined) {
       fields.push("image_src = ?");
@@ -351,7 +356,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: "Invalid base price per kg" }, { status: 400 });
       }
       fields.push("base_price_per_kg_inr = ?");
-      values.push(Math.round(value));
+      values.push(toMoney(value));
     }
     if (body?.pieceLabel !== undefined) {
       fields.push("piece_label = ?");

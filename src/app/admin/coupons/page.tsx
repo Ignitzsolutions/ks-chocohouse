@@ -209,6 +209,7 @@ export default function AdminCouponsPage() {
               <input
                 type="number"
                 min={1}
+                step="0.01"
                 value={form.discountValue}
                 onChange={(event) => setForm((prev) => ({ ...prev, discountValue: event.target.value }))}
                 required
@@ -220,6 +221,7 @@ export default function AdminCouponsPage() {
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={form.minOrderAmount}
                 onChange={(event) => setForm((prev) => ({ ...prev, minOrderAmount: event.target.value }))}
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
@@ -230,6 +232,7 @@ export default function AdminCouponsPage() {
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={form.maxDiscountAmount}
                 onChange={(event) => setForm((prev) => ({ ...prev, maxDiscountAmount: event.target.value }))}
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"

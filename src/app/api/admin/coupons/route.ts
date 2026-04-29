@@ -4,16 +4,23 @@ import { jsonError } from "@/lib/api-response";
 import { getDb, initDb } from "@/lib/db";
 import { normalizeCouponCode } from "@/lib/pricing";
 
-function toInt(value: unknown, fallback = 0) {
+function toMoney(value: unknown, fallback = 0) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+  return Number.isFinite(parsed) ? Math.max(0, Number(parsed.toFixed(2))) : fallback;
+}
+
+function toNullableMoney(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? Math.max(0, Number(parsed.toFixed(2))) : null;
 }
 
 function toNullableInt(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
 }
 
 function toNullableText(value: unknown) {
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
     const code = normalizeCouponCode(body?.code);
     const label = String(body?.label ?? "").trim();
     const discountType = body?.discountType === "percent" ? "percent" : "flat";
-    const discountValue = Math.max(0, toInt(body?.discountValue, 0));
+    const discountValue = Math.max(0, toMoney(body?.discountValue, 0));
     if (!code || !label || discountValue <= 0) {
       return NextResponse.json(
         { error: "Code, label, and a positive discount value are required" },
@@ -71,8 +78,8 @@ export async function POST(request: Request) {
         label,
         discount_type: discountType,
         discount_value: discountValue,
-        min_order_amount: Math.max(0, toInt(body?.minOrderAmount, 0)),
-        max_discount_amount: toNullableInt(body?.maxDiscountAmount),
+        min_order_amount: Math.max(0, toMoney(body?.minOrderAmount, 0)),
+        max_discount_amount: toNullableMoney(body?.maxDiscountAmount),
         starts_at: toNullableText(body?.startsAt),
         expires_at: toNullableText(body?.expiresAt),
         usage_limit: toNullableInt(body?.usageLimit),
@@ -114,15 +121,15 @@ export async function PATCH(request: Request) {
     }
     if (body?.discountValue !== undefined) {
       updates.push("discount_value = @discount_value");
-      params.discount_value = Math.max(0, toInt(body.discountValue, 0));
+      params.discount_value = Math.max(0, toMoney(body.discountValue, 0));
     }
     if (body?.minOrderAmount !== undefined) {
       updates.push("min_order_amount = @min_order_amount");
-      params.min_order_amount = Math.max(0, toInt(body.minOrderAmount, 0));
+      params.min_order_amount = Math.max(0, toMoney(body.minOrderAmount, 0));
     }
     if (body?.maxDiscountAmount !== undefined) {
       updates.push("max_discount_amount = @max_discount_amount");
-      params.max_discount_amount = toNullableInt(body.maxDiscountAmount);
+      params.max_discount_amount = toNullableMoney(body.maxDiscountAmount);
     }
     if (body?.startsAt !== undefined) {
       updates.push("starts_at = @starts_at");

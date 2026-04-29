@@ -20,12 +20,18 @@ type CouponInput = AppliedCoupon & {
   active?: boolean;
 };
 
+const toMoney = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Number(parsed.toFixed(2)));
+};
+
 export function computeDeliveryFee(
   subtotalAmount: number,
   settings: Partial<AdminSettings> | null | undefined = DEFAULT_ADMIN_SETTINGS
 ) {
   const normalizedSettings = normalizeAdminSettings(settings);
-  const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
+  const safeSubtotal = toMoney(subtotalAmount);
   const freeDeliveryApplied =
     normalizedSettings.deliveryFeeEnabled &&
     safeSubtotal > 0 &&
@@ -51,41 +57,63 @@ export function computePricing(
   }
 ): PricingBreakdown {
   const normalizedSettings = normalizeAdminSettings(settings);
-  const safeSubtotal = Math.max(0, Math.round(subtotalAmount));
+  const grossSubtotal = toMoney(subtotalAmount);
   const safeDiscount = normalizedSettings.discountEnabled
-    ? Math.max(0, Math.min(Math.round(discountAmount), safeSubtotal))
+    ? Math.min(toMoney(discountAmount), grossSubtotal)
     : 0;
-  const taxableAmount = Math.max(0, safeSubtotal - safeDiscount);
+  const grossProductAmount = toMoney(grossSubtotal - safeDiscount);
   const cgstEnabled = normalizedSettings.gstEnabled && normalizedSettings.cgstEnabled;
   const sgstEnabled = normalizedSettings.gstEnabled && normalizedSettings.sgstEnabled;
   const cgstRatePercent = normalizedSettings.cgstRatePercent;
   const sgstRatePercent = normalizedSettings.sgstRatePercent;
-  const cgstAmount = cgstEnabled ? Math.round((taxableAmount * cgstRatePercent) / 100) : 0;
-  const sgstAmount = sgstEnabled ? Math.round((taxableAmount * sgstRatePercent) / 100) : 0;
+  const productGstRatePercent =
+    (cgstEnabled ? cgstRatePercent : 0) + (sgstEnabled ? sgstRatePercent : 0);
+  const taxableSubtotalAmount =
+    productGstRatePercent > 0
+      ? toMoney((grossSubtotal * 100) / (100 + productGstRatePercent))
+      : grossSubtotal;
+  const taxableDiscountAmount =
+    productGstRatePercent > 0
+      ? toMoney((safeDiscount * 100) / (100 + productGstRatePercent))
+      : safeDiscount;
+  const taxableAmount =
+    productGstRatePercent > 0
+      ? toMoney((grossProductAmount * 100) / (100 + productGstRatePercent))
+      : grossProductAmount;
+  const cgstAmount =
+    cgstEnabled && productGstRatePercent > 0
+      ? toMoney((grossProductAmount * cgstRatePercent) / (100 + productGstRatePercent))
+      : 0;
+  const sgstAmount =
+    sgstEnabled && productGstRatePercent > 0
+      ? toMoney((grossProductAmount * sgstRatePercent) / (100 + productGstRatePercent))
+      : 0;
   const delivery =
     options?.forceDeliveryFeeAmount !== undefined
       ? {
-          deliveryFeeAmount: Math.max(0, Math.round(options.forceDeliveryFeeAmount)),
-          freeDeliveryApplied: Math.max(0, Math.round(options.forceDeliveryFeeAmount)) === 0,
+          deliveryFeeAmount: toMoney(options.forceDeliveryFeeAmount),
+          freeDeliveryApplied: toMoney(options.forceDeliveryFeeAmount) === 0,
         }
       : options?.deliveryEnabled === false
         ? { deliveryFeeAmount: 0, freeDeliveryApplied: false }
-        : computeDeliveryFee(safeSubtotal, normalizedSettings);
+        : computeDeliveryFee(grossSubtotal, normalizedSettings);
   const shippingIgstEnabled =
     normalizedSettings.gstEnabled &&
     normalizedSettings.shippingIgstEnabled &&
     delivery.deliveryFeeAmount > 0;
   const shippingIgstRatePercent = normalizedSettings.shippingIgstRatePercent;
   const shippingIgstAmount = shippingIgstEnabled
-    ? Math.round((delivery.deliveryFeeAmount * shippingIgstRatePercent) / 100)
+    ? toMoney((delivery.deliveryFeeAmount * shippingIgstRatePercent) / 100)
     : 0;
-  const gstRatePercent = cgstRatePercent + sgstRatePercent;
-  const gstAmount = cgstAmount + sgstAmount + shippingIgstAmount;
+  const gstRatePercent = productGstRatePercent;
+  const productGstAmount =
+    productGstRatePercent > 0 ? toMoney(grossProductAmount - taxableAmount) : 0;
+  const gstAmount = toMoney(productGstAmount + shippingIgstAmount);
   const billingLines: BillingLineItem[] = [
-    { key: "subtotal", label: "Subtotal", amount: safeSubtotal, kind: "charge" },
+    { key: "subtotal", label: "Subtotal", amount: taxableSubtotalAmount, kind: "charge" },
   ];
-  if (safeDiscount > 0) {
-    billingLines.push({ key: "discount", label: "Discount", amount: safeDiscount, kind: "discount" });
+  if (taxableDiscountAmount > 0) {
+    billingLines.push({ key: "discount", label: "Discount", amount: taxableDiscountAmount, kind: "discount" });
   }
   if (cgstEnabled || sgstEnabled || delivery.deliveryFeeAmount > 0 || shippingIgstEnabled) {
     if (cgstEnabled) {
@@ -106,33 +134,33 @@ export function computePricing(
         kind: "tax",
       });
     }
-    if (delivery.deliveryFeeAmount > 0) {
-      billingLines.push({
-        key: "delivery",
-        label: "Shipping / Delivery Fee",
-        amount: delivery.deliveryFeeAmount,
-        kind: "charge",
-      });
-    }
     if (shippingIgstEnabled) {
       billingLines.push({
-        key: "shippingIgst",
-        label: `Shipping IGST (${shippingIgstRatePercent}%)`,
+        key: "igst",
+        label: `IGST (${shippingIgstRatePercent}%)`,
         amount: shippingIgstAmount,
         ratePercent: shippingIgstRatePercent,
         kind: "tax",
       });
     }
+    if (delivery.deliveryFeeAmount > 0) {
+      billingLines.push({
+        key: "delivery",
+        label: "Delivery Fee",
+        amount: delivery.deliveryFeeAmount,
+        kind: "charge",
+      });
+    }
   }
   const totalAmount = Math.max(
     0,
-    taxableAmount + cgstAmount + sgstAmount + delivery.deliveryFeeAmount + shippingIgstAmount
+    toMoney(grossProductAmount + delivery.deliveryFeeAmount + shippingIgstAmount)
   );
   billingLines.push({ key: "total", label: "Total", amount: totalAmount, kind: "total" });
 
   return {
-    subtotalAmount: safeSubtotal,
-    discountAmount: safeDiscount,
+    subtotalAmount: taxableSubtotalAmount,
+    discountAmount: taxableDiscountAmount,
     taxableAmount,
     gstEnabled: cgstEnabled || sgstEnabled || shippingIgstEnabled,
     gstRatePercent,
@@ -194,8 +222,8 @@ export function validateCouponForSubtotal(
     return { valid: false, reason: "Coupon has expired", coupon: null, discountAmount: 0 };
   }
 
-  const minOrderAmount = Math.max(0, Math.round(coupon.minOrderAmount));
-  if (Math.round(subtotalAmount) < minOrderAmount) {
+  const minOrderAmount = toMoney(coupon.minOrderAmount);
+  if (toMoney(subtotalAmount) < minOrderAmount) {
     return {
       valid: false,
       reason: `Minimum order amount is ₹${minOrderAmount}`,
@@ -216,30 +244,30 @@ export function validateCouponForSubtotal(
 
   let discountAmount = 0;
   if (coupon.discountType === "percent") {
-    discountAmount = Math.round((Math.max(0, subtotalAmount) * coupon.discountValue) / 100);
+    discountAmount = toMoney((Math.max(0, subtotalAmount) * coupon.discountValue) / 100);
   } else {
-    discountAmount = Math.round(coupon.discountValue);
+    discountAmount = toMoney(coupon.discountValue);
   }
 
   if (coupon.maxDiscountAmount !== null && coupon.maxDiscountAmount !== undefined) {
-    discountAmount = Math.min(discountAmount, Math.max(0, Math.round(coupon.maxDiscountAmount)));
+    discountAmount = Math.min(discountAmount, toMoney(coupon.maxDiscountAmount));
   }
 
   const normalizedCoupon: AppliedCoupon = {
     code: normalizeCouponCode(coupon.code),
     label: coupon.label,
     discountType: coupon.discountType,
-    discountValue: Math.round(coupon.discountValue),
+    discountValue: toMoney(coupon.discountValue),
     minOrderAmount,
     maxDiscountAmount:
       coupon.maxDiscountAmount === null || coupon.maxDiscountAmount === undefined
         ? null
-        : Math.max(0, Math.round(coupon.maxDiscountAmount)),
+        : toMoney(coupon.maxDiscountAmount),
   };
 
   return {
     valid: true,
     coupon: normalizedCoupon,
-    discountAmount: Math.max(0, Math.min(Math.round(discountAmount), Math.max(0, subtotalAmount))),
+    discountAmount: Math.min(toMoney(discountAmount), toMoney(subtotalAmount)),
   };
 }

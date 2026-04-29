@@ -857,6 +857,7 @@ export default function AdminProductsPage() {
                 }
                 required
                 min={0}
+                step="0.01"
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
               />
               <p className="mt-1 text-xs font-normal text-black/55">
@@ -875,6 +876,7 @@ export default function AdminProductsPage() {
                     setForm((prev) => ({ ...prev, basePricePerKgInr: event.target.value }))
                   }
                   min={0}
+                  step="0.01"
                   className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
                 />
               ) : (

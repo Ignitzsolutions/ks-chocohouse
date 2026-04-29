@@ -111,6 +111,7 @@ export default function AdminSettingsPage() {
                 type="number"
                 min={0}
                 max={100}
+                step="0.01"
                 value={settings.cgstRatePercent}
                 onChange={(event) =>
                   setSettings((prev) => ({
@@ -140,6 +141,7 @@ export default function AdminSettingsPage() {
                 type="number"
                 min={0}
                 max={100}
+                step="0.01"
                 value={settings.sgstRatePercent}
                 onChange={(event) =>
                   setSettings((prev) => ({
@@ -164,6 +166,7 @@ export default function AdminSettingsPage() {
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={settings.deliveryFeeAmount}
                 onChange={(event) =>
                   setSettings((prev) => ({
@@ -179,6 +182,7 @@ export default function AdminSettingsPage() {
               <input
                 type="number"
                 min={0}
+                step="0.01"
                 value={settings.freeDeliveryThreshold}
                 onChange={(event) =>
                   setSettings((prev) => ({
@@ -202,12 +206,13 @@ export default function AdminSettingsPage() {
                     }))
                   }
                 />
-                Shipping IGST Rate (%)
+                IGST Rate (%)
               </span>
               <input
                 type="number"
                 min={0}
                 max={100}
+                step="0.01"
                 value={settings.shippingIgstRatePercent}
                 onChange={(event) =>
                   setSettings((prev) => ({
