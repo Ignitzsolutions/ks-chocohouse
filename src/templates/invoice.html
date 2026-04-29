@@ -191,6 +191,19 @@ body {
   table-layout: fixed;
 }
 
+.items-table col.product-col {
+  width: 52%;
+}
+
+.items-table col.qty-col {
+  width: 10%;
+}
+
+.items-table col.price-col,
+.items-table col.total-col {
+  width: 19%;
+}
+
 .items-table thead {
   display: table-header-group;
 }
@@ -215,24 +228,14 @@ body {
   line-height: 1.25;
 }
 
-.items-table th:nth-child(1),
-.items-table td:nth-child(1) {
-  width: 52%;
+.items-table .qty-cell {
+  text-align: center;
 }
 
-.items-table th:nth-child(2),
-.items-table td:nth-child(2) {
-  width: 12%;
-}
-
-.items-table th:nth-child(3),
-.items-table td:nth-child(3) {
-  width: 18%;
-}
-
-.items-table th:nth-child(4),
-.items-table td:nth-child(4) {
-  width: 18%;
+.items-table .money-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 tr {
@@ -462,12 +465,18 @@ tr {
     </section>
 
     <table class="items-table">
+      <colgroup>
+        <col class="product-col" />
+        <col class="qty-col" />
+        <col class="price-col" />
+        <col class="total-col" />
+      </colgroup>
       <thead>
         <tr>
           <th>Product</th>
-          <th class="right">Qty</th>
-          <th class="right">Unit Price</th>
-          <th class="right">Sub-Total</th>
+          <th class="qty-cell">Qty</th>
+          <th class="money-cell">Unit Price</th>
+          <th class="money-cell">Sub-Total</th>
         </tr>
       </thead>
 

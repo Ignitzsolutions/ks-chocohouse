@@ -406,9 +406,9 @@ export async function GET(
               <div class="item-title">${escapeHtml(item.name)}</div>
               ${note}
             </td>
-            <td class="right">${escapeHtml(String(item.qty))}</td>
-            <td class="right">${escapeHtml(formatInr(item.unitPrice))}</td>
-            <td class="right">${escapeHtml(formatInr(item.lineTotal))}</td>
+            <td class="qty-cell">${escapeHtml(String(item.qty))}</td>
+            <td class="money-cell">${escapeHtml(formatInr(item.unitPrice))}</td>
+            <td class="money-cell">${escapeHtml(formatInr(item.lineTotal))}</td>
           </tr>
         `;
       })
@@ -485,7 +485,7 @@ export async function GET(
       RECEIVER_LINES: receiverLines,
       ITEM_ROWS:
         itemRows ||
-        `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="right">-</td><td class="right">-</td></tr>`,
+        `<tr class="item last"><td><div class="item-title">No item data recorded.</div></td><td class="qty-cell">-</td><td class="money-cell">-</td><td class="money-cell">-</td></tr>`,
       BILLING_ROWS: billingRows,
       NOTES: escapeHtml(noteSections.join("\n\n")),
       NOTES_BLOCK: notesBlock,
