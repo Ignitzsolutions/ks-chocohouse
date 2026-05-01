@@ -9,7 +9,6 @@ import {
   DEFAULT_GST_RATE_PERCENT,
 } from "@/lib/admin-settings";
 import { DEFAULT_CATEGORY_CARDS } from "@/lib/default-categories";
-import { resequenceInvoiceNumbers } from "@/lib/invoice-number";
 import { getRuntimeConfig } from "@/lib/runtime-config";
 
 const REQUIRED_HEALTH_TABLES = [
@@ -418,40 +417,6 @@ export function initDb() {
       )`
     )
     .run();
-
-  const invoiceRows = instance
-    .prepare(
-      "SELECT id, source, order_kind, sale_date, paid_at, created_at, invoice_number, invoice_ready FROM orders"
-    )
-    .all() as Array<{
-    id: string;
-    source: string | null;
-    order_kind: string | null;
-    sale_date: string | null;
-    paid_at: string | null;
-    created_at: string | null;
-    invoice_number: string | null;
-    invoice_ready: number | null;
-  }>;
-
-  const updateInvoiceNumber = instance.prepare(
-    "UPDATE orders SET invoice_number = @invoice_number WHERE id = @id"
-  );
-  const updateInvoiceEvents = instance.prepare(
-    `UPDATE order_events
-     SET to_value = @to_value
-     WHERE order_id = @order_id
-       AND event_type = 'invoice_generated'
-       AND COALESCE(to_value, '') <> @to_value`
-  );
-
-  for (const row of resequenceInvoiceNumbers(invoiceRows)) {
-    updateInvoiceNumber.run(row);
-    updateInvoiceEvents.run({
-      order_id: row.id,
-      to_value: row.invoice_number,
-    });
-  }
 
   instance
     .prepare(

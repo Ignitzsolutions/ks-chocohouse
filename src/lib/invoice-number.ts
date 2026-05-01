@@ -117,13 +117,23 @@ export function getInvoiceSeries(
   };
 }
 
-function parseSequenceFromInvoiceNumber(invoiceNumber: string, prefix: string) {
-  if (!invoiceNumber.startsWith(prefix)) return null;
-  const remainder = invoiceNumber.slice(prefix.length);
-  const [serial] = remainder.split("-");
-  if (!/^\d+$/.test(serial ?? "")) return null;
-  const parsed = Number.parseInt(serial, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+function parseGlobalSequenceFromInvoiceNumber(invoiceNumber: string, type: string) {
+  const raw = String(invoiceNumber ?? "").trim();
+  if (!raw) return null;
+
+  const saleMatch = raw.match(/^KS-(WEB|OFF)-\d{6}-(\d+)$/i);
+  if (saleMatch && saleMatch[1]?.toUpperCase() === type) {
+    const parsed = Number.parseInt(saleMatch[2] ?? "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const returnMatch = raw.match(/^KSC-(RTN)-(\d+)-\d{6}$/i);
+  if (returnMatch && returnMatch[1]?.toUpperCase() === type) {
+    const parsed = Number.parseInt(returnMatch[2] ?? "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
 }
 
 export function buildInvoiceNumber(
@@ -144,7 +154,7 @@ export function allocateNextInvoiceNumber(
   orderKind?: string | null,
   referenceDate?: string | null
 ) {
-  const { prefix, type, dateCode } = getInvoiceSeries(orderId, source, orderKind, referenceDate);
+  const { type, dateCode } = getInvoiceSeries(orderId, source, orderKind, referenceDate);
   const rows = db
     .prepare(
       `SELECT invoice_number
@@ -152,13 +162,13 @@ export function allocateNextInvoiceNumber(
        WHERE invoice_number LIKE @pattern`
     )
     .all({
-      pattern: type === "RTN" ? `${prefix}%-${dateCode}` : `${prefix}%`,
+      pattern: type === "RTN" ? `KSC-${type}-%` : `KS-${type}-%`,
     }) as Array<{ invoice_number: string | null }>;
 
   let nextSequence = 1;
   for (const row of rows) {
     const invoiceNumber = String(row.invoice_number ?? "");
-    const parsed = parseSequenceFromInvoiceNumber(invoiceNumber, prefix);
+    const parsed = parseGlobalSequenceFromInvoiceNumber(invoiceNumber, type);
     if (parsed && parsed >= nextSequence) {
       nextSequence = parsed + 1;
     }
@@ -223,7 +233,7 @@ export function resequenceInvoiceNumbers(rows: PersistedInvoiceRow[]) {
   const counters = new Map<string, number>();
 
   return relevantRows.map(({ row, series }) => {
-    const counterKey = `${series.type}:${series.dateCode}`;
+    const counterKey = series.type;
     const nextSequence = (counters.get(counterKey) ?? 0) + 1;
     counters.set(counterKey, nextSequence);
 
