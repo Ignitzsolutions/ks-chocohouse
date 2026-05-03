@@ -626,7 +626,7 @@ export async function POST(request: Request) {
 
     const subtotalAmount = rows.reduce((sum, row) => sum + row.lineTotal, 0);
     const mode = String(body?.mode ?? "finalize") === "draft" ? "draft" : "finalize";
-    const manualDiscountAmount = Math.max(0, toInt(body?.discountAmount, 0));
+    const manualDiscountAmount = toMoney(body?.discountAmount, 0);
     const applyDeliveryCharge = body?.applyDeliveryCharge === true;
     const couponCode = normalizeCouponCode(body?.couponCode);
     const couponValidation = couponCode

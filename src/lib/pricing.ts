@@ -72,10 +72,6 @@ export function computePricing(
     productGstRatePercent > 0
       ? toMoney((grossSubtotal * 100) / (100 + productGstRatePercent))
       : grossSubtotal;
-  const taxableDiscountAmount =
-    productGstRatePercent > 0
-      ? toMoney((safeDiscount * 100) / (100 + productGstRatePercent))
-      : safeDiscount;
   const taxableAmount =
     productGstRatePercent > 0
       ? toMoney((grossProductAmount * 100) / (100 + productGstRatePercent))
@@ -107,8 +103,8 @@ export function computePricing(
   const billingLines: BillingLineItem[] = [
     { key: "subtotal", label: "Subtotal", amount: taxableSubtotalAmount, kind: "charge" },
   ];
-  if (taxableDiscountAmount > 0) {
-    billingLines.push({ key: "discount", label: "Discount", amount: taxableDiscountAmount, kind: "discount" });
+  if (safeDiscount > 0) {
+    billingLines.push({ key: "discount", label: "Discount", amount: safeDiscount, kind: "discount" });
   }
   if (cgstEnabled || sgstEnabled || delivery.deliveryFeeAmount > 0 || shippingIgstEnabled) {
     if (cgstEnabled) {
@@ -154,7 +150,7 @@ export function computePricing(
 
   return {
     subtotalAmount: taxableSubtotalAmount,
-    discountAmount: taxableDiscountAmount,
+    discountAmount: safeDiscount,
     taxableAmount,
     gstEnabled: cgstEnabled || sgstEnabled || shippingIgstEnabled,
     gstRatePercent,
