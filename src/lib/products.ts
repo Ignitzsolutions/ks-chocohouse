@@ -12,6 +12,7 @@ export type Product = {
   subCategoryId?: string;
   pricingMode: ProductPricingMode;
   priceInr: number;
+  hsnCode?: string;
   basePricePerKgInr?: number | null;
   pieceLabel?: string;
   imageSrc: string;
@@ -32,6 +33,7 @@ type RawProduct = {
   subCategoryId?: string;
   pricingMode?: string;
   priceInr: number;
+  hsnCode?: string;
   basePricePerKgInr?: number | null;
   pieceLabel?: string;
   imageSrc: string;
@@ -114,6 +116,7 @@ function toProduct(raw: RawProduct): Product {
     subCategoryId: raw.subCategoryId,
     pricingMode,
     priceInr: Number(raw.priceInr),
+    hsnCode: String(raw.hsnCode ?? "").trim(),
     basePricePerKgInr:
       pricingMode === "kg"
         ? Number(raw.basePricePerKgInr ?? raw.priceInr) || Number(raw.priceInr)

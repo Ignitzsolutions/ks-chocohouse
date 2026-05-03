@@ -97,14 +97,9 @@ export function computePricing(
       : options?.deliveryEnabled === false
         ? { deliveryFeeAmount: 0, freeDeliveryApplied: false }
         : computeDeliveryFee(grossSubtotal, normalizedSettings);
-  const shippingIgstEnabled =
-    normalizedSettings.gstEnabled &&
-    normalizedSettings.shippingIgstEnabled &&
-    delivery.deliveryFeeAmount > 0;
-  const shippingIgstRatePercent = normalizedSettings.shippingIgstRatePercent;
-  const shippingIgstAmount = shippingIgstEnabled
-    ? toMoney((delivery.deliveryFeeAmount * shippingIgstRatePercent) / 100)
-    : 0;
+  const shippingIgstEnabled = normalizedSettings.shippingIgstEnabled;
+  const shippingIgstRatePercent = 0;
+  const shippingIgstAmount = shippingIgstEnabled ? toMoney(normalizedSettings.shippingIgstAmount) : 0;
   const gstRatePercent = productGstRatePercent;
   const productGstAmount =
     productGstRatePercent > 0 ? toMoney(grossProductAmount - taxableAmount) : 0;
@@ -137,9 +132,8 @@ export function computePricing(
     if (shippingIgstEnabled) {
       billingLines.push({
         key: "igst",
-        label: `IGST (${shippingIgstRatePercent}%)`,
+        label: "IGST",
         amount: shippingIgstAmount,
-        ratePercent: shippingIgstRatePercent,
         kind: "tax",
       });
     }
@@ -177,6 +171,7 @@ export function computePricing(
     shippingIgstEnabled,
     shippingIgstRatePercent,
     shippingIgstAmount,
+    igstAmount: shippingIgstAmount,
     totalAmount,
     billingLines,
   };

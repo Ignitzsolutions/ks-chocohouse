@@ -24,6 +24,7 @@ type AdminProduct = {
   subCategoryId?: string | null;
   pricingMode: ProductPricingMode;
   priceInr: number;
+  hsnCode?: string;
   basePricePerKgInr?: number | null;
   pieceLabel?: string | null;
   imageSrc: string;
@@ -46,6 +47,7 @@ type ProductForm = {
   subCategoryId: string;
   pricingMode: ProductPricingMode;
   priceInr: string;
+  hsnCode: string;
   basePricePerKgInr: string;
   pieceLabel: string;
   imageSrc: string;
@@ -87,6 +89,7 @@ function buildEmptyForm(defaultCategory: string): ProductForm {
     subCategoryId: "",
     pricingMode: "kg",
     priceInr: "",
+    hsnCode: "",
     basePricePerKgInr: "",
     pieceLabel: "",
     imageSrc: "",
@@ -268,6 +271,7 @@ export default function AdminProductsPage() {
           subCategoryId: form.subCategoryId || undefined,
           pricingMode: form.pricingMode,
           priceInr: Number(form.priceInr || 0),
+          hsnCode: form.hsnCode,
           basePricePerKgInr:
             form.pricingMode === "kg" ? Number(form.basePricePerKgInr || form.priceInr || 0) : null,
           pieceLabel: form.pieceLabel || undefined,
@@ -363,6 +367,7 @@ export default function AdminProductsPage() {
         imageSrc: normalizeImageSrc(form.imageSrc),
         imageGallery: form.imageGallery.map(normalizeImageSrc),
         priceInr: Number(form.priceInr),
+        hsnCode: form.hsnCode,
         basePricePerKgInr: Number(form.basePricePerKgInr || 0),
         sizeOptions: form.sizeOptions,
         flavorSelectionEnabled: form.flavorSelectionEnabled,
@@ -427,6 +432,7 @@ export default function AdminProductsPage() {
       subCategoryId: product.subCategoryId ?? "",
       pricingMode: product.pricingMode,
       priceInr: String(product.priceInr),
+      hsnCode: product.hsnCode ?? "",
       basePricePerKgInr: String(product.basePricePerKgInr ?? ""),
       pieceLabel: product.pieceLabel ?? "",
       imageSrc: product.imageSrc,
@@ -893,6 +899,20 @@ export default function AdminProductsPage() {
                 {form.pricingMode === "kg"
                   ? "Used to auto-calculate the displayed selling price from the selected weight."
                   : "Used as the option label across menu, product page, cart, and invoices."}
+              </p>
+            </label>
+            <label className="text-sm font-semibold text-black/70 md:col-span-2">
+              HSN Code
+              <input
+                value={form.hsnCode}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, hsnCode: event.target.value }))
+                }
+                className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                placeholder="Optional HSN code"
+              />
+              <p className="mt-1 text-xs font-normal text-black/55">
+                Optional. This is snapshotted into new orders and shown on invoices/exports.
               </p>
             </label>
             <label className="text-sm font-semibold text-black/70 md:col-span-2">
@@ -1487,6 +1507,9 @@ export default function AdminProductsPage() {
                       <p className="mt-1 text-xs text-black/55">
                         Gallery images: {product.imageGallery?.length ?? 1}
                       </p>
+                      {product.hsnCode ? (
+                        <p className="mt-1 text-xs text-black/55">HSN: {product.hsnCode}</p>
+                      ) : null}
                       {product.flavors && product.flavors.length > 0 ? (
                         <p className="mt-1 text-xs text-black/55">
                           Flavors: {product.flavors.join(" · ")}

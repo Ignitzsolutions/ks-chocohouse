@@ -15,6 +15,7 @@ type ProductRow = {
   sub_category_id?: string | null;
   pricing_mode?: string | null;
   price_inr: number;
+  hsn_code?: string | null;
   base_price_per_kg_inr?: number | null;
   piece_label?: string | null;
   image_src: string;
@@ -65,6 +66,7 @@ function toProduct(row: ProductRow): Product {
     subCategoryId: row.sub_category_id ?? undefined,
     pricingMode: String(row.pricing_mode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg",
     priceInr: Number(row.price_inr),
+    hsnCode: String(row.hsn_code ?? "").trim(),
     basePricePerKgInr:
       row.base_price_per_kg_inr === null || row.base_price_per_kg_inr === undefined
         ? null
@@ -85,7 +87,7 @@ function queryAvailableProductById(id: string) {
     initDb();
     const row = getDb()
       .prepare(
-        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
+        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.hsn_code, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
                 (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
          FROM products p
          WHERE p.id = ? AND p.available = 1
@@ -113,7 +115,7 @@ export function getAllAvailableProducts() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
+        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.hsn_code, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
                 (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
          FROM products p
          WHERE p.available = 1

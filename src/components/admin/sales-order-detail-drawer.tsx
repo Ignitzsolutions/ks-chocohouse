@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatInr } from "@/lib/products";
 import type { OrderEvent, SalesOrderDetail } from "@/types/admin-sales";
+import type { BillingLineItem, PricingBreakdown } from "@/types/order";
 
 const STATUS_OPTIONS = [
   "Payment Verification Pending",
@@ -61,6 +62,7 @@ function parseItems(value?: string | null) {
     const parsed = JSON.parse(value) as Array<{
       name?: string;
       qty?: number;
+      hsnCode?: string;
       unitPrice?: number;
       lineTotal?: number;
       customizationNote?: string;
@@ -69,6 +71,41 @@ function parseItems(value?: string | null) {
   } catch {
     return [];
   }
+}
+
+function parseBillingLines(order: SalesOrderDetail) {
+  if (order.billing_breakdown_json) {
+    try {
+      const parsed = JSON.parse(order.billing_breakdown_json) as Partial<PricingBreakdown>;
+      if (Array.isArray(parsed.billingLines) && parsed.billingLines.length > 0) {
+        return parsed.billingLines
+          .filter(
+            (line): line is BillingLineItem =>
+              typeof line === "object" &&
+              line !== null &&
+              typeof line.label === "string" &&
+              Number.isFinite(Number(line.amount))
+          )
+          .map((line) =>
+            line.key === "shippingIgst"
+              ? { ...line, key: "igst" as const, label: "IGST" }
+              : /shipping\s+igst/i.test(line.label)
+                ? { ...line, label: line.label.replace(/shipping\s+/i, "") }
+                : line
+          );
+      }
+    } catch {
+      // Fall back to legacy columns below.
+    }
+  }
+
+  return [
+    { key: "subtotal", label: "Subtotal", amount: Number(order.subtotal_amount ?? order.total_amount), kind: "charge" },
+    { key: "delivery", label: "Delivery Fee", amount: Number(order.delivery_fee_amount ?? 0), kind: "charge" },
+    { key: "discount", label: "Discount", amount: Number(order.discount_amount ?? 0), kind: "discount" },
+    { key: "cgst", label: "GST", amount: Number(order.gst_amount ?? 0), kind: "tax" },
+    { key: "total", label: "Total", amount: Number(order.total_amount), kind: "total" },
+  ] satisfies BillingLineItem[];
 }
 
 export function SalesOrderDetailDrawer({
@@ -90,6 +127,7 @@ export function SalesOrderDetailDrawer({
   const [copied, setCopied] = useState("");
 
   const items = useMemo(() => parseItems(order?.order_items_json), [order?.order_items_json]);
+  const billingLines = useMemo(() => (order ? parseBillingLines(order) : []), [order]);
   const paymentPending =
     order &&
     (order.payment_status ?? "Verification Pending") === "Verification Pending" &&
@@ -199,10 +237,18 @@ export function SalesOrderDetailDrawer({
                 {order.cake_name} • Qty {order.quantity}
               </p>
               <div className="mt-2 grid gap-1 text-xs text-black/55 md:grid-cols-2">
-                <p>Subtotal: {formatInr(Number(order.subtotal_amount ?? order.total_amount))}</p>
-                <p>Delivery: {formatInr(Number(order.delivery_fee_amount ?? 0))}</p>
-                <p>Discount: {formatInr(Number(order.discount_amount ?? 0))}</p>
-                <p>GST: {formatInr(Number(order.gst_amount ?? 0))}</p>
+                {billingLines
+                  .filter((line) => line.key === "total" || Number(line.amount) !== 0)
+                  .map((line) => {
+                    const amount = Number(line.amount);
+                    const amountPrefix = line.kind === "discount" && amount > 0 ? "- " : "";
+                    return (
+                      <p key={`${line.key}-${line.label}`}>
+                        {line.label}: {amountPrefix}
+                        {formatInr(amount)}
+                      </p>
+                    );
+                  })}
                 <p>Coupon: {order.coupon_code || "-"}</p>
               </div>
               {order.category_summary ? (
@@ -232,6 +278,7 @@ export function SalesOrderDetailDrawer({
                       <p className="text-xs text-black/55">
                         Qty {item.qty ?? 0}
                         {item.unitPrice != null ? ` • ${formatInr(Number(item.unitPrice))} each` : ""}
+                        {item.hsnCode ? ` • HSN ${item.hsnCode}` : ""}
                       </p>
                       {item.customizationNote ? (
                         <p className="mt-1 whitespace-pre-wrap text-xs text-black/55">

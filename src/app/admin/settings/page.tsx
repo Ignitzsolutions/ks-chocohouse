@@ -197,27 +197,25 @@ export default function AdminSettingsPage() {
               <span className="inline-flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={settings.gstEnabled && settings.shippingIgstEnabled}
+                  checked={settings.shippingIgstEnabled}
                   onChange={(event) =>
                     setSettings((prev) => ({
                       ...prev,
-                      gstEnabled: event.target.checked || prev.cgstEnabled || prev.sgstEnabled,
                       shippingIgstEnabled: event.target.checked,
                     }))
                   }
                 />
-                IGST Rate (%)
+                IGST Amount (INR)
               </span>
               <input
                 type="number"
                 min={0}
-                max={100}
                 step="0.01"
-                value={settings.shippingIgstRatePercent}
+                value={settings.shippingIgstAmount}
                 onChange={(event) =>
                   setSettings((prev) => ({
                     ...prev,
-                    shippingIgstRatePercent: Math.max(0, Math.min(100, Number(event.target.value || 0))),
+                    shippingIgstAmount: Math.max(0, Number(event.target.value || 0)),
                   }))
                 }
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"

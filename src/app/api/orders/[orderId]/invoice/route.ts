@@ -34,6 +34,7 @@ import type { BillingLineItem, PricingBreakdown } from "@/types/order";
 type RawOrderItem = {
   name?: string;
   qty?: number;
+  hsnCode?: string;
   sizeLabel?: string;
   unitPrice?: number;
   lineTotal?: number;
@@ -43,6 +44,7 @@ type RawOrderItem = {
 type InvoiceItem = {
   name: string;
   qty: number;
+  hsnCode?: string;
   unitPrice: number;
   lineTotal: number;
   customizationNote?: string;
@@ -226,7 +228,7 @@ const parseBillingLines = (order: OrderRow) => {
 };
 
 const renderBillingRows = (lines: BillingLineItem[]) => {
-  const visibleLines = lines.filter((line) => line.key === "total" || Number(line.amount) > 0);
+  const visibleLines = lines.filter((line) => line.key === "total" || Number(line.amount) !== 0);
   const hasMiddleRows = visibleLines.some(
     (line) => line.key !== "subtotal" && line.key !== "discount" && line.key !== "total"
   );
@@ -234,16 +236,21 @@ const renderBillingRows = (lines: BillingLineItem[]) => {
   return visibleLines
     .flatMap((line, index) => {
       const rows: string[] = [];
-      if (line.key !== "total" && hasMiddleRows && (line.key === "cgst" || line.key === "delivery")) {
+      if (
+        line.key !== "total" &&
+        hasMiddleRows &&
+        (line.key === "cgst" || line.key === "igst" || line.key === "delivery")
+      ) {
         const previous = visibleLines[index - 1];
         if (previous?.key === "subtotal" || previous?.key === "discount") {
           rows.push(`<tr class="divider"><td colspan="2"><hr /></td></tr>`);
         }
       }
-      const amountPrefix = line.kind === "discount" ? "- " : "";
+      const amount = Number(line.amount);
+      const amountPrefix = line.kind === "discount" && amount > 0 ? "- " : "";
       const className = line.key === "total" ? ` class="total-row"` : "";
       rows.push(
-        `<tr${className}><td class="label">${escapeHtml(line.label)}</td><td class="amount">${amountPrefix}${escapeHtml(formatInr(line.amount))}</td></tr>`
+        `<tr${className}><td class="label">${escapeHtml(line.label)}</td><td class="amount">${amountPrefix}${escapeHtml(formatInr(amount))}</td></tr>`
       );
       return rows;
     })
@@ -274,6 +281,7 @@ const normalizeItems = (order: OrderRow) => {
       return {
         name,
         qty,
+        hsnCode: String(item.hsnCode ?? "").trim() || undefined,
         unitPrice,
         lineTotal,
         customizationNote: item.customizationNote?.trim() || undefined,
@@ -400,10 +408,13 @@ export async function GET(
         const note = item.customizationNote?.trim()
           ? `<div class="item-note">${escapeHtml(item.customizationNote.trim())}</div>`
           : "";
+        const hsn = item.hsnCode?.trim()
+          ? `<span class="item-hsn">HSN: ${escapeHtml(item.hsnCode.trim())}</span>`
+          : "";
         return `
           <tr class="item${index === items.length - 1 ? " last" : ""}">
             <td>
-              <div class="item-title">${escapeHtml(item.name)}</div>
+              <div class="item-title">${escapeHtml(item.name)}${hsn ? ` ${hsn}` : ""}</div>
               ${note}
             </td>
             <td class="qty-cell">${escapeHtml(String(item.qty))}</td>

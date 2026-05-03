@@ -4,7 +4,7 @@ export const ADMIN_SETTINGS_ID = "primary";
 export const DEFAULT_GST_RATE_PERCENT = 18;
 export const DEFAULT_CGST_RATE_PERCENT = 9;
 export const DEFAULT_SGST_RATE_PERCENT = 9;
-export const DEFAULT_SHIPPING_IGST_RATE_PERCENT = 18;
+export const DEFAULT_IGST_AMOUNT = 0;
 export const DEFAULT_DELIVERY_FEE_AMOUNT = 120;
 export const DEFAULT_FREE_DELIVERY_THRESHOLD = 1500;
 
@@ -21,6 +21,7 @@ export type AdminSettings = {
   freeDeliveryThreshold: number;
   shippingIgstEnabled: boolean;
   shippingIgstRatePercent: number;
+  shippingIgstAmount: number;
   updatedAt?: string | null;
 };
 
@@ -38,6 +39,7 @@ type AdminSettingsRow = {
   free_delivery_threshold: number;
   shipping_igst_enabled?: number;
   shipping_igst_rate_percent?: number;
+  shipping_igst_amount?: number;
   updated_at: string | null;
 };
 
@@ -52,8 +54,9 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   deliveryFeeEnabled: true,
   deliveryFeeAmount: DEFAULT_DELIVERY_FEE_AMOUNT,
   freeDeliveryThreshold: DEFAULT_FREE_DELIVERY_THRESHOLD,
-  shippingIgstEnabled: true,
-  shippingIgstRatePercent: DEFAULT_SHIPPING_IGST_RATE_PERCENT,
+  shippingIgstEnabled: false,
+  shippingIgstRatePercent: 0,
+  shippingIgstAmount: DEFAULT_IGST_AMOUNT,
   updatedAt: null,
 };
 
@@ -97,9 +100,10 @@ export function normalizeAdminSettings(value: Partial<AdminSettings> | null | un
       DEFAULT_ADMIN_SETTINGS.freeDeliveryThreshold
     ),
     shippingIgstEnabled: value?.shippingIgstEnabled ?? DEFAULT_ADMIN_SETTINGS.shippingIgstEnabled,
-    shippingIgstRatePercent: clampPercent(
-      value?.shippingIgstRatePercent,
-      fallbackGstRate
+    shippingIgstRatePercent: clampPercent(value?.shippingIgstRatePercent, 0),
+    shippingIgstAmount: clampCurrency(
+      value?.shippingIgstAmount,
+      DEFAULT_ADMIN_SETTINGS.shippingIgstAmount
     ),
     updatedAt: value?.updatedAt ?? null,
   };
@@ -120,10 +124,9 @@ export function mapAdminSettingsRow(row: AdminSettingsRow | undefined): AdminSet
     freeDeliveryThreshold: Number(
       row.free_delivery_threshold ?? DEFAULT_FREE_DELIVERY_THRESHOLD
     ),
-    shippingIgstEnabled: row.shipping_igst_enabled === undefined ? true : Number(row.shipping_igst_enabled ?? 0) === 1,
-    shippingIgstRatePercent: Number(
-      row.shipping_igst_rate_percent ?? DEFAULT_SHIPPING_IGST_RATE_PERCENT
-    ),
+    shippingIgstEnabled: row.shipping_igst_enabled === undefined ? false : Number(row.shipping_igst_enabled ?? 0) === 1,
+    shippingIgstRatePercent: Number(row.shipping_igst_rate_percent ?? 0),
+    shippingIgstAmount: Number(row.shipping_igst_amount ?? DEFAULT_IGST_AMOUNT),
     updatedAt: row.updated_at ?? null,
   });
 }
@@ -133,7 +136,8 @@ export function getAdminSettings(db: Database.Database) {
     .prepare(
       `SELECT id, discount_enabled, gst_enabled, gst_rate_percent, cgst_enabled, cgst_rate_percent,
               sgst_enabled, sgst_rate_percent, delivery_fee_enabled, delivery_fee_amount,
-              free_delivery_threshold, shipping_igst_enabled, shipping_igst_rate_percent, updated_at
+              free_delivery_threshold, shipping_igst_enabled, shipping_igst_rate_percent,
+              shipping_igst_amount, updated_at
        FROM admin_settings
        WHERE id = ?
        LIMIT 1`

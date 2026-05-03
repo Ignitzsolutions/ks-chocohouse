@@ -25,6 +25,7 @@ type DetailedItem = {
   id: string;
   name: string;
   category: string;
+  hsnCode?: string;
   priceInr: number;
   lineTotal: number;
 };
@@ -113,6 +114,7 @@ export default function BillingPage() {
         id: product.id,
         name: product.name,
         category: product.category,
+        hsnCode: product.hsnCode,
         priceInr: unitPrice,
         lineTotal: entry.qty * unitPrice,
       });
@@ -221,6 +223,7 @@ export default function BillingPage() {
           id: item.id,
           name: item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name,
           category: item.category,
+          hsnCode: item.hsnCode ?? "",
           qty: item.qty,
           sizeLabel: item.sizeLabel ?? "",
           customizationNote: item.customizationNote ?? "",

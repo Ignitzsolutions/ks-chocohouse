@@ -40,6 +40,7 @@ export type PricingBreakdown = {
   shippingIgstEnabled: boolean;
   shippingIgstRatePercent: number;
   shippingIgstAmount: number;
+  igstAmount: number;
   totalAmount: number;
   billingLines: BillingLineItem[];
 };

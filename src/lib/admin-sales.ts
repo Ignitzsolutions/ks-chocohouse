@@ -37,6 +37,8 @@ type AnalyticsItemRow = {
   name?: string;
   category?: string;
   qty?: number;
+  hsnCode?: string;
+  unitPrice?: number;
   lineTotal?: number;
 };
 
@@ -247,7 +249,7 @@ function selectOrderColumns() {
     sale_date, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
     payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
     txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-    discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+    discount_amount, gst_enabled, gst_rate_percent, gst_amount, billing_breakdown_json, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
     parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
     status_updated_at, payment_updated_at`;
 }
@@ -527,6 +529,44 @@ export function parseOrderItemsSummary(orderItemsJson?: string | null) {
   }
 }
 
+function parseExportItems(row: SalesOrderRow) {
+  try {
+    const parsed = JSON.parse(row.order_items_json ?? "[]") as AnalyticsItemRow[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item) => {
+        const qty = Number(item.qty ?? 0);
+        const lineTotal = Number(item.lineTotal ?? 0);
+        const unitPrice = Number(item.unitPrice ?? (qty ? lineTotal / qty : 0));
+        return {
+          id: String(item.id ?? ""),
+          name: String(item.name ?? row.cake_name ?? "Item"),
+          hsnCode: String(item.hsnCode ?? "").trim(),
+          category: String(item.category ?? row.category_summary ?? ""),
+          qty,
+          unitPrice,
+          lineTotal,
+        };
+      });
+    }
+  } catch {
+    // Fall back to the legacy order-level shape below.
+  }
+
+  const qty = Number(row.quantity ?? 0);
+  const lineTotal = Number(row.total_amount ?? 0);
+  return [
+    {
+      id: "",
+      name: row.cake_name ?? "Item",
+      hsnCode: "",
+      category: row.category_summary ?? "",
+      qty,
+      unitPrice: qty ? lineTotal / qty : lineTotal,
+      lineTotal,
+    },
+  ];
+}
+
 export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
   initDb();
   const db = getDb();
@@ -552,14 +592,23 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
 
   const headers = [
     "Order ID",
+    "Invoice ID",
+    "Product Name",
+    "HSN Code",
+    "Quantity",
+    "Unit Price",
+    "Product Value",
     "Created At",
     "Customer",
     "Phone",
     "Email",
-    "Items",
-    "Quantity",
-    "Amount",
+    "Product ID",
+    "Category",
+    "Order Total",
+    "Subtotal",
     "Discount",
+    "GST",
+    "Delivery Fee",
     "Coupon",
     "Source",
     "Lifecycle",
@@ -575,31 +624,42 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
 
   const csvRows = [
     headers.join(","),
-    ...rows.map((row) =>
-      [
-        row.id,
-        row.source === "offline" && row.sale_date ? row.sale_date : row.created_at,
-        row.customer_name ?? "",
-        row.phone ?? "",
-        row.email ?? "",
-        parseOrderItemsSummary(row.order_items_json) || row.cake_name,
-        row.quantity,
-        row.total_amount,
-        row.discount_amount ?? 0,
-        row.coupon_code ?? "",
-        row.source ?? "",
-        row.lifecycle_state ?? "finalized",
-        row.order_kind ?? "sale",
-        row.payment_method ?? "",
-        row.payment_status ?? "",
-        row.payment_reference ?? "",
-        row.delivery_date ?? "",
-        row.delivery_slot ?? "",
-        row.status ?? "",
-        row.invoice_number ?? "",
-      ]
-        .map(escapeCsv)
-        .join(",")
+    ...rows.flatMap((row) =>
+      parseExportItems(row).map((item) =>
+        [
+          row.id,
+          row.invoice_number ?? "",
+          item.name,
+          item.hsnCode,
+          item.qty,
+          item.unitPrice,
+          item.lineTotal,
+          row.source === "offline" && row.sale_date ? row.sale_date : row.created_at,
+          row.customer_name ?? "",
+          row.phone ?? "",
+          row.email ?? "",
+          item.id,
+          item.category,
+          row.total_amount,
+          row.subtotal_amount ?? "",
+          row.discount_amount ?? 0,
+          row.gst_amount ?? 0,
+          row.delivery_fee_amount ?? 0,
+          row.coupon_code ?? "",
+          row.source ?? "",
+          row.lifecycle_state ?? "finalized",
+          row.order_kind ?? "sale",
+          row.payment_method ?? "",
+          row.payment_status ?? "",
+          row.payment_reference ?? "",
+          row.delivery_date ?? "",
+          row.delivery_slot ?? "",
+          row.status ?? "",
+          row.invoice_number ?? "",
+        ]
+          .map(escapeCsv)
+          .join(",")
+      )
     ),
   ];
 

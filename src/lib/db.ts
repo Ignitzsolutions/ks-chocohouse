@@ -443,6 +443,7 @@ export function initDb() {
         image_src TEXT NOT NULL,
         image_gallery_json TEXT NOT NULL DEFAULT '[]',
         size_options_json TEXT NOT NULL DEFAULT '[]',
+        hsn_code TEXT,
         flavor_selection_enabled INTEGER NOT NULL DEFAULT 0,
         eggless INTEGER NOT NULL DEFAULT 1,
         available INTEGER NOT NULL DEFAULT 1,
@@ -489,8 +490,9 @@ export function initDb() {
         delivery_fee_enabled INTEGER NOT NULL DEFAULT 1,
         delivery_fee_amount INTEGER NOT NULL DEFAULT 120,
         free_delivery_threshold INTEGER NOT NULL DEFAULT 1500,
-        shipping_igst_enabled INTEGER NOT NULL DEFAULT 1,
+        shipping_igst_enabled INTEGER NOT NULL DEFAULT 0,
         shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18,
+        shipping_igst_amount INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`
@@ -517,8 +519,9 @@ export function initDb() {
     "ALTER TABLE admin_settings ADD COLUMN sgst_enabled INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE admin_settings ADD COLUMN sgst_rate_percent INTEGER NOT NULL DEFAULT 9",
     "ALTER TABLE admin_settings ADD COLUMN delivery_fee_enabled INTEGER NOT NULL DEFAULT 1",
-    "ALTER TABLE admin_settings ADD COLUMN shipping_igst_enabled INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE admin_settings ADD COLUMN shipping_igst_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE admin_settings ADD COLUMN shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18",
+    "ALTER TABLE admin_settings ADD COLUMN shipping_igst_amount INTEGER NOT NULL DEFAULT 0",
   ]) {
     try {
       instance.prepare(statement).run();
@@ -672,6 +675,11 @@ export function initDb() {
   } catch {
     // column already exists
   }
+  try {
+    instance.prepare("ALTER TABLE products ADD COLUMN hsn_code TEXT").run();
+  } catch {
+    // column already exists
+  }
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order, name)`
@@ -690,8 +698,8 @@ export function initDb() {
   if (productsCount.count === 0) {
     const insertProduct = instance.prepare(
       `INSERT INTO products
-        (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, flavor_selection_enabled, eggless, available, created_at, updated_at)
-        VALUES (@id, @name, @description, @category, @sub_category, @sub_category_id, @pricing_mode, @price_inr, @base_price_per_kg_inr, @piece_label, @image_src, @image_gallery_json, @size_options_json, @flavor_selection_enabled, @eggless, @available, @created_at, @updated_at)`
+        (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, hsn_code, flavor_selection_enabled, eggless, available, created_at, updated_at)
+        VALUES (@id, @name, @description, @category, @sub_category, @sub_category_id, @pricing_mode, @price_inr, @base_price_per_kg_inr, @piece_label, @image_src, @image_gallery_json, @size_options_json, @hsn_code, @flavor_selection_enabled, @eggless, @available, @created_at, @updated_at)`
     );
 
     const now = new Date().toISOString();
@@ -710,6 +718,7 @@ export function initDb() {
       imageGallery?: string[];
       sizeOptions?: string[];
       flavorSelectionEnabled?: boolean;
+      hsnCode?: string;
       eggless: boolean;
       available: boolean;
     }>;
@@ -737,6 +746,7 @@ export function initDb() {
               : [product.imageSrc]
           ),
           size_options_json: JSON.stringify(product.sizeOptions ?? []),
+          hsn_code: String(product.hsnCode ?? "").trim() || null,
           flavor_selection_enabled: product.flavorSelectionEnabled ? 1 : 0,
           eggless: product.eggless ? 1 : 0,
           available: product.available ? 1 : 0,
@@ -907,8 +917,9 @@ export function initDb() {
     instance
       .prepare(
         `INSERT INTO admin_settings
-          (id, gst_enabled, gst_rate_percent, delivery_fee_amount, free_delivery_threshold, created_at, updated_at)
-         VALUES (?, 1, ?, ?, ?, ?, ?)`
+          (id, gst_enabled, gst_rate_percent, delivery_fee_amount, free_delivery_threshold,
+           shipping_igst_enabled, shipping_igst_amount, created_at, updated_at)
+         VALUES (?, 1, ?, ?, ?, 0, 0, ?, ?)`
       )
       .run(
         ADMIN_SETTINGS_ID,

@@ -13,6 +13,7 @@ type ProductRow = {
   id: string;
   name: string;
   category: string;
+  hsn_code: string | null;
   price_inr: number;
 };
 
@@ -25,6 +26,7 @@ type OfflineOrderItem = {
   id: string;
   name: string;
   category: string;
+  hsnCode?: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
@@ -57,6 +59,7 @@ type OrderMutationRow = {
   gst_enabled: number | null;
   gst_rate_percent: number | null;
   gst_amount: number | null;
+  billing_breakdown_json?: string | null;
   coupon_code: string | null;
   coupon_snapshot_json: string | null;
   order_kind: string | null;
@@ -89,6 +92,12 @@ function toMoney(value: unknown, fallback = 0) {
   return Math.max(0, Number(parsed.toFixed(2)));
 }
 
+function toSignedMoney(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Number(parsed.toFixed(2));
+}
+
 function parseOfflineItems(items: unknown[]) {
   return items
     .map((item) => ({
@@ -103,7 +112,7 @@ function resolveOfflineItems(items: OfflineSelectedItem[]) {
   const placeholders = items.map(() => "?").join(", ");
   const products = db
     .prepare(
-      `SELECT id, name, category, price_inr
+      `SELECT id, name, category, hsn_code, price_inr
        FROM products
        WHERE id IN (${placeholders})`
     )
@@ -123,6 +132,7 @@ function resolveOfflineItems(items: OfflineSelectedItem[]) {
       id: product.id,
       name: product.name,
       category: product.category,
+      hsnCode: String(product.hsn_code ?? "").trim(),
       qty: item.qty,
       unitPrice,
       lineTotal: unitPrice * item.qty,
@@ -138,7 +148,7 @@ function getExistingOrder(id: string) {
               sale_date, cake_message, order_items_json, category_summary, buyer_gst_json, source,
               payment_method, payment_reference, payment_status, invoice_number, invoice_ready,
               total_amount, subtotal_amount, delivery_fee_amount, discount_amount, gst_enabled,
-              gst_rate_percent, gst_amount, coupon_code,
+              gst_rate_percent, gst_amount, billing_breakdown_json, coupon_code,
               coupon_snapshot_json, order_kind, lifecycle_state, parent_order_id, status, created_at
        FROM orders
        WHERE id = ?
@@ -446,14 +456,42 @@ export async function PATCH(request: Request) {
       );
       const returnItems = parsedItems.map((item) => ({
         ...item,
-        lineTotal: -Math.abs(toInt(item.lineTotal, 0)),
-        unitPrice: -Math.abs(toInt(item.unitPrice, 0)),
+        lineTotal: -Math.abs(toSignedMoney(item.lineTotal, 0)),
+        unitPrice: -Math.abs(toSignedMoney(item.unitPrice, 0)),
       }));
-      const subtotalAmount = -Math.abs(toInt(existing.subtotal_amount, Math.abs(existing.total_amount)));
-      const deliveryFeeAmount = -Math.abs(toInt(existing.delivery_fee_amount, 0));
-      const discountAmount = -Math.abs(toInt(existing.discount_amount, 0));
-      const gstAmount = -Math.abs(toInt(existing.gst_amount, 0));
-      const totalAmount = -Math.abs(toInt(existing.total_amount, 0));
+      const subtotalAmount = -Math.abs(toSignedMoney(existing.subtotal_amount, Math.abs(existing.total_amount)));
+      const deliveryFeeAmount = -Math.abs(toSignedMoney(existing.delivery_fee_amount, 0));
+      const discountAmount = -Math.abs(toSignedMoney(existing.discount_amount, 0));
+      const gstAmount = -Math.abs(toSignedMoney(existing.gst_amount, 0));
+      const totalAmount = -Math.abs(toSignedMoney(existing.total_amount, 0));
+      const returnBillingBreakdown = (() => {
+        if (!existing.billing_breakdown_json) return null;
+        try {
+          const parsed = JSON.parse(existing.billing_breakdown_json) as Record<string, unknown>;
+          const negate = (value: unknown) => -Math.abs(toSignedMoney(value, 0));
+          return JSON.stringify({
+            ...parsed,
+            subtotalAmount: negate(parsed.subtotalAmount),
+            discountAmount: negate(parsed.discountAmount),
+            taxableAmount: negate(parsed.taxableAmount),
+            gstAmount: negate(parsed.gstAmount),
+            cgstAmount: negate(parsed.cgstAmount),
+            sgstAmount: negate(parsed.sgstAmount),
+            deliveryFeeAmount: negate(parsed.deliveryFeeAmount),
+            shippingIgstAmount: negate(parsed.shippingIgstAmount),
+            igstAmount: negate(parsed.igstAmount ?? parsed.shippingIgstAmount),
+            totalAmount: negate(parsed.totalAmount),
+            billingLines: Array.isArray(parsed.billingLines)
+              ? parsed.billingLines.map((line) => ({
+                  ...(line as Record<string, unknown>),
+                  amount: negate((line as Record<string, unknown>).amount),
+                }))
+              : parsed.billingLines,
+          });
+        } catch {
+          return null;
+        }
+      })();
 
       db.transaction(() => {
         db.prepare(
@@ -462,14 +500,14 @@ export async function PATCH(request: Request) {
              delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source,
              payment_method, payment_reference, payment_status, payment_verified_at, payment_verified_by,
              txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount,
-             discount_amount, gst_enabled, gst_rate_percent, gst_amount, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
+             discount_amount, gst_enabled, gst_rate_percent, gst_amount, billing_breakdown_json, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state,
              parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at,
              status_updated_at, payment_updated_at)
            VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date,
                    @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source,
                    @payment_method, @payment_reference, @payment_status, @payment_verified_at, @payment_verified_by,
                    @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount,
-                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
+                   @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @billing_breakdown_json, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state,
                    @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at,
                    @status_updated_at, @payment_updated_at)`
         ).run({
@@ -503,6 +541,7 @@ export async function PATCH(request: Request) {
           gst_enabled: Number(existing.gst_enabled ?? 1) === 1 ? 1 : 0,
           gst_rate_percent: toInt(existing.gst_rate_percent, 18),
           gst_amount: gstAmount,
+          billing_breakdown_json: returnBillingBreakdown,
           coupon_code: existing.coupon_code,
           coupon_snapshot_json: existing.coupon_snapshot_json,
           total_amount: totalAmount,

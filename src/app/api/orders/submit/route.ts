@@ -12,6 +12,7 @@ type NormalizedOrderItem = {
   id: string;
   name: string;
   category: string;
+  hsnCode?: string;
   qty: number;
   sizeLabel?: string;
   customizationNote?: string;
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
             id: String(item.id ?? ""),
             name: String(item.name ?? ""),
             category: String(item.category ?? ""),
+            hsnCode: String(item.hsnCode ?? "").trim() || undefined,
             qty: Number(item.qty ?? 0),
             sizeLabel: String(item.sizeLabel ?? "").trim() || undefined,
             customizationNote: String(item.customizationNote ?? "").trim() || undefined,
@@ -80,6 +82,23 @@ export async function POST(request: Request) {
     initDb();
     const db = getDb();
     const settings = getAdminSettings(db);
+    const hsnRows =
+      normalizedItems.length > 0
+        ? db
+            .prepare(
+              `SELECT id, hsn_code
+               FROM products
+               WHERE id IN (${normalizedItems.map(() => "?").join(", ")})`
+            )
+            .all(...normalizedItems.map((item) => item.id)) as Array<{ id: string; hsn_code: string | null }>
+        : [];
+    const hsnByProductId = new Map(
+      hsnRows.map((row) => [row.id, String(row.hsn_code ?? "").trim()])
+    );
+    const snapshottedItems = normalizedItems.map((item) => ({
+      ...item,
+      hsnCode: hsnByProductId.get(item.id) || "",
+    }));
 
     if (orderDetails?.delivery_date) {
       const blocked = db
@@ -115,11 +134,11 @@ export async function POST(request: Request) {
     const categorySummary =
       orderDetails?.categorySummary ??
       Array.from(
-        new Set(normalizedItems.map((item) => item.category).filter(Boolean))
+        new Set(snapshottedItems.map((item) => item.category).filter(Boolean))
       ).join(", ");
     const quantity =
       orderDetails?.quantity ??
-      normalizedItems.reduce((sum, item) => sum + item.qty, 0);
+      snapshottedItems.reduce((sum, item) => sum + item.qty, 0);
     const cakeName =
       orderDetails?.cake_name ??
       (normalizedItems.length === 1 ? normalizedItems[0].name : "Mixed Order");
@@ -141,7 +160,7 @@ export async function POST(request: Request) {
         delivery_date: String(orderDetails?.delivery_date ?? "").trim(),
         delivery_slot: String(orderDetails?.delivery_slot ?? "").trim(),
         cake_message: String(orderDetails?.cake_message ?? "").trimEnd(),
-        order_items_json: JSON.stringify(normalizedItems),
+        order_items_json: JSON.stringify(snapshottedItems),
         category_summary: categorySummary,
         buyer_gst_json: normalizedBuyerGst ? JSON.stringify(normalizedBuyerGst) : null,
         source: "online",

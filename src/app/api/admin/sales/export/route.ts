@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="sales-orders-${timestamp}.csv"`,
+        "Content-Disposition": `attachment; filename="sales-order-items-${timestamp}.csv"`,
         "Cache-Control": "no-store",
       },
     });
@@ -28,4 +28,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

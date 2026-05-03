@@ -12,6 +12,7 @@ type ProductRow = {
   sub_category_id: string | null;
   pricing_mode: string | null;
   price_inr: number;
+  hsn_code?: string | null;
   base_price_per_kg_inr: number | null;
   piece_label: string | null;
   image_src: string;
@@ -81,6 +82,7 @@ function toApiProduct(row: ProductRow) {
     subCategoryId: row.sub_category_id,
     pricingMode: String(row.pricing_mode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg",
     priceInr: Number(row.price_inr),
+    hsnCode: String(row.hsn_code ?? "").trim(),
     basePricePerKgInr:
       row.base_price_per_kg_inr === null || row.base_price_per_kg_inr === undefined
         ? null
@@ -178,7 +180,7 @@ export async function GET() {
     initDb();
     const rows = getDb()
       .prepare(
-        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available, p.created_at, p.updated_at,
+        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.hsn_code, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available, p.created_at, p.updated_at,
                 (SELECT GROUP_CONCAT(flavor_id, '||') FROM product_flavors WHERE product_id = p.id) AS flavor_ids_csv,
                 (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
          FROM products p
@@ -206,6 +208,7 @@ export async function POST(request: Request) {
     const subCategory = String(body?.subCategory ?? "").trim() || "General";
     const subCategoryId = String(body?.subCategoryId ?? "").trim() || null;
     const pricingMode = String(body?.pricingMode ?? "").trim().toLowerCase() === "pcs" ? "pcs" : "kg";
+    const hsnCode = String(body?.hsnCode ?? "").trim();
     const imageSrc = String(body?.imageSrc ?? "").trim();
     const imageGallery = Array.isArray(body?.imageGallery)
       ? body.imageGallery.map((item: unknown) => String(item).trim()).filter(Boolean)
@@ -239,8 +242,8 @@ export async function POST(request: Request) {
       getDb()
         .prepare(
           `INSERT INTO products
-            (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, flavor_selection_enabled, eggless, available, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, name, description, category, sub_category, sub_category_id, pricing_mode, price_inr, hsn_code, base_price_per_kg_inr, piece_label, image_src, image_gallery_json, size_options_json, flavor_selection_enabled, eggless, available, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           id,
@@ -251,6 +254,7 @@ export async function POST(request: Request) {
           subCategoryId,
           pricingMode,
           toMoney(priceInr),
+          hsnCode || null,
           pricingMode === "kg" && typeof basePricePerKgInr === "number" && Number.isFinite(basePricePerKgInr)
             ? toMoney(basePricePerKgInr)
             : null,
@@ -331,6 +335,10 @@ export async function PATCH(request: Request) {
       }
       fields.push("price_inr = ?");
       values.push(toMoney(value));
+    }
+    if (body?.hsnCode !== undefined) {
+      fields.push("hsn_code = ?");
+      values.push(String(body.hsnCode ?? "").trim() || null);
     }
     if (body?.imageSrc !== undefined) {
       fields.push("image_src = ?");

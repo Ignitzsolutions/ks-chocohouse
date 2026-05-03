@@ -40,6 +40,7 @@ export async function PATCH(request: Request) {
       freeDeliveryThreshold: body?.freeDeliveryThreshold,
       shippingIgstEnabled: body?.shippingIgstEnabled,
       shippingIgstRatePercent: body?.shippingIgstRatePercent,
+      shippingIgstAmount: body?.shippingIgstAmount,
     });
     const now = new Date().toISOString();
 
@@ -58,6 +59,7 @@ export async function PATCH(request: Request) {
              free_delivery_threshold = @free_delivery_threshold,
              shipping_igst_enabled = @shipping_igst_enabled,
              shipping_igst_rate_percent = @shipping_igst_rate_percent,
+             shipping_igst_amount = @shipping_igst_amount,
              updated_at = @updated_at
          WHERE id = @id`
       )
@@ -75,6 +77,7 @@ export async function PATCH(request: Request) {
         free_delivery_threshold: nextSettings.freeDeliveryThreshold,
         shipping_igst_enabled: nextSettings.shippingIgstEnabled ? 1 : 0,
         shipping_igst_rate_percent: nextSettings.shippingIgstRatePercent,
+        shipping_igst_amount: nextSettings.shippingIgstAmount,
         updated_at: now,
       });
 
