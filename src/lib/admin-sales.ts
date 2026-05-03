@@ -567,6 +567,26 @@ function parseExportItems(row: SalesOrderRow) {
   ];
 }
 
+function joinExportValues(values: Array<string | number>) {
+  return values
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function summarizeExportItems(row: SalesOrderRow) {
+  const items = parseExportItems(row);
+  return {
+    productIds: joinExportValues(items.map((item) => item.id)),
+    productNames: joinExportValues(items.map((item) => item.name)),
+    hsnCodes: joinExportValues(Array.from(new Set(items.map((item) => item.hsnCode).filter(Boolean)))),
+    categories: joinExportValues(Array.from(new Set(items.map((item) => item.category).filter(Boolean)))),
+    quantity: items.reduce((sum, item) => sum + Number(item.qty ?? 0), 0),
+    unitPrices: joinExportValues(items.map((item) => item.unitPrice)),
+    productValues: joinExportValues(items.map((item) => item.lineTotal)),
+  };
+}
+
 export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
   initDb();
   const db = getDb();
@@ -624,43 +644,42 @@ export function buildSalesOrdersCsv(filters: SalesOrderFilters) {
 
   const csvRows = [
     headers.join(","),
-    ...rows.flatMap((row) =>
-      parseExportItems(row).map((item) =>
-        [
-          row.id,
-          row.invoice_number ?? "",
-          item.name,
-          item.hsnCode,
-          item.qty,
-          item.unitPrice,
-          item.lineTotal,
-          row.source === "offline" && row.sale_date ? row.sale_date : row.created_at,
-          row.customer_name ?? "",
-          row.phone ?? "",
-          row.email ?? "",
-          item.id,
-          item.category,
-          row.total_amount,
-          row.subtotal_amount ?? "",
-          row.discount_amount ?? 0,
-          row.gst_amount ?? 0,
-          row.delivery_fee_amount ?? 0,
-          row.coupon_code ?? "",
-          row.source ?? "",
-          row.lifecycle_state ?? "finalized",
-          row.order_kind ?? "sale",
-          row.payment_method ?? "",
-          row.payment_status ?? "",
-          row.payment_reference ?? "",
-          row.delivery_date ?? "",
-          row.delivery_slot ?? "",
-          row.status ?? "",
-          row.invoice_number ?? "",
-        ]
-          .map(escapeCsv)
-          .join(",")
-      )
-    ),
+    ...rows.map((row) => {
+      const itemSummary = summarizeExportItems(row);
+      return [
+        row.id,
+        row.invoice_number ?? "",
+        itemSummary.productNames,
+        itemSummary.hsnCodes,
+        itemSummary.quantity,
+        itemSummary.unitPrices,
+        itemSummary.productValues,
+        row.source === "offline" && row.sale_date ? row.sale_date : row.created_at,
+        row.customer_name ?? "",
+        row.phone ?? "",
+        row.email ?? "",
+        itemSummary.productIds,
+        itemSummary.categories,
+        row.total_amount,
+        row.subtotal_amount ?? "",
+        row.discount_amount ?? 0,
+        row.gst_amount ?? 0,
+        row.delivery_fee_amount ?? 0,
+        row.coupon_code ?? "",
+        row.source ?? "",
+        row.lifecycle_state ?? "finalized",
+        row.order_kind ?? "sale",
+        row.payment_method ?? "",
+        row.payment_status ?? "",
+        row.payment_reference ?? "",
+        row.delivery_date ?? "",
+        row.delivery_slot ?? "",
+        row.status ?? "",
+        row.invoice_number ?? "",
+      ]
+        .map(escapeCsv)
+        .join(",");
+    }),
   ];
 
   return {
