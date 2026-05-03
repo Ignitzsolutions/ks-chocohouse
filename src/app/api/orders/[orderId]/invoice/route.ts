@@ -147,6 +147,18 @@ const parseBuyerGst = (value?: string | null) => {
   }
 };
 
+const sumOrderItemLineTotals = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Array<{ lineTotal?: number }>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    const total = parsed.reduce((sum, item) => sum + safeNumber(item.lineTotal, 0), 0);
+    return Number.isFinite(total) ? Number(total.toFixed(2)) : null;
+  } catch {
+    return null;
+  }
+};
+
 const parseBillingLines = (order: OrderRow) => {
   const normalizeLine = (line: BillingLineItem): BillingLineItem => {
     if (line.key === "shippingIgst") {
@@ -175,7 +187,7 @@ const parseBillingLines = (order: OrderRow) => {
     try {
       const parsed = JSON.parse(order.billing_breakdown_json) as Partial<PricingBreakdown>;
       if (Array.isArray(parsed.billingLines) && parsed.billingLines.length > 0) {
-        return parsed.billingLines
+        const lines = parsed.billingLines
           .filter(
             (line): line is BillingLineItem =>
             typeof line === "object" &&
@@ -185,6 +197,23 @@ const parseBillingLines = (order: OrderRow) => {
             Number.isFinite(Number(line.amount))
           )
           .map(normalizeLine);
+        const productSubtotal = sumOrderItemLineTotals(order.order_items_json);
+        if (productSubtotal !== null) {
+          const delivery = lines
+            .filter((line) => line.key === "delivery")
+            .reduce((sum, line) => sum + safeNumber(line.amount, 0), 0);
+          const igst = lines
+            .filter((line) => line.key === "igst" || line.key === "shippingIgst")
+            .reduce((sum, line) => sum + safeNumber(line.amount, 0), 0);
+          const total = safeNumber(order.total_amount, safeNumber(parsed.totalAmount, 0));
+          const displayedDiscount = Number((productSubtotal + delivery + igst - total).toFixed(2));
+          return lines.map((line) => {
+            if (line.key === "subtotal") return { ...line, amount: productSubtotal };
+            if (line.key === "discount") return { ...line, amount: displayedDiscount };
+            return line;
+          });
+        }
+        return lines;
       }
     } catch {
       // Fall back to legacy columns below.

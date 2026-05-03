@@ -73,12 +73,24 @@ function parseItems(value?: string | null) {
   }
 }
 
+function sumOrderItemLineTotals(value?: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Array<{ lineTotal?: number }>;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    const total = parsed.reduce((sum, item) => sum + Number(item.lineTotal ?? 0), 0);
+    return Number.isFinite(total) ? Number(total.toFixed(2)) : null;
+  } catch {
+    return null;
+  }
+}
+
 function parseBillingLines(order: SalesOrderDetail) {
   if (order.billing_breakdown_json) {
     try {
       const parsed = JSON.parse(order.billing_breakdown_json) as Partial<PricingBreakdown>;
       if (Array.isArray(parsed.billingLines) && parsed.billingLines.length > 0) {
-        return parsed.billingLines
+        const lines = parsed.billingLines
           .filter(
             (line): line is BillingLineItem =>
               typeof line === "object" &&
@@ -93,6 +105,23 @@ function parseBillingLines(order: SalesOrderDetail) {
                 ? { ...line, label: line.label.replace(/shipping\s+/i, "") }
                 : line
           );
+        const productSubtotal = sumOrderItemLineTotals(order.order_items_json);
+        if (productSubtotal !== null) {
+          const delivery = lines
+            .filter((line) => line.key === "delivery")
+            .reduce((sum, line) => sum + Number(line.amount), 0);
+          const igst = lines
+            .filter((line) => line.key === "igst" || line.key === "shippingIgst")
+            .reduce((sum, line) => sum + Number(line.amount), 0);
+          const total = Number(order.total_amount ?? parsed.totalAmount ?? 0);
+          const displayedDiscount = Number((productSubtotal + delivery + igst - total).toFixed(2));
+          return lines.map((line) => {
+            if (line.key === "subtotal") return { ...line, amount: productSubtotal };
+            if (line.key === "discount") return { ...line, amount: displayedDiscount };
+            return line;
+          });
+        }
+        return lines;
       }
     } catch {
       // Fall back to legacy columns below.
