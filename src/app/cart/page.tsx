@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  type AdminSettings,
+} from "@/lib/admin-settings";
 import {
   getCartItemKey,
   getCartStorageSnapshot,
@@ -16,16 +20,33 @@ import {
   subscribeCart,
   type CartItem,
 } from "@/lib/cart";
+import { computePricing } from "@/lib/pricing";
 import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
 
 export default function CartPage() {
   const { productById } = useProducts();
+  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS);
   const cartSnapshot = useSyncExternalStore(subscribeCart, getCartStorageSnapshot, () => "[]");
   const items = useMemo<CartItem[]>(
     () => parseCartStorageSnapshot(cartSnapshot),
     [cartSnapshot]
   );
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/settings", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (active) setSettings((data.settings ?? DEFAULT_ADMIN_SETTINGS) as AdminSettings);
+      })
+      .catch(() => {
+        if (active) setSettings(DEFAULT_ADMIN_SETTINGS);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const detailed = useMemo(() => {
     return items
@@ -45,8 +66,7 @@ export default function CartPage() {
   }, [items, productById]);
 
   const subtotal = detailed.reduce((sum, item) => sum + item.lineTotal, 0);
-  const deliveryFee = subtotal > 0 ? 120 : 0;
-  const total = subtotal + deliveryFee;
+  const pricing = useMemo(() => computePricing(subtotal, 0, settings), [settings, subtotal]);
 
   return (
     <div>
@@ -155,18 +175,27 @@ export default function CartPage() {
             <div className="premium-panel rounded-3xl p-6">
               <h3 className="hero-display text-4xl leading-none">Order total</h3>
               <div className="mt-4 space-y-3 text-sm text-black/70">
-                <div className="flex items-center justify-between">
-                  <span>Subtotal</span>
-                  <span>{formatInr(subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Delivery fee</span>
-                  <span>{formatInr(deliveryFee)}</span>
-                </div>
-                <div className="flex items-center justify-between font-semibold text-black">
-                  <span>Total due now</span>
-                  <span>{formatInr(total)}</span>
-                </div>
+                {pricing.billingLines
+                  .filter((line) => line.key === "total" || Number(line.amount) !== 0)
+                  .map((line) => (
+                    <div
+                      key={line.key}
+                      className={`flex items-center justify-between ${
+                        line.key === "total" ? "font-semibold text-black" : ""
+                      }`}
+                    >
+                      <span>{line.key === "total" ? "Total due now" : line.label}</span>
+                      <span>
+                        {line.kind === "discount" ? "- " : ""}
+                        {formatInr(line.amount)}
+                      </span>
+                    </div>
+                  ))}
+                {pricing.freeDeliveryApplied ? (
+                  <p className="text-xs text-emerald-700">
+                    Delivery charge waived for orders above {formatInr(settings.freeDeliveryThreshold)}.
+                  </p>
+                ) : null}
               </div>
               <div className="mt-6 space-y-3">
                 <Link href="/billing" className="block">

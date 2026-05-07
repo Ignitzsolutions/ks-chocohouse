@@ -340,22 +340,43 @@ export async function PATCH(request: Request) {
       fields.push("hsn_code = ?");
       values.push(String(body.hsnCode ?? "").trim() || null);
     }
-    if (body?.imageSrc !== undefined) {
-      fields.push("image_src = ?");
-      values.push(String(body.imageSrc).trim());
-    }
     if (body?.imageGallery !== undefined) {
       const gallery = Array.isArray(body.imageGallery)
         ? body.imageGallery.map((item: unknown) => String(item).trim()).filter(Boolean)
         : [];
       const primaryImageSrc =
         body?.imageSrc !== undefined ? String(body.imageSrc).trim() : existing.image_src;
+      const submittedGallery = Array.from(new Set(gallery)) as string[];
+      const nextPrimaryImageSrc = submittedGallery.includes(primaryImageSrc)
+        ? primaryImageSrc
+        : submittedGallery[0] ?? primaryImageSrc;
+      const replacementGallery = Array.from(
+        new Set([nextPrimaryImageSrc, ...submittedGallery].filter(Boolean))
+      ) as string[];
+      if (replacementGallery.length === 0) {
+        return NextResponse.json(
+          { error: "At least one product image is required" },
+          { status: 400 }
+        );
+      }
+      fields.push("image_src = ?");
+      values.push(replacementGallery[0]);
+      fields.push("image_gallery_json = ?");
+      values.push(JSON.stringify(replacementGallery));
+    } else if (body?.imageSrc !== undefined) {
+      const primaryImageSrc = String(body.imageSrc).trim();
+      if (!primaryImageSrc) {
+        return NextResponse.json(
+          { error: "At least one product image is required" },
+          { status: 400 }
+        );
+      }
       const existingGallery = parseImageGallery(existing.image_gallery_json, existing.image_src);
+      fields.push("image_src = ?");
+      values.push(primaryImageSrc);
       fields.push("image_gallery_json = ?");
       values.push(
-        JSON.stringify(
-          Array.from(new Set([primaryImageSrc, ...gallery, ...existingGallery].filter(Boolean)))
-        )
+        JSON.stringify(Array.from(new Set([primaryImageSrc, ...existingGallery].filter(Boolean))))
       );
     }
     if (body?.basePricePerKgInr !== undefined) {
