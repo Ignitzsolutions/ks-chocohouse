@@ -493,6 +493,8 @@ export function initDb() {
         shipping_igst_enabled INTEGER NOT NULL DEFAULT 0,
         shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18,
         shipping_igst_amount INTEGER NOT NULL DEFAULT 0,
+        splash_enabled INTEGER NOT NULL DEFAULT 0,
+        splash_image_src TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )`
@@ -522,6 +524,8 @@ export function initDb() {
     "ALTER TABLE admin_settings ADD COLUMN shipping_igst_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE admin_settings ADD COLUMN shipping_igst_rate_percent INTEGER NOT NULL DEFAULT 18",
     "ALTER TABLE admin_settings ADD COLUMN shipping_igst_amount INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE admin_settings ADD COLUMN splash_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE admin_settings ADD COLUMN splash_image_src TEXT NOT NULL DEFAULT ''",
   ]) {
     try {
       instance.prepare(statement).run();

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { HeroFloatingCarousel } from "@/components/hero-floating-carousel";
+import { HomepageSplash } from "@/components/homepage-splash";
 import { HomeCategoriesGrid } from "@/components/home-categories-grid";
 import { ReviewsMarquee } from "@/components/reviews-marquee";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -122,6 +123,7 @@ export default function Home() {
 
   return (
     <div>
+      <HomepageSplash />
       <JsonLd data={structuredData} />
       <SiteHeader />
       <section className="py-6">

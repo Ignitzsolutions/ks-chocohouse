@@ -22,6 +22,8 @@ export type AdminSettings = {
   shippingIgstEnabled: boolean;
   shippingIgstRatePercent: number;
   shippingIgstAmount: number;
+  splashEnabled: boolean;
+  splashImageSrc: string;
   updatedAt?: string | null;
 };
 
@@ -40,6 +42,8 @@ type AdminSettingsRow = {
   shipping_igst_enabled?: number;
   shipping_igst_rate_percent?: number;
   shipping_igst_amount?: number;
+  splash_enabled?: number;
+  splash_image_src?: string | null;
   updated_at: string | null;
 };
 
@@ -57,6 +61,8 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   shippingIgstEnabled: false,
   shippingIgstRatePercent: 0,
   shippingIgstAmount: DEFAULT_IGST_AMOUNT,
+  splashEnabled: false,
+  splashImageSrc: "",
   updatedAt: null,
 };
 
@@ -105,6 +111,8 @@ export function normalizeAdminSettings(value: Partial<AdminSettings> | null | un
       value?.shippingIgstAmount,
       DEFAULT_ADMIN_SETTINGS.shippingIgstAmount
     ),
+    splashEnabled: value?.splashEnabled ?? DEFAULT_ADMIN_SETTINGS.splashEnabled,
+    splashImageSrc: String(value?.splashImageSrc ?? DEFAULT_ADMIN_SETTINGS.splashImageSrc).trim(),
     updatedAt: value?.updatedAt ?? null,
   };
 }
@@ -127,6 +135,8 @@ export function mapAdminSettingsRow(row: AdminSettingsRow | undefined): AdminSet
     shippingIgstEnabled: row.shipping_igst_enabled === undefined ? false : Number(row.shipping_igst_enabled ?? 0) === 1,
     shippingIgstRatePercent: Number(row.shipping_igst_rate_percent ?? 0),
     shippingIgstAmount: Number(row.shipping_igst_amount ?? DEFAULT_IGST_AMOUNT),
+    splashEnabled: row.splash_enabled === undefined ? false : Number(row.splash_enabled ?? 0) === 1,
+    splashImageSrc: row.splash_image_src ?? "",
     updatedAt: row.updated_at ?? null,
   });
 }
@@ -137,7 +147,7 @@ export function getAdminSettings(db: Database.Database) {
       `SELECT id, discount_enabled, gst_enabled, gst_rate_percent, cgst_enabled, cgst_rate_percent,
               sgst_enabled, sgst_rate_percent, delivery_fee_enabled, delivery_fee_amount,
               free_delivery_threshold, shipping_igst_enabled, shipping_igst_rate_percent,
-              shipping_igst_amount, updated_at
+              shipping_igst_amount, splash_enabled, splash_image_src, updated_at
        FROM admin_settings
        WHERE id = ?
        LIMIT 1`

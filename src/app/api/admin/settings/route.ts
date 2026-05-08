@@ -41,6 +41,8 @@ export async function PATCH(request: Request) {
       shippingIgstEnabled: body?.shippingIgstEnabled,
       shippingIgstRatePercent: body?.shippingIgstRatePercent,
       shippingIgstAmount: body?.shippingIgstAmount,
+      splashEnabled: body?.splashEnabled,
+      splashImageSrc: body?.splashImageSrc,
     });
     const now = new Date().toISOString();
 
@@ -60,6 +62,8 @@ export async function PATCH(request: Request) {
              shipping_igst_enabled = @shipping_igst_enabled,
              shipping_igst_rate_percent = @shipping_igst_rate_percent,
              shipping_igst_amount = @shipping_igst_amount,
+             splash_enabled = @splash_enabled,
+             splash_image_src = @splash_image_src,
              updated_at = @updated_at
          WHERE id = @id`
       )
@@ -78,6 +82,8 @@ export async function PATCH(request: Request) {
         shipping_igst_enabled: nextSettings.shippingIgstEnabled ? 1 : 0,
         shipping_igst_rate_percent: nextSettings.shippingIgstRatePercent,
         shipping_igst_amount: nextSettings.shippingIgstAmount,
+        splash_enabled: nextSettings.splashEnabled ? 1 : 0,
+        splash_image_src: nextSettings.splashImageSrc,
         updated_at: now,
       });
 
