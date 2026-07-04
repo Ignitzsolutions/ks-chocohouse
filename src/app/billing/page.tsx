@@ -206,7 +206,8 @@ export default function BillingPage() {
 
   const baseInputClass =
     "mt-2 w-full rounded-2xl border bg-[color:var(--cream)] px-4 py-3 text-sm transition focus:outline-none focus:ring-2";
-  const invalidRing = "border-red-500 ring-2 ring-red-200 focus:border-red-500 focus:ring-red-300";
+  const invalidRing =
+    "!border-red-500 !bg-red-50 !shadow-[0_0_0_3px_rgba(239,68,68,0.25)] focus:!border-red-500 focus:!shadow-[0_0_0_3px_rgba(239,68,68,0.35)]";
   const validRing = "border-black/10 focus:border-black/30 focus:ring-black/10";
   const inputClass = (isInvalid: boolean) =>
     `${baseInputClass} ${submitAttempted && isInvalid ? invalidRing : validRing}`;
