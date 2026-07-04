@@ -18,6 +18,7 @@ import {
   type ProductCategory,
 } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
+import { ProductImage } from "@/components/ui/product-image";
 
 function categoryId(category: string) {
   return `cat-${category.toLowerCase().replace(/\s+/g, "-")}`;
@@ -459,12 +460,12 @@ export default function MenuPage() {
         className="flex h-full cursor-pointer flex-col overflow-hidden border border-[#e3d8d2] bg-white"
       >
         <div className="group relative aspect-[4/3] overflow-hidden bg-[color:var(--cream)]">
-          <img
+          <ProductImage
             src={item.imageSrc}
             alt={item.name}
             className="h-full w-full object-cover"
             loading="eager"
-            decoding="async"
+            spinnerSize={56}
           />
         </div>
 
