@@ -134,6 +134,7 @@ export default function MenuPage() {
     // (images included) or a 3s cap elapses, whichever comes first.
     if (typeof window === "undefined") return;
     if (document.readyState === "complete") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPageReady(true);
       return;
     }
