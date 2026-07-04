@@ -23,17 +23,6 @@ function toNullableInt(value: unknown) {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
 }
 
-function toNullableText(value: unknown) {
-  const raw = String(value ?? "").trim();
-  return raw || null;
-}
-
-/**
- * Normalize an optional date/datetime string to a full ISO 8601 UTC string.
- * Accepts values from HTML datetime-local inputs, plain ISO strings, and
- * date-only strings. Throws if the value is provided but unparseable so the
- * admin sees a real error instead of silently storing broken data.
- */
 function toNullableIsoDate(value: unknown, fieldLabel: string) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
