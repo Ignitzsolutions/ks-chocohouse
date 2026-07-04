@@ -463,8 +463,8 @@ export default function MenuPage() {
           <ProductImage
             src={item.imageSrc}
             alt={item.name}
-            className="h-full w-full object-cover"
-            loading="eager"
+            className="object-cover"
+            priority
             spinnerSize={56}
           />
         </div>
