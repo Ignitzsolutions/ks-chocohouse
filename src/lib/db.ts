@@ -612,6 +612,22 @@ export function initDb() {
       `CREATE INDEX IF NOT EXISTS idx_orders_parent_order ON orders(parent_order_id)`
     )
     .run();
+  // Partial unique index to prevent duplicate online orders on the same
+  // payment reference (double-click / retry race). Scoped so offline orders
+  // and null references are unaffected.
+  try {
+    instance
+      .prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_online_payment_reference
+         ON orders(payment_reference)
+         WHERE source = 'online' AND payment_reference IS NOT NULL AND payment_reference <> ''`
+      )
+      .run();
+  } catch {
+    // Pre-existing duplicates would block index creation; leave a soft-fail
+    // so migrations don't break older DBs. The check-then-insert guard in
+    // /api/orders/submit still protects the common path.
+  }
   instance
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_order_events_order_created ON order_events(order_id, created_at)`

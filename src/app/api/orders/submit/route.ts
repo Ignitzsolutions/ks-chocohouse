@@ -5,7 +5,7 @@ import { generateOrderId } from "@/lib/order-id";
 import { recordOrderEvent } from "@/lib/admin-sales";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
-import { getProductPriceForOption } from "@/lib/products";
+import { getDisplaySizeOptions, getProductPriceForOption } from "@/lib/products";
 import { getProductsByIds } from "@/lib/product-store";
 import { jsonError } from "@/lib/api-response";
 import { enforceAllowedOrigin, enforceRateLimit } from "@/lib/request-guard";
@@ -176,6 +176,43 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate every sizeLabel against the product's allowed options so a
+    // client cannot forge a tiny size (e.g. "0.001 kg") to bypass pricing.
+    // - kg products MUST have a sizeLabel drawn from the allowed list.
+    // - pcs products may omit sizeLabel; if provided it must match the list.
+    const invalidSize: { id: string; sizeLabel: string }[] = [];
+    for (const item of incomingItems) {
+      const product = productById.get(item.id)!;
+      const allowedOptions = getDisplaySizeOptions(product);
+      const normalizedAllowed = allowedOptions.map((label) =>
+        label.trim().toLowerCase()
+      );
+      const providedLabel = String(item.sizeLabel ?? "").trim();
+
+      if (product.pricingMode === "kg") {
+        if (!providedLabel) {
+          invalidSize.push({ id: item.id, sizeLabel: "" });
+          continue;
+        }
+        if (!normalizedAllowed.includes(providedLabel.toLowerCase())) {
+          invalidSize.push({ id: item.id, sizeLabel: providedLabel });
+        }
+      } else if (providedLabel && normalizedAllowed.length > 0) {
+        if (!normalizedAllowed.includes(providedLabel.toLowerCase())) {
+          invalidSize.push({ id: item.id, sizeLabel: providedLabel });
+        }
+      }
+    }
+    if (invalidSize.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Selected size is not available for one or more items",
+          invalidSizeItems: invalidSize,
+        },
+        { status: 400 }
+      );
+    }
+
     const snapshottedItems: SnapshotItem[] = incomingItems.map((item) => {
       const product = productById.get(item.id)!;
       const unitPrice = getProductPriceForOption(product, item.sizeLabel);
@@ -262,8 +299,9 @@ export async function POST(request: Request) {
         ? snapshottedItems[0].name
         : "Mixed Order";
 
-    db.transaction(() => {
-      db.prepare(
+    try {
+      db.transaction(() => {
+        db.prepare(
         `INSERT INTO orders
           (id, cake_name, quantity, customer_name, phone, email, address, pincode, delivery_date, delivery_slot, cake_message, order_items_json, category_summary, buyer_gst_json, source, payment_method, payment_reference, payment_status, txn_id, invoice_number, invoice_ready, paid_at, subtotal_amount, delivery_fee_amount, discount_amount, gst_enabled, gst_rate_percent, gst_amount, billing_breakdown_json, coupon_code, coupon_snapshot_json, total_amount, order_kind, lifecycle_state, parent_order_id, voided_at, voided_by, void_reason, status, created_at, updated_at, status_updated_at, payment_updated_at)
           VALUES (@id, @cake_name, @quantity, @customer_name, @phone, @email, @address, @pincode, @delivery_date, @delivery_slot, @cake_message, @order_items_json, @category_summary, @buyer_gst_json, @source, @payment_method, @payment_reference, @payment_status, @txn_id, @invoice_number, @invoice_ready, @paid_at, @subtotal_amount, @delivery_fee_amount, @discount_amount, @gst_enabled, @gst_rate_percent, @gst_amount, @billing_breakdown_json, @coupon_code, @coupon_snapshot_json, @total_amount, @order_kind, @lifecycle_state, @parent_order_id, @voided_at, @voided_by, @void_reason, @status, @created_at, @updated_at, @status_updated_at, @payment_updated_at)`
@@ -319,6 +357,32 @@ export async function POST(request: Request) {
         incrementCouponUsage(db, couponValidation.coupon.code);
       }
     })();
+    } catch (insertError) {
+      // Race: a concurrent request inserted the same payment_reference between
+      // our SELECT above and this INSERT. The partial unique index on
+      // orders(payment_reference) fires SQLITE_CONSTRAINT_UNIQUE — return the
+      // existing order so the customer sees success exactly once.
+      const message = String((insertError as { message?: string })?.message ?? "");
+      if (message.includes("UNIQUE") && message.includes("payment_reference")) {
+        const winner = db
+          .prepare(
+            `SELECT id FROM orders
+             WHERE payment_reference = ? AND source = 'online'
+             ORDER BY created_at DESC LIMIT 1`
+          )
+          .get(normalizedReference) as { id: string } | undefined;
+        if (winner) {
+          return NextResponse.json({
+            ok: true,
+            orderId: winner.id,
+            pricing,
+            duplicate: true,
+            message: "This payment reference was already submitted",
+          });
+        }
+      }
+      throw insertError;
+    }
 
     recordOrderEvent({
       orderId,
