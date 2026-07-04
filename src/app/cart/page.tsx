@@ -5,6 +5,7 @@ import { useEffect, useMemo, useSyncExternalStore, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Badge } from "@/components/ui/badge";
+import { BrandSpinner } from "@/components/ui/brand-spinner";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_ADMIN_SETTINGS,
@@ -119,7 +120,13 @@ export default function CartPage() {
           <div className="space-y-6">
             {rows.length === 0 && (
               <div className="premium-panel rounded-3xl p-6 text-sm text-black/60">
-                {lookupLoading ? "Loading your cart..." : "Your cart is empty."}
+                {lookupLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <BrandSpinner size={64} label="Loading your cart" />
+                  </div>
+                ) : (
+                  "Your cart is empty."
+                )}
               </div>
             )}
 
