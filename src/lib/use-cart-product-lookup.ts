@@ -17,11 +17,13 @@ export function useCartProductLookup(ids: string[]) {
   useEffect(() => {
     const uniqueIds = idsKey ? idsKey.split(",") : [];
     if (uniqueIds.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProductById(new Map());
       return;
     }
 
     let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 
     fetch("/api/products/lookup", {
