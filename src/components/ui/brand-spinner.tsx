@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { BRAND_LOGO_PATH } from "@/lib/brand";
 
 type BrandSpinnerProps = {
@@ -18,6 +19,7 @@ export function BrandSpinner({
   label,
   className = "",
 }: BrandSpinnerProps) {
+  const logoSize = Math.round(size * 0.72);
   return (
     <div
       role="status"
@@ -34,12 +36,15 @@ export function BrandSpinner({
           className="absolute inset-0 rounded-full border-2 border-[#4a1f1f]/15 border-t-[#4a1f1f] animate-spin"
           style={{ animationDuration: "1.1s" }}
         />
-        <img
+        <Image
           src={BRAND_LOGO_PATH}
           alt=""
           aria-hidden="true"
+          width={logoSize}
+          height={logoSize}
+          priority
+          unoptimized
           className="rounded-full bg-white object-contain p-1 shadow-sm ks-brand-spin"
-          style={{ width: size * 0.72, height: size * 0.72 }}
         />
       </div>
       {label && (
@@ -79,3 +84,4 @@ export function BrandSectionLoader({ label = "Loading" }: { label?: string }) {
     </div>
   );
 }
+

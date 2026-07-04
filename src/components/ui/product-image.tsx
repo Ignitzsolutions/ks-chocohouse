@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { BrandSpinner } from "./brand-spinner";
 
@@ -7,21 +8,26 @@ type ProductImageProps = {
   src: string;
   alt: string;
   className?: string;
-  loading?: "eager" | "lazy";
+  priority?: boolean;
   spinnerSize?: number;
+  sizes?: string;
 };
 
 /**
- * <img> wrapper that shows a centered rotating logo spinner behind the
- * image until it has finished loading. Prevents the empty-cream box the
- * customer sees on slow connections while product photos stream in.
+ * next/image wrapper that shows a centered rotating logo spinner behind
+ * the image until it has finished loading. Prevents the empty-cream box
+ * the customer sees on slow connections while product photos stream in.
+ *
+ * Must be rendered inside a parent with `position: relative` because it
+ * uses `fill` under the hood.
  */
 export function ProductImage({
   src,
   alt,
   className = "",
-  loading = "lazy",
+  priority = false,
   spinnerSize = 56,
+  sizes = "(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw",
 }: ProductImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -33,14 +39,16 @@ export function ProductImage({
           <BrandSpinner size={spinnerSize} />
         </div>
       )}
-      <img
+      <Image
         src={src}
         alt={alt}
+        fill
+        sizes={sizes}
+        priority={priority}
+        unoptimized
         className={`${className} transition-opacity duration-300 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
-        loading={loading}
-        decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => {
           setErrored(true);
@@ -50,3 +58,4 @@ export function ProductImage({
     </>
   );
 }
+
