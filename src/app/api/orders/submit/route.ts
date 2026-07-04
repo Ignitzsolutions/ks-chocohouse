@@ -5,14 +5,23 @@ import { generateOrderId } from "@/lib/order-id";
 import { recordOrderEvent } from "@/lib/admin-sales";
 import { getCouponByCode, incrementCouponUsage, validateCouponCode } from "@/lib/coupons";
 import { computePricing, normalizeBuyerGst, normalizeCouponCode } from "@/lib/pricing";
+import { getProductPriceForOption } from "@/lib/products";
+import { getProductsByIds } from "@/lib/product-store";
 import { jsonError } from "@/lib/api-response";
 import { enforceAllowedOrigin, enforceRateLimit } from "@/lib/request-guard";
 
-type NormalizedOrderItem = {
+type IncomingItem = {
+  id: string;
+  qty: number;
+  sizeLabel?: string;
+  customizationNote?: string;
+};
+
+type SnapshotItem = {
   id: string;
   name: string;
   category: string;
-  hsnCode?: string;
+  hsnCode: string;
   qty: number;
   sizeLabel?: string;
   customizationNote?: string;
@@ -21,6 +30,33 @@ type NormalizedOrderItem = {
 };
 
 const VALID_PAYMENT_METHODS = new Set(["UPI QR", "UPI Transfer", "Bank Transfer"]);
+const MAX_DELIVERY_LEAD_DAYS = 90;
+const MAX_QTY_PER_LINE = 100;
+const MAX_TOTAL_QTY = 500;
+
+function todayIsoDate() {
+  // Compare in local server date (assumes deploy TZ matches business TZ — Asia/Kolkata typical).
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isValidDateString(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(parsed.getTime());
+}
+
+function addDaysIso(baseIso: string, days: number) {
+  const base = new Date(`${baseIso}T00:00:00`);
+  base.setDate(base.getDate() + days);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -53,63 +89,123 @@ export async function POST(request: Request) {
       );
     }
 
-    const normalizedItems: NormalizedOrderItem[] = Array.isArray(orderDetails?.items)
+    const incomingItems: IncomingItem[] = Array.isArray(orderDetails?.items)
       ? orderDetails.items
           .map((item: Record<string, unknown>) => ({
-            id: String(item.id ?? ""),
-            name: String(item.name ?? ""),
-            category: String(item.category ?? ""),
-            hsnCode: String(item.hsnCode ?? "").trim() || undefined,
-            qty: Number(item.qty ?? 0),
+            id: String(item.id ?? "").trim(),
+            qty: Math.floor(Number(item.qty ?? 0)),
             sizeLabel: String(item.sizeLabel ?? "").trim() || undefined,
-            customizationNote: String(item.customizationNote ?? "").trim() || undefined,
-            unitPrice: Number(item.unitPrice ?? 0),
-            lineTotal: Number(item.lineTotal ?? 0),
+            customizationNote:
+              String(item.customizationNote ?? "").trim() || undefined,
           }))
-          .filter((item: NormalizedOrderItem) => item.id && item.name && item.qty > 0)
+          .filter((item: IncomingItem) => item.id && item.qty > 0)
       : [];
 
-    if (normalizedItems.length === 0) {
+    if (incomingItems.length === 0) {
       return NextResponse.json(
         { error: "At least one item is required" },
         { status: 400 }
       );
     }
 
-    const subtotalAmount = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const normalizedBuyerGst = normalizeBuyerGst(buyerGst);
+    for (const item of incomingItems) {
+      if (item.qty > MAX_QTY_PER_LINE) {
+        return NextResponse.json(
+          { error: `Quantity per item cannot exceed ${MAX_QTY_PER_LINE}` },
+          { status: 400 }
+        );
+      }
+    }
+    const totalQty = incomingItems.reduce((sum, item) => sum + item.qty, 0);
+    if (totalQty > MAX_TOTAL_QTY) {
+      return NextResponse.json(
+        { error: `Total quantity cannot exceed ${MAX_TOTAL_QTY}` },
+        { status: 400 }
+      );
+    }
+
+    const deliveryDate = String(orderDetails?.delivery_date ?? "").trim();
+    if (!deliveryDate || !isValidDateString(deliveryDate)) {
+      return NextResponse.json(
+        { error: "A valid delivery date is required" },
+        { status: 400 }
+      );
+    }
+    const today = todayIsoDate();
+    if (deliveryDate < today) {
+      return NextResponse.json(
+        { error: "Delivery date cannot be in the past" },
+        { status: 400 }
+      );
+    }
+    const maxDeliveryDate = addDaysIso(today, MAX_DELIVERY_LEAD_DAYS);
+    if (deliveryDate > maxDeliveryDate) {
+      return NextResponse.json(
+        {
+          error: `Delivery date cannot be more than ${MAX_DELIVERY_LEAD_DAYS} days out`,
+        },
+        { status: 400 }
+      );
+    }
 
     initDb();
     const db = getDb();
     const settings = getAdminSettings(db);
-    const hsnRows =
-      normalizedItems.length > 0
-        ? db
-            .prepare(
-              `SELECT id, hsn_code
-               FROM products
-               WHERE id IN (${normalizedItems.map(() => "?").join(", ")})`
-            )
-            .all(...normalizedItems.map((item) => item.id)) as Array<{ id: string; hsn_code: string | null }>
-        : [];
-    const hsnByProductId = new Map(
-      hsnRows.map((row) => [row.id, String(row.hsn_code ?? "").trim()])
-    );
-    const snapshottedItems = normalizedItems.map((item) => ({
-      ...item,
-      hsnCode: hsnByProductId.get(item.id) || "",
-    }));
 
-    if (orderDetails?.delivery_date) {
-      const blocked = db
-        .prepare("SELECT date FROM blackout_dates WHERE date = ?")
-        .get(orderDetails.delivery_date);
-      if (blocked) {
-        return NextResponse.json(
-          { error: "Selected date is blocked for orders" },
-          { status: 400 }
-        );
-      }
+    // Re-fetch every product from the DB, INCLUDING unavailable ones.
+    // We recompute prices server-side and reject unavailable/missing items —
+    // never trust the client-provided unitPrice or lineTotal.
+    const products = getProductsByIds(incomingItems.map((item) => item.id));
+    const productById = new Map(products.map((product) => [product.id, product]));
+
+    const missing: string[] = [];
+    const unavailable: string[] = [];
+    for (const item of incomingItems) {
+      const product = productById.get(item.id);
+      if (!product) missing.push(item.id);
+      else if (!product.available) unavailable.push(item.id);
+    }
+    if (missing.length > 0 || unavailable.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Some items are no longer available",
+          missingProductIds: missing,
+          unavailableProductIds: unavailable,
+        },
+        { status: 409 }
+      );
+    }
+
+    const snapshottedItems: SnapshotItem[] = incomingItems.map((item) => {
+      const product = productById.get(item.id)!;
+      const unitPrice = getProductPriceForOption(product, item.sizeLabel);
+      const lineTotal = Number((unitPrice * item.qty).toFixed(2));
+      return {
+        id: product.id,
+        name: item.sizeLabel ? `${product.name} (${item.sizeLabel})` : product.name,
+        category: product.category,
+        hsnCode: product.hsnCode ?? "",
+        qty: item.qty,
+        sizeLabel: item.sizeLabel,
+        customizationNote: item.customizationNote,
+        unitPrice,
+        lineTotal,
+      };
+    });
+
+    const subtotalAmount = Number(
+      snapshottedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2)
+    );
+    const normalizedBuyerGst = normalizeBuyerGst(buyerGst);
+
+    const blocked = db
+      .prepare("SELECT date FROM blackout_dates WHERE date = ?")
+      .get(deliveryDate);
+    if (blocked) {
+      return NextResponse.json(
+        { error: "Selected date is blocked for orders" },
+        { status: 400 }
+      );
     }
 
     const normalizedCoupon = normalizeCouponCode(couponCode);
@@ -129,19 +225,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payable amount" }, { status: 400 });
     }
 
+    // Dedup guard: if the same payment reference was submitted for an online
+    // order in the last hour, return the existing order instead of creating a
+    // duplicate. Protects against double-click / retry / stale-tab resubmits.
+    const existingOrder = db
+      .prepare(
+        `SELECT id, total_amount, status
+         FROM orders
+         WHERE payment_reference = ?
+           AND source = 'online'
+           AND created_at > datetime('now', '-1 hour')
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(normalizedReference) as
+      | { id: string; total_amount: number; status: string }
+      | undefined;
+    if (existingOrder) {
+      return NextResponse.json({
+        ok: true,
+        orderId: existingOrder.id,
+        pricing,
+        duplicate: true,
+        message: "This payment reference was already submitted",
+      });
+    }
+
     const orderId = generateOrderId("WEB");
     const now = new Date().toISOString();
-    const categorySummary =
-      orderDetails?.categorySummary ??
-      Array.from(
-        new Set(snapshottedItems.map((item) => item.category).filter(Boolean))
-      ).join(", ");
-    const quantity =
-      orderDetails?.quantity ??
-      snapshottedItems.reduce((sum, item) => sum + item.qty, 0);
+    const categorySummary = Array.from(
+      new Set(snapshottedItems.map((item) => item.category).filter(Boolean))
+    ).join(", ");
+    const quantity = totalQty || 1;
     const cakeName =
-      orderDetails?.cake_name ??
-      (normalizedItems.length === 1 ? normalizedItems[0].name : "Mixed Order");
+      snapshottedItems.length === 1
+        ? snapshottedItems[0].name
+        : "Mixed Order";
 
     db.transaction(() => {
       db.prepare(
@@ -151,13 +270,13 @@ export async function POST(request: Request) {
       ).run({
         id: orderId,
         cake_name: cakeName,
-        quantity: quantity || 1,
+        quantity,
         customer_name: String(orderDetails?.customer_name ?? "Customer").trim() || "Customer",
         phone: String(orderDetails?.phone ?? "").trim(),
         email: String(orderDetails?.email ?? "").trim(),
         address: String(orderDetails?.address ?? "").trim(),
         pincode: String(orderDetails?.pincode ?? "").trim(),
-        delivery_date: String(orderDetails?.delivery_date ?? "").trim(),
+        delivery_date: deliveryDate,
         delivery_slot: String(orderDetails?.delivery_slot ?? "").trim(),
         cake_message: String(orderDetails?.cake_message ?? "").trimEnd(),
         order_items_json: JSON.stringify(snapshottedItems),

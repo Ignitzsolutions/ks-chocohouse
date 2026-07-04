@@ -28,6 +28,22 @@ function toNullableText(value: unknown) {
   return raw || null;
 }
 
+/**
+ * Normalize an optional date/datetime string to a full ISO 8601 UTC string.
+ * Accepts values from HTML datetime-local inputs, plain ISO strings, and
+ * date-only strings. Throws if the value is provided but unparseable so the
+ * admin sees a real error instead of silently storing broken data.
+ */
+function toNullableIsoDate(value: unknown, fieldLabel: string) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldLabel} is not a valid date`);
+  }
+  return parsed.toISOString();
+}
+
 export async function GET() {
   try {
     const unauthorized = await requireAdminApi();
@@ -65,6 +81,21 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
+    let startsAtIso: string | null;
+    let expiresAtIso: string | null;
+    try {
+      startsAtIso = toNullableIsoDate(body?.startsAt, "Starts At");
+      expiresAtIso = toNullableIsoDate(body?.expiresAt, "Expires At");
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+    }
+    if (startsAtIso && expiresAtIso && new Date(startsAtIso) >= new Date(expiresAtIso)) {
+      return NextResponse.json(
+        { error: "Expires At must be after Starts At" },
+        { status: 400 }
+      );
+    }
+
     getDb()
       .prepare(
         `INSERT INTO coupons
@@ -80,8 +111,8 @@ export async function POST(request: Request) {
         discount_value: discountValue,
         min_order_amount: Math.max(0, toMoney(body?.minOrderAmount, 0)),
         max_discount_amount: toNullableMoney(body?.maxDiscountAmount),
-        starts_at: toNullableText(body?.startsAt),
-        expires_at: toNullableText(body?.expiresAt),
+        starts_at: startsAtIso,
+        expires_at: expiresAtIso,
         usage_limit: toNullableInt(body?.usageLimit),
         active: body?.active === false ? 0 : 1,
         created_at: now,
@@ -133,11 +164,19 @@ export async function PATCH(request: Request) {
     }
     if (body?.startsAt !== undefined) {
       updates.push("starts_at = @starts_at");
-      params.starts_at = toNullableText(body.startsAt);
+      try {
+        params.starts_at = toNullableIsoDate(body.startsAt, "Starts At");
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+      }
     }
     if (body?.expiresAt !== undefined) {
       updates.push("expires_at = @expires_at");
-      params.expires_at = toNullableText(body.expiresAt);
+      try {
+        params.expires_at = toNullableIsoDate(body.expiresAt, "Expires At");
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+      }
     }
     if (body?.usageLimit !== undefined) {
       updates.push("usage_limit = @usage_limit");

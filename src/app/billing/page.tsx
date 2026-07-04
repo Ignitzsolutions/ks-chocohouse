@@ -14,7 +14,7 @@ import {
 import { addItem, clearCart, getCart, type CartItem } from "@/lib/cart";
 import { computePricing } from "@/lib/pricing";
 import { formatInr, getPriceDisplayMeta, getProductOptionLabel } from "@/lib/products";
-import { useProducts } from "@/lib/use-products";
+import { useCartProductLookup } from "@/lib/use-cart-product-lookup";
 
 type DetailedItem = {
   productId: string;
@@ -41,8 +41,9 @@ type AppliedCouponState = {
 } | null;
 
 export default function BillingPage() {
-  const { productById } = useProducts();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const cartIds = useMemo(() => cartItems.map((item) => item.productId), [cartItems]);
+  const { productById } = useCartProductLookup(cartIds);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -66,7 +67,9 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
   const [messageTouched, setMessageTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const successTimer = useRef<number | null>(null);
+  const formTopRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -103,7 +106,7 @@ export default function BillingPage() {
     const rows: DetailedItem[] = [];
     for (const entry of cartItems) {
       const product = productById.get(entry.productId);
-      if (!product) continue;
+      if (!product || !product.available) continue;
       const unitPrice = getPriceDisplayMeta(product, entry.sizeLabel).finalPrice;
       rows.push({
         productId: entry.productId,
@@ -121,6 +124,18 @@ export default function BillingPage() {
     }
     return rows;
   }, [cartItems, productById]);
+
+  const blockedCartItems = useMemo(() => {
+    return cartItems
+      .map((entry) => {
+        const product = productById.get(entry.productId);
+        if (!product) return { entry, status: "missing" as const };
+        if (!product.available) return { entry, status: "unavailable" as const, product };
+        return null;
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [cartItems, productById]);
+  const hasBlockedItems = blockedCartItems.length > 0;
 
   const subtotal = detailed.reduce((sum, item) => sum + item.lineTotal, 0);
   const pricing = useMemo(
@@ -152,10 +167,26 @@ export default function BillingPage() {
   }, [blackouts, deliveryDate]);
 
   const normalizedPaymentRef = paymentReference.trim().toUpperCase();
+  const todayIsoDate = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
+  const maxDeliveryDate = useMemo(() => {
+    const base = new Date(`${todayIsoDate}T00:00:00`);
+    base.setDate(base.getDate() + 90);
+    const year = base.getFullYear();
+    const month = String(base.getMonth() + 1).padStart(2, "0");
+    const day = String(base.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, [todayIsoDate]);
 
   const canSubmit =
     !loading &&
     detailed.length > 0 &&
+    !hasBlockedItems &&
     !blockedInfo &&
     Boolean(name.trim()) &&
     Boolean(phone.trim()) &&
@@ -172,6 +203,18 @@ export default function BillingPage() {
     !deliveryDate.trim() ? "Delivery date" : null,
     normalizedPaymentRef.length < 6 ? "UTR / Reference" : null,
   ].filter(Boolean) as string[];
+
+  const baseInputClass =
+    "mt-2 w-full rounded-2xl border bg-[color:var(--cream)] px-4 py-3 text-sm transition focus:outline-none focus:ring-2";
+  const invalidRing = "border-red-500 ring-2 ring-red-200 focus:border-red-500 focus:ring-red-300";
+  const validRing = "border-black/10 focus:border-black/30 focus:ring-black/10";
+  const inputClass = (isInvalid: boolean) =>
+    `${baseInputClass} ${submitAttempted && isInvalid ? invalidRing : validRing}`;
+  const RequiredMark = () => (
+    <span className="ml-0.5 text-red-600" aria-hidden="true">
+      *
+    </span>
+  );
 
   const handleApplyCoupon = async () => {
     const normalizedCode = couponCode.trim().toUpperCase();
@@ -210,6 +253,12 @@ export default function BillingPage() {
   };
 
   const handleSubmitPayment = async () => {
+    if (!canSubmit) {
+      setSubmitAttempted(true);
+      setError(null);
+      formTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -263,7 +312,24 @@ export default function BillingPage() {
 
       const data = await response.json();
       if (!response.ok) {
+        const unavailable: string[] = Array.isArray(data?.unavailableProductIds)
+          ? data.unavailableProductIds
+          : [];
+        const missing: string[] = Array.isArray(data?.missingProductIds)
+          ? data.missingProductIds
+          : [];
+        if (unavailable.length > 0 || missing.length > 0) {
+          throw new Error(
+            "Some items in your cart are no longer available. Please return to your cart and remove them."
+          );
+        }
         throw new Error(data?.error ?? "Failed to submit order");
+      }
+
+      if (data?.duplicate) {
+        // Server detected this payment reference was already submitted;
+        // treat as success and surface the existing order id.
+        setError(null);
       }
 
       clearCart();
@@ -299,7 +365,29 @@ export default function BillingPage() {
           </p>
         </div>
 
-        {detailed.length === 0 && (
+        {hasBlockedItems && (
+          <div
+            role="alert"
+            className="mt-6 rounded-3xl border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-800"
+          >
+            <p className="font-semibold">
+              {blockedCartItems.length === 1
+                ? "1 item in your cart is no longer available"
+                : `${blockedCartItems.length} items in your cart are no longer available`}
+            </p>
+            <p className="mt-1 text-red-700">
+              Please return to your cart to remove them before you can place this order.
+            </p>
+            <Link
+              href="/cart"
+              className="mt-3 inline-flex rounded-full border border-red-400 bg-white px-4 py-2 text-xs font-semibold text-red-700"
+            >
+              Back to cart
+            </Link>
+          </div>
+        )}
+
+        {detailed.length === 0 && !hasBlockedItems && (
           <div className="premium-panel mt-8 rounded-2xl p-6">
             <p className="text-sm text-black/60">Your cart is empty.</p>
             <Link
@@ -322,23 +410,29 @@ export default function BillingPage() {
                 </p>
               </div>
 
-              <div className="mt-6 grid gap-4">
+              <div ref={formTopRef} className="mt-6 grid gap-4">
                 <label className="text-sm font-semibold text-black/70">
                   Full Name
+                  <RequiredMark />
                   <input
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    className={inputClass(!name.trim())}
                     placeholder="Your name"
+                    aria-required="true"
+                    aria-invalid={submitAttempted && !name.trim()}
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Mobile Number
+                  <RequiredMark />
                   <input
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    className={inputClass(!phone.trim())}
                     placeholder="10-digit mobile"
+                    aria-required="true"
+                    aria-invalid={submitAttempted && !phone.trim()}
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
@@ -347,36 +441,47 @@ export default function BillingPage() {
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    className={inputClass(false)}
                     placeholder="you@example.com"
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Delivery Address
+                  <RequiredMark />
                   <textarea
                     value={address}
                     onChange={(event) => setAddress(event.target.value)}
                     rows={3}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    className={inputClass(!address.trim())}
                     placeholder="Street, city, landmark"
+                    aria-required="true"
+                    aria-invalid={submitAttempted && !address.trim()}
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Pincode
+                  <RequiredMark />
                   <input
                     value={pincode}
                     onChange={(event) => setPincode(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    className={inputClass(!pincode.trim())}
                     placeholder="e.g. 516360"
+                    aria-required="true"
+                    aria-invalid={submitAttempted && !pincode.trim()}
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
                   Delivery Date
+                  <RequiredMark />
                   <input
                     type="date"
                     value={deliveryDate}
                     onChange={(event) => setDeliveryDate(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
+                    min={todayIsoDate}
+                    max={maxDeliveryDate}
+                    className={inputClass(!deliveryDate.trim())}
+                    aria-required="true"
+                    aria-invalid={submitAttempted && !deliveryDate.trim()}
                   />
                 </label>
                 <label className="text-sm font-semibold text-black/70">
@@ -468,12 +573,15 @@ export default function BillingPage() {
 
                 <label className="text-sm font-semibold text-black/70">
                   UTR / Payment Reference Number
+                  <RequiredMark />
                   <input
                     value={paymentReference}
                     onChange={(event) => setPaymentReference(event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm uppercase"
+                    className={`${inputClass(normalizedPaymentRef.length < 6)} uppercase`}
                     placeholder="Enter UTR / reference from payment app"
                     maxLength={40}
+                    aria-required="true"
+                    aria-invalid={submitAttempted && normalizedPaymentRef.length < 6}
                   />
                 </label>
 
@@ -587,13 +695,21 @@ export default function BillingPage() {
               )}
 
               <div className="space-y-2">
-                <Button className="w-full" onClick={handleSubmitPayment} disabled={!canSubmit}>
+                <Button
+                  className="w-full"
+                  onClick={handleSubmitPayment}
+                  disabled={loading || detailed.length === 0 || Boolean(blockedInfo)}
+                >
                   {loading ? "Submitting..." : "Submit Payment Reference"}
                 </Button>
-                {!canSubmit && (
-                  <p className="text-xs text-black/55">
-                    Complete required fields: {missingFields.join(", ")}
-                  </p>
+                {submitAttempted && missingFields.length > 0 && (
+                  <div
+                    role="alert"
+                    className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"
+                  >
+                    <p className="font-semibold">Please fill the required fields:</p>
+                    <p className="mt-1">{missingFields.join(", ")}</p>
+                  </div>
                 )}
               </div>
             </aside>

@@ -78,6 +78,8 @@ export default function AdminOrdersPage() {
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
   const [draftStatus, setDraftStatus] = useState<Record<string, string>>({});
   const [codPhones, setCodPhones] = useState<Record<string, string>>({});
+  const [verifyTarget, setVerifyTarget] = useState<OrderRow | null>(null);
+  const [verifyInput, setVerifyInput] = useState("");
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -331,13 +333,10 @@ export default function AdminOrdersPage() {
                         <div className="space-y-2">
                           <button
                             className="w-full rounded-full bg-[color:var(--berry)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-                            onClick={() =>
-                              updateOrder({
-                                id: order.id,
-                                action: "verify_payment",
-                                adminName: "admin",
-                              })
-                            }
+                            onClick={() => {
+                              setVerifyTarget(order);
+                              setVerifyInput("");
+                            }}
                             disabled={updating[order.id]}
                           >
                             Verify Payment & Accept
@@ -393,6 +392,91 @@ export default function AdminOrdersPage() {
           </div>
         </main>
         <SiteFooter />
+        {verifyTarget && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+            onClick={() => {
+              if (!updating[verifyTarget.id]) {
+                setVerifyTarget(null);
+                setVerifyInput("");
+              }
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 className="text-lg font-semibold">Confirm payment verification</h2>
+              <p className="mt-2 text-sm text-black/70">
+                You are about to mark this order as paid. This action is logged and
+                cannot be silently undone.
+              </p>
+              <dl className="mt-4 space-y-2 rounded-2xl bg-black/5 p-4 text-sm">
+                <div className="flex justify-between">
+                  <dt className="font-semibold text-black/60">Order</dt>
+                  <dd className="font-mono">{verifyTarget.id}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="font-semibold text-black/60">Amount</dt>
+                  <dd className="font-semibold">
+                    {formatRupee(Number(verifyTarget.total_amount))}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="font-semibold text-black/60">Payment ref</dt>
+                  <dd className="break-all font-mono text-right">
+                    {verifyTarget.payment_reference ?? "—"}
+                  </dd>
+                </div>
+              </dl>
+              <label className="mt-4 block text-sm font-semibold text-black/70">
+                Type the last 4 characters of the payment reference to confirm
+                <input
+                  autoFocus
+                  value={verifyInput}
+                  onChange={(event) => setVerifyInput(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-black/15 bg-white px-4 py-2 font-mono text-base uppercase tracking-widest"
+                  maxLength={8}
+                />
+              </label>
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                <button
+                  className="rounded-full border border-black/15 px-4 py-2 text-sm font-semibold"
+                  onClick={() => {
+                    setVerifyTarget(null);
+                    setVerifyInput("");
+                  }}
+                  disabled={updating[verifyTarget.id]}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="rounded-full bg-[color:var(--berry)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  disabled={
+                    updating[verifyTarget.id] ||
+                    !verifyTarget.payment_reference ||
+                    verifyInput.trim().toUpperCase() !==
+                      String(verifyTarget.payment_reference).slice(-4).toUpperCase()
+                  }
+                  onClick={async () => {
+                    const target = verifyTarget;
+                    await updateOrder({
+                      id: target.id,
+                      action: "verify_payment",
+                      adminName: "admin",
+                    });
+                    setVerifyTarget(null);
+                    setVerifyInput("");
+                  }}
+                >
+                  {updating[verifyTarget.id] ? "Verifying…" : "Confirm & Verify"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminGuard>
   );
