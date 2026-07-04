@@ -201,12 +201,37 @@ export function validateCouponForSubtotal(
     return { valid: false, reason: "Coupon is inactive", coupon: null, discountAmount: 0 };
   }
 
-  if (coupon.startsAt && coupon.startsAt > nowIso) {
-    return { valid: false, reason: "Coupon is not active yet", coupon: null, discountAmount: 0 };
+  const nowMs = new Date(nowIso).getTime();
+
+  if (coupon.startsAt) {
+    const startsMs = new Date(coupon.startsAt).getTime();
+    // Malformed dates are rejected as safer default — coupon treated as not-yet-active.
+    if (Number.isNaN(startsMs)) {
+      return {
+        valid: false,
+        reason: "Coupon has invalid start date",
+        coupon: null,
+        discountAmount: 0,
+      };
+    }
+    if (startsMs > nowMs) {
+      return { valid: false, reason: "Coupon is not active yet", coupon: null, discountAmount: 0 };
+    }
   }
 
-  if (coupon.expiresAt && coupon.expiresAt < nowIso) {
-    return { valid: false, reason: "Coupon has expired", coupon: null, discountAmount: 0 };
+  if (coupon.expiresAt) {
+    const expiresMs = new Date(coupon.expiresAt).getTime();
+    if (Number.isNaN(expiresMs)) {
+      return {
+        valid: false,
+        reason: "Coupon has invalid expiry date",
+        coupon: null,
+        discountAmount: 0,
+      };
+    }
+    if (expiresMs < nowMs) {
+      return { valid: false, reason: "Coupon has expired", coupon: null, discountAmount: 0 };
+    }
   }
 
   const minOrderAmount = toMoney(coupon.minOrderAmount);

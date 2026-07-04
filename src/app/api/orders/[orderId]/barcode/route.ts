@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminApiWithRequest } from "@/lib/admin-auth";
 import { jsonError } from "@/lib/api-response";
 import {
   generateOrderBarcodePng,
@@ -36,6 +37,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ orderId: string }> }
 ) {
+  const unauthorized = await requireAdminApiWithRequest(request);
+  if (unauthorized) return unauthorized;
+
   try {
     const { orderId: rawOrderId } = await context.params;
     const orderId = decodeURIComponent(rawOrderId ?? "").trim();

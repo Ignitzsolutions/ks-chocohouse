@@ -128,3 +128,30 @@ export function getAllAvailableProducts() {
     return getFallbackProducts().filter((product) => product.available);
   }
 }
+
+/**
+ * Look up products by id list, INCLUDING unavailable ones.
+ * Use this for order submission and cart lookups where we need to know
+ * whether a previously-added product still exists / is still purchasable.
+ */
+export function getProductsByIds(ids: string[]): Product[] {
+  const uniqueIds = Array.from(new Set(ids.map((id) => String(id ?? "").trim()).filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  try {
+    initDb();
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = getDb()
+      .prepare(
+        `SELECT p.id, p.name, p.description, p.category, p.sub_category, p.sub_category_id, p.pricing_mode, p.price_inr, p.hsn_code, p.base_price_per_kg_inr, p.piece_label, p.image_src, p.image_gallery_json, p.size_options_json, p.flavor_selection_enabled, p.eggless, p.available,
+                (SELECT GROUP_CONCAT(f.name, '||') FROM product_flavors pf JOIN flavors f ON f.id = pf.flavor_id WHERE pf.product_id = p.id) AS flavor_names_csv
+         FROM products p
+         WHERE p.id IN (${placeholders})`
+      )
+      .all(...uniqueIds) as ProductRow[];
+
+    return rows.map(toProduct);
+  } catch {
+    return getFallbackProducts().filter((product) => uniqueIds.includes(product.id));
+  }
+}

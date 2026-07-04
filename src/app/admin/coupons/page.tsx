@@ -47,6 +47,20 @@ const EMPTY_FORM: CouponForm = {
   active: true,
 };
 
+/** Convert a stored ISO string to the value format used by <input type="datetime-local">. */
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const year = parsed.getFullYear();
+  const month = pad(parsed.getMonth() + 1);
+  const day = pad(parsed.getDate());
+  const hours = pad(parsed.getHours());
+  const minutes = pad(parsed.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [form, setForm] = useState<CouponForm>(EMPTY_FORM);
@@ -117,8 +131,8 @@ export default function AdminCouponsPage() {
       discountValue: String(coupon.discount_value),
       minOrderAmount: String(coupon.min_order_amount),
       maxDiscountAmount: coupon.max_discount_amount == null ? "" : String(coupon.max_discount_amount),
-      startsAt: coupon.starts_at ?? "",
-      expiresAt: coupon.expires_at ?? "",
+      startsAt: isoToLocalInput(coupon.starts_at),
+      expiresAt: isoToLocalInput(coupon.expires_at),
       usageLimit: coupon.usage_limit == null ? "" : String(coupon.usage_limit),
       active: coupon.active === 1,
     });
@@ -241,20 +255,26 @@ export default function AdminCouponsPage() {
             <label className="text-sm font-semibold text-black/70">
               Starts At
               <input
+                type="datetime-local"
                 value={form.startsAt}
                 onChange={(event) => setForm((prev) => ({ ...prev, startsAt: event.target.value }))}
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
-                placeholder="Optional ISO timestamp"
               />
+              <span className="mt-1 block text-[11px] font-normal text-black/50">
+                Optional. Leave empty to activate immediately.
+              </span>
             </label>
             <label className="text-sm font-semibold text-black/70">
               Expires At
               <input
+                type="datetime-local"
                 value={form.expiresAt}
                 onChange={(event) => setForm((prev) => ({ ...prev, expiresAt: event.target.value }))}
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-[color:var(--cream)] px-4 py-3 text-sm"
-                placeholder="Optional ISO timestamp"
               />
+              <span className="mt-1 block text-[11px] font-normal text-black/50">
+                Optional. Leave empty for no expiry.
+              </span>
             </label>
             <label className="text-sm font-semibold text-black/70">
               Usage Limit

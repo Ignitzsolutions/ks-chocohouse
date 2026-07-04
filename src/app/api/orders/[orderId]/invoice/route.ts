@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import puppeteer from "puppeteer";
+import { requireAdminApiWithRequest } from "@/lib/admin-auth";
 import { jsonError } from "@/lib/api-response";
 import { generateOrderBarcodePng } from "@/lib/barcode";
 import {
@@ -351,9 +352,12 @@ const readBinaryIfExists = async (relativePath: string) => {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ orderId: string }> }
 ) {
+  const unauthorized = await requireAdminApiWithRequest(request);
+  if (unauthorized) return unauthorized;
+
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
 
   try {
