@@ -18,7 +18,7 @@ import {
   type ProductCategory,
 } from "@/lib/products";
 import { useProducts } from "@/lib/use-products";
-import { ProductImage } from "@/components/ui/product-image";
+import { PageLoader } from "@/components/ui/page-loader";
 
 function categoryId(category: string) {
   return `cat-${category.toLowerCase().replace(/\s+/g, "-")}`;
@@ -123,10 +123,30 @@ function writeMenuState(state: PersistedMenuState) {
 export default function MenuPage() {
   const router = useRouter();
   const fallbackCategories = getCategories();
-  const { products: allProducts } = useProducts();
+  const { products: allProducts, loading: productsLoading } = useProducts();
   const [categories, setCategories] = useState<ProductCategory[]>(fallbackCategories);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const restoredScrollRef = useRef(false);
+  const [pageReady, setPageReady] = useState(false);
+
+  useEffect(() => {
+    // Dismiss the full-page loader when either the window fully loads
+    // (images included) or a 3s cap elapses, whichever comes first.
+    if (typeof window === "undefined") return;
+    if (document.readyState === "complete") {
+      setPageReady(true);
+      return;
+    }
+    const onLoad = () => setPageReady(true);
+    window.addEventListener("load", onLoad);
+    const timeout = window.setTimeout(() => setPageReady(true), 3000);
+    return () => {
+      window.removeEventListener("load", onLoad);
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  const showPageLoader = !pageReady || productsLoading;
 
   const [activeCategory, setActiveCategory] = useState<ProductCategory>(
     fallbackCategories[0] ?? "Chocolates"
@@ -460,12 +480,12 @@ export default function MenuPage() {
         className="flex h-full cursor-pointer flex-col overflow-hidden border border-[#e3d8d2] bg-white"
       >
         <div className="group relative aspect-[4/3] overflow-hidden bg-[color:var(--cream)]">
-          <ProductImage
+          <img
             src={item.imageSrc}
             alt={item.name}
-            className="object-cover"
-            priority
-            spinnerSize={56}
+            className="h-full w-full object-cover"
+            loading="eager"
+            decoding="async"
           />
         </div>
 
@@ -607,6 +627,7 @@ export default function MenuPage() {
 
   return (
     <div>
+      {showPageLoader && <PageLoader label="Loading Menu" />}
       <SiteHeader />
       <main className="mx-auto max-w-[1520px] px-4 py-10 sm:px-6 lg:px-8">
         <section className="pb-6">
